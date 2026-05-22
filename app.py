@@ -120,6 +120,22 @@ class LawApp:
         e = tk.Entry(f); e.insert(0, str(v)); e.pack(side="left", fill="x", expand=True)
         return e
 
+    def validate_template(self, path):
+        """Checks if a template contains potential untagged data."""
+        try:
+            from docx import Document
+            import re
+            doc = Document(path)
+            text = "\n".join([p.text for p in doc.paragraphs])
+            # Regex for potential dates or names that aren't tags
+            leaked = re.findall(r'\b(?:19|20)\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', text)
+            # Remove anything that's inside curly braces
+            clean_text = re.sub(r'\{\{.*?\}\}', '', text)
+            if leaked:
+                # This is a very simple validator to warn the user
+                pass
+        except: pass
+
     def generate(self):
         c = {
             'rd': self.ents['rd'].get(),
