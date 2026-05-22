@@ -2,6 +2,8 @@ import re
 import google.generativeai as genai
 from num2words import num2words
 import json
+import os
+from PIL import Image
 
 class DataExtractor:
     def __init__(self, api_key=None):
@@ -11,70 +13,83 @@ class DataExtractor:
         else:
             self.model = None
 
-    def extract_with_regex(self, text):
-        data = {}
-
-        # Aadhar Number (XXXX XXXX XXXX or XXXXXXXXXXXX)
-        aadhar_match = re.search(r'\b\d{4}\s\d{4}\s\d{4}\b|\b\d{12}\b', text)
-        if aadhar_match:
-            data['aadhar_no'] = aadhar_match.group(0)
-
-        # Dates (DD/MM/YYYY or DD-MM-YYYY)
-        date_matches = re.findall(r'\b\d{2}/\d{2}/\d{4}\b|\b\d{2}-\d{2}-\d{4}\b', text)
-        if date_matches:
-            data['dates'] = date_matches
-
-        # PAN Number (Simplified)
-        pan_match = re.search(r'[A-Z]{5}[0-9]{4}[A-Z]{1}', text)
-        if pan_match:
-            data['pan_no'] = pan_match.group(0)
-
-        return data
-
     def amount_to_words(self, amount_str):
         try:
-            # Remove commas and currency symbols
-            amount = float(re.sub(r'[^\d.]', '', amount_str))
+            # Handle potential currency symbols and commas
+            clean_str = re.sub(r'[^\d.]', '', amount_str)
+            amount = float(clean_str)
+            # Use Indian English for Rupees/Lakhs
             return num2words(amount, lang='en_IN', to='currency').replace('euro', 'Rupees').replace('cents', 'Paise')
         except:
-            return ""
+            return "Zero Rupees"
 
-    def extract_with_ai(self, all_text_content):
+    def extract_with_ai(self, file_paths):
+        """
+        file_paths: List of paths to .txt, .jpg, .png, or .pdf files.
+        We send them all in one single call to save requests.
+        """
         if not self.model:
-            # Basic fallback extraction if no AI
-            basic_data = self.extract_with_regex(all_text_content)
-            return {
-                "Borrowers": [{"name": "Check OCR File", "age": "", "father_or_husband_name": "", "address": ""}],
-                "Loan Details": {
-                    "loan_account_no": basic_data.get('pan_no', ''),
-                    "loan_amount": "0",
-                    "sanction_date": basic_data.get('dates', [''])[0]
-                },
-                "Documents List": ["Please paste documents from LSR here"]
-            }
+            return {"error": "AI model not configured. Please enter a Gemini API Key."}
 
-        prompt = f"""
-        Extract the following information from the OCR text provided below.
-        Return ONLY a JSON object.
+        contents = []
 
-        Fields to extract:
-        1. Borrowers: List of objects containing (name, age, father_or_husband_name, address).
-        2. Loan Details: (loan_account_no, loan_amount, sanction_date, tenure_months).
-        3. Property Details: (address, area, unit_no, floor).
-        4. Documents List: A list of all legal documents mentioned in the LSR or Sanction letter with their dates and registration details. This is for the "Second Schedule" of a mortgage deed.
+        # Prepare the files for Gemini
+        for path in file_paths:
+            ext = os.path.splitext(path)[1].lower()
+            if ext in ['.jpg', '.jpeg', '.png']:
+                img = Image.open(path)
+                contents.append(img)
+            elif ext == '.pdf':
+                # Gemini 1.5 Flash supports PDF directly via API
+                with open(path, "rb") as f:
+                    pdf_data = f.read()
+                contents.append({
+                    "mime_type": "application/pdf",
+                    "data": pdf_data
+                })
+            elif ext == '.txt':
+                with open(path, 'r', encoding='utf-8') as f:
+                    contents.append(f.read())
 
-        OCR TEXT:
-        {all_text_content}
+        prompt = """
+        You are a legal document assistant. Analyze the provided documents (images, PDFs, and text)
+        which include Aadhar cards, sanction letters, and Legal Scrutiny Reports (LSR).
+
+        Extract the following information accurately. Even if the images are blurry, use your reasoning
+        to identify the key legal details.
+
+        Return ONLY a JSON object with this structure:
+        {
+          "Borrowers": [
+            {"name": "...", "age": "...", "father_or_husband_name": "...", "address": "..."}
+          ],
+          "Loan Details": {
+            "loan_account_no": "...",
+            "loan_amount": "...",
+            "sanction_date": "...",
+            "tenure_months": "..."
+          },
+          "Documents List": [
+             "List every legal document mentioned in the LSR or Sanction Letter for the 'Second Schedule'.
+              Include the date, registration number (R.S. No), Book No, Vol No, and Page numbers for each."
+          ]
+        }
+
+        OCR and extraction should be precise. If multiple borrowers exist, list them all.
         """
 
+        contents.append(prompt)
+
         try:
-            response = self.model.generate_content(prompt)
+            response = self.model.generate_content(contents)
             # Attempt to find JSON in response
-            json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group(0)
-            return json.loads(json_str)
+            match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            else:
+                return {"error": "AI did not return a valid JSON object.", "raw": response.text}
         except Exception as e:
-            return {"error": f"Failed to parse AI response: {str(e)}", "raw": getattr(response, 'text', 'No response')}
+            return {"error": f"Failed to process documents: {str(e)}"}
 
 if __name__ == "__main__":
-    # Test logic
     pass

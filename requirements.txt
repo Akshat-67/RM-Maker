@@ -2,3 +2,4 @@ python-docx
 num2words
 google-generativeai
 docxtpl
+Pillow
