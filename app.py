@@ -8,52 +8,109 @@ from processor import TemplateProcessor
 class LawApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("LegalDoc Automator (v2)")
-        self.root.geometry("1100x850")
-        self.files = []; self.template_path = ""; self.extracted_data = {}
+        self.root.title("LegalDoc Automator v3 - Automated RM Generation")
+        self.root.geometry("1200x900")
+
+        self.files = []
+        self.extracted_data = {}
+
+        # Template Mapping
+        self.template_map = {
+            "ICICI": {
+                "Single": {
+                    "1 Loan": "templates/ICICI_SINGLE_BORROWER_1_LOAN.docx",
+                    "2 Loans": "templates/ICICI_SINGLE_BORROWER_2_LOANS.docx",
+                    "3+ Loans": "templates/ICICI_SINGLE_BORROWER_3_LOANS.docx"
+                },
+                "Multiple": {
+                    "1 Loan": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx", # Default for now
+                    "2 Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx",
+                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx"
+                }
+            }
+        }
+
         self.setup_ui()
 
     def setup_ui(self):
-        f = tk.LabelFrame(self.root, text="1. Select Documents & Template", padx=10, pady=10); f.pack(fill="x", padx=10, pady=5)
-        tk.Button(f, text="Add Files (Img/PDF/Txt)", command=self.add_files, width=25).grid(row=0, column=0)
-        self.file_list = tk.Listbox(f, height=4, width=80); self.file_list.grid(row=0, column=1, padx=10)
-        tk.Button(f, text="Select Master Template", command=self.select_template, width=25).grid(row=1, column=0, pady=5)
-        self.template_label = tk.Label(f, text="None selected", fg="blue"); self.template_label.grid(row=1, column=1, sticky="w")
+        # --- LEFT PANEL: Settings & File Dump ---
+        left_panel = tk.Frame(self.root, width=400, bg="#f0f0f0", padx=10, pady=10)
+        left_panel.pack(side="left", fill="y")
 
-        api_f = tk.Frame(f); api_f.grid(row=2, column=0, columnspan=2, sticky="w")
-        tk.Label(api_f, text="Gemini API Key:").pack(side="left")
-        self.api_key_entry = tk.Entry(api_f, width=50, show="*"); self.api_key_entry.pack(side="left")
+        tk.Label(left_panel, text="1. SETTINGS", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
 
-        self.extract_btn = tk.Button(self.root, text="Extract Data (AI)", command=self.start_extraction,
-                                     bg="#4CAF50", fg="white", font=("Arial", 11, "bold")); self.extract_btn.pack(pady=5)
+        # Bank Selection
+        tk.Label(left_panel, text="Select Bank:", bg="#f0f0f0").pack(anchor="w", pady=(10, 0))
+        self.bank_var = tk.StringVar(value="ICICI")
+        ttk.Combobox(left_panel, textvariable=self.bank_var, values=["ICICI", "Home First", "Piramal"]).pack(fill="x")
 
-        v_f = tk.LabelFrame(self.root, text="2. Verify & Edit Data", padx=10, pady=10); v_f.pack(fill="both", expand=True, padx=10, pady=5)
-        self.canvas = tk.Canvas(v_f); self.sb = ttk.Scrollbar(v_f, orient="vertical", command=self.canvas.yview)
-        self.scroll_f = tk.Frame(self.canvas); self.canvas.create_window((0,0), window=self.scroll_f, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.sb.set)
+        # Borrower Count
+        tk.Label(left_panel, text="Borrowers:", bg="#f0f0f0").pack(anchor="w", pady=(10, 0))
+        self.borr_var = tk.StringVar(value="Single")
+        tk.Radiobutton(left_panel, text="Single Borrower", variable=self.borr_var, value="Single", bg="#f0f0f0").pack(anchor="w")
+        tk.Radiobutton(left_panel, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg="#f0f0f0").pack(anchor="w")
+
+        # Loan Count
+        tk.Label(left_panel, text="Sanctions/Loans:", bg="#f0f0f0").pack(anchor="w", pady=(10, 0))
+        self.loan_var = tk.StringVar(value="1 Loan")
+        tk.Radiobutton(left_panel, text="1 Loan", variable=self.loan_var, value="1 Loan", bg="#f0f0f0").pack(anchor="w")
+        tk.Radiobutton(left_panel, text="2 Loans", variable=self.loan_var, value="2 Loans", bg="#f0f0f0").pack(anchor="w")
+        tk.Radiobutton(left_panel, text="3+ Loans", variable=self.loan_var, value="3+ Loans", bg="#f0f0f0").pack(anchor="w")
+
+        # File Dump
+        tk.Label(left_panel, text="\n2. DUMP DOCUMENTS", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        tk.Button(left_panel, text="Add All Files (Photos/PDFs)", command=self.add_files, bg="#2196F3", fg="white").pack(fill="x", pady=5)
+        tk.Button(left_panel, text="Clear List", command=self.clear_files).pack(fill="x")
+
+        self.file_list = tk.Listbox(left_panel, height=15)
+        self.file_list.pack(fill="both", expand=True, pady=10)
+
+        # API Key
+        tk.Label(left_panel, text="Gemini API Key:", bg="#f0f0f0").pack(anchor="w")
+        self.api_key_entry = tk.Entry(left_panel, show="*")
+        self.api_key_entry.pack(fill="x")
+
+        self.extract_btn = tk.Button(left_panel, text="START AUTOMATION", command=self.start_process,
+                                     bg="#4CAF50", fg="white", font=("Arial", 11, "bold"), height=2)
+        self.extract_btn.pack(fill="x", pady=20)
+
+        # --- RIGHT PANEL: Verification & Edit ---
+        right_panel = tk.Frame(self.root, padx=10, pady=10)
+        right_panel.pack(side="right", fill="both", expand=True)
+
+        tk.Label(right_panel, text="3. VERIFY & GENERATE", font=("Arial", 12, "bold")).pack(anchor="w")
+
+        self.canvas = tk.Canvas(right_panel)
+        self.scrollbar = ttk.Scrollbar(right_panel, orient="vertical", command=self.canvas.yview)
+        self.scroll_f = tk.Frame(self.canvas)
         self.scroll_f.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.pack(side="left", fill="both", expand=True); self.sb.pack(side="right", fill="y")
+        self.canvas_window = self.canvas.create_window((0,0), window=self.scroll_f, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.root.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=self.canvas.winfo_width()))
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
 
     def add_files(self):
         for p in filedialog.askopenfilenames():
             if p not in self.files: self.files.append(p); self.file_list.insert(tk.END, os.path.basename(p))
 
-    def select_template(self):
-        p = filedialog.askopenfilename(filetypes=[("Word", "*.docx")]);
-        if p: self.template_path = p; self.template_label.config(text=os.path.basename(p))
+    def clear_files(self):
+        self.files = []; self.file_list.delete(0, tk.END)
 
-    def start_extraction(self):
+    def start_process(self):
         k = self.api_key_entry.get()
-        if not k: messagebox.showerror("Error", "Need API Key"); return
-        self.extract_btn.config(state="disabled")
-        threading.Thread(target=self.run_extraction, args=(k,)).start()
+        if not k or not self.files: messagebox.showerror("Error", "Dump files and enter API Key first."); return
 
-    def run_extraction(self, k):
+        self.extract_btn.config(state="disabled", text="AI Processing...")
+        threading.Thread(target=self.run_automation, args=(k,)).start()
+
+    def run_automation(self, k):
         try:
             self.extracted_data = DataExtractor(k).extract_with_ai(self.files)
             self.root.after(0, self.display_data)
         except Exception as e: self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
-        finally: self.root.after(0, lambda: self.extract_btn.config(state="normal"))
+        finally: self.root.after(0, lambda: self.extract_btn.config(state="normal", text="START AUTOMATION"))
 
     def display_data(self):
         for w in self.scroll_f.winfo_children(): w.destroy()
@@ -63,13 +120,11 @@ class LawApp:
         self.ents = {}
         d = self.extracted_data
 
-        # Preamble
-        p_f = tk.Frame(self.scroll_f); p_f.pack(fill="x", pady=5)
-        self.ents['rd'] = self.create_f(p_f, "RM Execution Date", d.get('rd',''))
-        self.ents['ad'] = self.create_f(p_f, "Loan Agreement Date", d.get('ad',''))
+        # UI Logic for dynamic fields
+        self.ents['rd'] = self.create_f(self.scroll_f, "RM Execution Date", d.get('rd',''))
+        self.ents['ad'] = self.create_f(self.scroll_f, "Loan Agreement Date", d.get('ad',''))
 
         # Borrowers
-        tk.Label(self.scroll_f, text="BORROWERS", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
         self.ents['bs'] = []
         for i, b in enumerate(d.get('bs', [])):
             lf = tk.LabelFrame(self.scroll_f, text=f"Borrower {i+1}"); lf.pack(fill="x", pady=2)
@@ -77,67 +132,55 @@ class LawApp:
             self.ents['bs'].append(row)
 
         # Loans
-        tk.Label(self.scroll_f, text="LOANS/LANs", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
         self.ents['ls'] = []
         for i, l in enumerate(d.get('ls', [])):
             lf = tk.Frame(self.scroll_f); lf.pack(fill="x")
-            row = {k: self.create_f(lf, k, l.get(k,'')) for k in ['n','a','w']}
+            row = {k: self.create_f(lf, k, l.get(k,'')) for k in ['n','a','w','t']}
             self.ents['ls'].append(row)
 
         # Properties
-        tk.Label(self.scroll_f, text="PROPERTIES", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
         self.ents['ps'] = []
         for i, p in enumerate(d.get('ps', [])):
             lf = tk.LabelFrame(self.scroll_f, text=f"Property {i+1}"); lf.pack(fill="x", pady=2)
             row = {k: self.create_f(lf, k, p.get(k,'')) for k in ['adr','n','s','e','w']}
             self.ents['ps'].append(row)
 
-        # Bank
-        tk.Label(self.scroll_f, text="BANK SIGNATORY", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        # Bank/Witness/Docs
+        tk.Label(self.scroll_f, text="Signatories & Witnesses", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w", pady=10)
         bs = d.get('bsign', {})
-        self.ents['bsign'] = {k: self.create_f(self.scroll_f, k, bs.get(k,'')) for k in ['n','r','rn']}
+        self.ents['bsign'] = {k: self.create_f(self.scroll_f, f"Bank Rep {k}", bs.get(k,'')) for k in ['n','r','rn']}
 
-        # Witnesses
-        tk.Label(self.scroll_f, text="WITNESSES", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
         self.ents['ws'] = []
         for i, w in enumerate(d.get('ws', [])):
-            lf = tk.LabelFrame(self.scroll_f, text=f"Witness {i+1}"); lf.pack(fill="x", pady=2)
-            row = {k: self.create_f(lf, k, w.get(k,'')) for k in ['n','r','rn', 'adr']}
+            row = {k: self.create_f(self.scroll_f, f"W{i+1} {k}", w.get(k,'')) for k in ['n','r','rn', 'adr']}
             self.ents['ws'].append(row)
 
-        # Docs
-        tk.Label(self.scroll_f, text="DOCUMENTS (SCHEDULE II)", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
-        t = tk.Text(self.scroll_f, height=10); t.pack(fill="x")
+        tk.Label(self.scroll_f, text="Second Schedule (Title Chain)").pack(anchor="w")
+        t = tk.Text(self.scroll_f, height=8); t.pack(fill="x")
         t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])]))
         self.ents['ds'] = t
 
-        tk.Button(self.scroll_f, text="Generate Word RM", command=self.generate,
-                  bg="blue", fg="white", font=("Arial", 12, "bold")).pack(pady=20, fill="x")
+        tk.Button(self.scroll_f, text="GENERATE FINAL RM DOCX", command=self.generate,
+                  bg="blue", fg="white", font=("Arial", 12, "bold"), height=2).pack(pady=20, fill="x")
 
     def create_f(self, p, l, v):
         f = tk.Frame(p); f.pack(fill="x", pady=1)
-        tk.Label(f, text=l, width=15, anchor="w").pack(side="left")
+        tk.Label(f, text=l, width=20, anchor="w").pack(side="left")
         e = tk.Entry(f); e.insert(0, str(v)); e.pack(side="left", fill="x", expand=True)
         return e
 
-    def validate_template(self, path):
-        """Checks if a template contains potential untagged data."""
-        try:
-            from docx import Document
-            import re
-            doc = Document(path)
-            text = "\n".join([p.text for p in doc.paragraphs])
-            # Regex for potential dates or names that aren't tags
-            leaked = re.findall(r'\b(?:19|20)\d{2}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', text)
-            # Remove anything that's inside curly braces
-            clean_text = re.sub(r'\{\{.*?\}\}', '', text)
-            if leaked:
-                # This is a very simple validator to warn the user
-                pass
-        except: pass
-
     def generate(self):
-        c = {
+        # Auto-select template
+        bank = self.bank_var.get()
+        borr = self.borr_var.get()
+        loan = self.loan_var.get()
+
+        try:
+            t_path = self.template_map[bank][borr][loan]
+        except KeyError:
+            messagebox.showerror("Error", f"No template found for {bank} {borr} {loan}"); return
+
+        context = {
             'rd': self.ents['rd'].get(),
             'ad': self.ents['ad'].get(),
             'bs': [{k: v.get() for k, v in b.items()} for b in self.ents['bs']],
@@ -147,11 +190,11 @@ class LawApp:
             'ws': [{k: v.get() for k, v in w.items()} for w in self.ents['ws']],
             'ds': [{'t': x.strip()} for x in self.ents['ds'].get("1.0", tk.END).split('\n') if x.strip()]
         }
-        sp = filedialog.asksaveasfilename(defaultextension=".docx")
-        if sp:
-            try:
-                TemplateProcessor(self.template_path).generate(c, sp)
-                messagebox.showinfo("Done", f"RM Document saved to:\n{sp}")
-            except Exception as e: messagebox.showerror("Error", str(e))
 
-if __name__ == "__main__": root = tk.Tk(); LawApp(root); root.mainloop()
+        save_p = filedialog.asksaveasfilename(defaultextension=".docx")
+        if save_p:
+            TemplateProcessor(t_path).generate(context, save_p)
+            messagebox.showinfo("Success", f"RM Document Generated using:\n{t_path}")
+
+if __name__ == "__main__":
+    root = tk.Tk(); LawApp(root); root.mainloop()
