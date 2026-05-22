@@ -1,40 +1,32 @@
-# LegalDoc Automator
+# LegalDoc Automator (v2)
 
-A tool for law firms to automate the generation of Registered Mortgage (RM) documents from OCR text.
+A specialized tool for Law Firms to automate the generation of Registered Mortgage (RM) documents.
 
 ## Features
-- **Data Extraction:** Uses AI (Gemini 1.5 Flash) to extract borrower info, loan details, and document lists from messy OCR text.
-- **Verification Screen:** Allows users to review and edit extracted data before document generation.
-- **Template Generation:** Uses Word templates with `{{tag}}` placeholders to create final documents.
+- **Integrated AI OCR:** Direct support for Images (JPG, PNG) and PDFs. Handles hand-scanned and blurry documents.
+- **Short-Tag System:** Optimized tags to prevent breaking Word document formatting.
+- **Verification UI:** Comprehensive editing screen for Borrowers, Loans, Properties, Witnesses, and Legal Documents.
+- **Multi-Loan/Multi-Borrower:** Automatically handles complex cases with loops.
 
-## Setup
-1. **Install Python:** Ensure you have Python 3.10+ installed.
-2. **Install Dependencies:**
+## Installation
+1. Install Python 3.10+
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. **Get a Gemini API Key:**
-   - Go to [Google AI Studio](https://aistudio.google.com/) and create a free API key.
 
 ## Usage
-1. Run the application:
-   ```bash
-   python app.py
-   ```
-2. **Select OCR Files:** Upload the `.txt` files containing OCR'd data from Aadhar cards, sanction letters, etc.
-3. **Select Template:** Select your `.docx` bank template.
-4. **Enter API Key:** Paste your Gemini API key.
-5. **Extract:** Click "Extract Data".
-6. **Verify:** Check the data in the verification screen, edit as needed.
-7. **Generate:** Click "Generate Final RM Document" to save the result.
+1. Run `python app.py`.
+2. Add your source documents (Photos of Aadhar, PDF Sanction Letters, LSR).
+3. Select a **Master Template** (Word document with tags).
+4. Enter your Gemini API Key.
+5. Click **Extract Data**, verify the results, and click **Generate**.
 
-## Template Guide
-Use the following tags in your Word documents:
-- `{{borrower_1_name}}`, `{{borrower_1_age}}`, `{{borrower_1_address}}`
-- `{{loan_acc_no}}`, `{{loan_amount}}`, `{{loan_amount_words}}`, `{{sanction_date}}`
-- In the "Second Schedule", use a loop for documents:
-  ```
-  {% for doc in documents_list %}
-  {{doc.text}}
-  {% endfor %}
-  ```
+## Template Tagging
+Refer to `template_tools/TAGS_REFERENCE.md` for the list of available tags.
+Always use `docxtpl` (Jinja2) style tags:
+- Simple: `{{rd}}`
+- Loop: `{% for b in bs %}{{b.n}}{% endfor %}`
+
+## Tools
+- `template_tools/auto_tagger.py`: A helper script to help you create your first Master Template by replacing existing text with tags.

@@ -8,208 +8,134 @@ from processor import TemplateProcessor
 class LawApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("LegalDoc Automator - RM Generator")
-        self.root.geometry("900x700")
-
-        self.files = []
-        self.template_path = ""
-        self.extracted_data = {}
-
+        self.root.title("LegalDoc Automator (v2)")
+        self.root.geometry("1100x850")
+        self.files = []; self.template_path = ""; self.extracted_data = {}
         self.setup_ui()
 
     def setup_ui(self):
-        # File Selection Frame
-        frame = tk.LabelFrame(self.root, text="Step 1: Select Input Documents & Template", padx=10, pady=10)
-        frame.pack(fill="x", padx=10, pady=5)
+        f = tk.LabelFrame(self.root, text="1. Select Documents & Template", padx=10, pady=10); f.pack(fill="x", padx=10, pady=5)
+        tk.Button(f, text="Add Files (Img/PDF/Txt)", command=self.add_files, width=25).grid(row=0, column=0)
+        self.file_list = tk.Listbox(f, height=4, width=80); self.file_list.grid(row=0, column=1, padx=10)
+        tk.Button(f, text="Select Master Template", command=self.select_template, width=25).grid(row=1, column=0, pady=5)
+        self.template_label = tk.Label(f, text="None selected", fg="blue"); self.template_label.grid(row=1, column=1, sticky="w")
 
-        file_btn_frame = tk.Frame(frame)
-        file_btn_frame.grid(row=0, column=0, sticky="n")
+        api_f = tk.Frame(f); api_f.grid(row=2, column=0, columnspan=2, sticky="w")
+        tk.Label(api_f, text="Gemini API Key:").pack(side="left")
+        self.api_key_entry = tk.Entry(api_f, width=50, show="*"); self.api_key_entry.pack(side="left")
 
-        tk.Button(file_btn_frame, text="Add Files (Images/PDF/Text)", command=self.add_files, width=25).pack(pady=2)
-        tk.Button(file_btn_frame, text="Clear Selected Files", command=self.clear_files, width=25).pack(pady=2)
+        self.extract_btn = tk.Button(self.root, text="Extract Data (AI)", command=self.start_extraction,
+                                     bg="#4CAF50", fg="white", font=("Arial", 11, "bold")); self.extract_btn.pack(pady=5)
 
-        self.file_list = tk.Listbox(frame, height=6, width=60)
-        self.file_list.grid(row=0, column=1, padx=10, sticky="ew")
-
-        tk.Button(frame, text="Select Word Template", command=self.select_template, width=25).grid(row=1, column=0, pady=5)
-        self.template_label = tk.Label(frame, text="No template selected", fg="blue")
-        self.template_label.grid(row=1, column=1, sticky="w")
-
-        # API Key Frame
-        api_frame = tk.Frame(frame)
-        api_frame.grid(row=2, column=0, columnspan=2, sticky="w", pady=5)
-        tk.Label(api_frame, text="Gemini API Key:").pack(side="left")
-        self.api_key_entry = tk.Entry(api_frame, width=50, show="*")
-        self.api_key_entry.pack(side="left", padx=5)
-
-        # Action Frame
-        self.action_frame = tk.Frame(self.root)
-        self.action_frame.pack(pady=10)
-
-        self.extract_btn = tk.Button(self.action_frame, text="Extract Data (AI)", command=self.start_extraction_thread,
-                                     bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), width=20)
-        self.extract_btn.pack()
-
-        self.status_label = tk.Label(self.root, text="Ready", fg="grey")
-        self.status_label.pack()
-
-        # Data Verification Frame
-        self.verify_frame = tk.LabelFrame(self.root, text="Step 2: Verify & Edit Extracted Data", padx=10, pady=10)
-        self.verify_frame.pack(fill="both", expand=True, padx=10, pady=5)
-
-        self.canvas = tk.Canvas(self.verify_frame)
-        self.scrollbar = ttk.Scrollbar(self.verify_frame, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = tk.Frame(self.canvas)
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        # Make canvas width follow frame width
-        self.root.bind("<Configure>", self.on_frame_configure)
-
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-
-    def on_frame_configure(self, event):
-        self.canvas.itemconfig(self.canvas_window, width=event.width - 40)
+        v_f = tk.LabelFrame(self.root, text="2. Verify & Edit Data", padx=10, pady=10); v_f.pack(fill="both", expand=True, padx=10, pady=5)
+        self.canvas = tk.Canvas(v_f); self.sb = ttk.Scrollbar(v_f, orient="vertical", command=self.canvas.yview)
+        self.scroll_f = tk.Frame(self.canvas); self.canvas.create_window((0,0), window=self.scroll_f, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.sb.set)
+        self.scroll_f.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.pack(side="left", fill="both", expand=True); self.sb.pack(side="right", fill="y")
 
     def add_files(self):
-        paths = filedialog.askopenfilenames(filetypes=[
-            ("All supported", "*.jpg *.jpeg *.png *.pdf *.txt"),
-            ("Images", "*.jpg *.jpeg *.png"),
-            ("PDF files", "*.pdf"),
-            ("Text files", "*.txt")
-        ])
-        for p in paths:
-            if p not in self.files:
-                self.files.append(p)
-                self.file_list.insert(tk.END, f"[{os.path.splitext(p)[1][1:].upper()}] {os.path.basename(p)}")
-
-    def clear_files(self):
-        self.files = []
-        self.file_list.delete(0, tk.END)
+        for p in filedialog.askopenfilenames():
+            if p not in self.files: self.files.append(p); self.file_list.insert(tk.END, os.path.basename(p))
 
     def select_template(self):
-        path = filedialog.askopenfilename(filetypes=[("Word documents", "*.docx")])
-        if path:
-            self.template_path = path
-            self.template_label.config(text=os.path.basename(path))
+        p = filedialog.askopenfilename(filetypes=[("Word", "*.docx")]);
+        if p: self.template_path = p; self.template_label.config(text=os.path.basename(p))
 
-    def start_extraction_thread(self):
-        if not self.files or not self.template_path:
-            messagebox.showerror("Error", "Please select input files and a template.")
-            return
+    def start_extraction(self):
+        k = self.api_key_entry.get()
+        if not k: messagebox.showerror("Error", "Need API Key"); return
+        self.extract_btn.config(state="disabled")
+        threading.Thread(target=self.run_extraction, args=(k,)).start()
 
-        api_key = self.api_key_entry.get()
-        if not api_key:
-            messagebox.showerror("Error", "Please enter a Gemini API Key.")
-            return
-
-        self.extract_btn.config(state="disabled", text="Processing...")
-        self.status_label.config(text="AI is analyzing documents, please wait...", fg="orange")
-
-        # Run extraction in a separate thread to keep UI responsive
-        thread = threading.Thread(target=self.run_extraction, args=(api_key,))
-        thread.start()
-
-    def run_extraction(self, api_key):
+    def run_extraction(self, k):
         try:
-            extractor = DataExtractor(api_key)
-            self.extracted_data = extractor.extract_with_ai(self.files)
+            self.extracted_data = DataExtractor(k).extract_with_ai(self.files)
+            self.root.after(0, self.display_data)
+        except Exception as e: self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
+        finally: self.root.after(0, lambda: self.extract_btn.config(state="normal"))
 
-            # Update UI from the main thread
-            self.root.after(0, self.display_data_for_verification)
-        except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("System Error", str(e)))
-        finally:
-            self.root.after(0, self.reset_ui_state)
-
-    def reset_ui_state(self):
-        self.extract_btn.config(state="normal", text="Extract Data (AI)")
-        self.status_label.config(text="Processing complete", fg="green")
-
-    def display_data_for_verification(self):
-        for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
-
+    def display_data(self):
+        for w in self.scroll_f.winfo_children(): w.destroy()
         if "error" in self.extracted_data:
-            messagebox.showerror("AI Error", self.extracted_data["error"])
-            return
+            messagebox.showerror("AI Error", self.extracted_data["error"]); return
 
-        self.entries = {}
+        self.ents = {}
+        d = self.extracted_data
 
-        # Borrowers Section
-        tk.Label(self.scrollable_frame, text="BORROWERS", font=("Arial", 11, "bold"), fg="#1976D2").pack(anchor="w", pady=(10, 5))
-        borrowers = self.extracted_data.get('Borrowers', [])
-        for i, b in enumerate(borrowers):
-            f = tk.LabelFrame(self.scrollable_frame, text=f"Borrower {i+1}", padx=5, pady=5)
-            f.pack(fill="x", pady=5)
-            self.create_field(f, "Full Name", b.get('name', ''), f"borrower_{i+1}_name")
-            self.create_field(f, "Age", b.get('age', ''), f"borrower_{i+1}_age")
-            self.create_field(f, "S/O, W/O, D/O", b.get('father_or_husband_name', ''), f"borrower_{i+1}_relation")
-            self.create_field(f, "Full Address", b.get('address', ''), f"borrower_{i+1}_address")
+        # Preamble
+        p_f = tk.Frame(self.scroll_f); p_f.pack(fill="x", pady=5)
+        self.ents['rd'] = self.create_f(p_f, "RM Execution Date", d.get('rd',''))
+        self.ents['ad'] = self.create_f(p_f, "Loan Agreement Date", d.get('ad',''))
 
-        # Loan Details Section
-        tk.Label(self.scrollable_frame, text="LOAN DETAILS", font=("Arial", 11, "bold"), fg="#1976D2").pack(anchor="w", pady=(15, 5))
-        loan = self.extracted_data.get('Loan Details', {})
-        self.create_field(self.scrollable_frame, "Loan Acc No", loan.get('loan_account_no', ''), "loan_acc_no")
-        self.create_field(self.scrollable_frame, "Loan Amount", loan.get('loan_amount', ''), "loan_amount")
-        self.create_field(self.scrollable_frame, "Sanction Date", loan.get('sanction_date', ''), "sanction_date")
-        self.create_field(self.scrollable_frame, "Tenure (Months)", loan.get('tenure_months', ''), "tenure")
+        # Borrowers
+        tk.Label(self.scroll_f, text="BORROWERS", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.ents['bs'] = []
+        for i, b in enumerate(d.get('bs', [])):
+            lf = tk.LabelFrame(self.scroll_f, text=f"Borrower {i+1}"); lf.pack(fill="x", pady=2)
+            row = {k: self.create_f(lf, k, b.get(k,'')) for k in ['s','n','a','r','rn','adr']}
+            self.ents['bs'].append(row)
 
-        # Documents Section
-        tk.Label(self.scrollable_frame, text="SECOND SCHEDULE (DOCUMENTS)", font=("Arial", 11, "bold"), fg="#1976D2").pack(anchor="w", pady=(15, 5))
-        docs = self.extracted_data.get('Documents List', [])
-        doc_text = "\n".join(docs) if isinstance(docs, list) else str(docs)
+        # Loans
+        tk.Label(self.scroll_f, text="LOANS/LANs", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.ents['ls'] = []
+        for i, l in enumerate(d.get('ls', [])):
+            lf = tk.Frame(self.scroll_f); lf.pack(fill="x")
+            row = {k: self.create_f(lf, k, l.get(k,'')) for k in ['n','a','w']}
+            self.ents['ls'].append(row)
 
-        txt_frame = tk.Frame(self.scrollable_frame)
-        txt_frame.pack(fill="x")
-        txt = tk.Text(txt_frame, height=12, font=("Consolas", 10))
-        txt.insert("1.0", doc_text)
-        txt.pack(fill="x")
-        self.entries["documents_list"] = txt
+        # Properties
+        tk.Label(self.scroll_f, text="PROPERTIES", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.ents['ps'] = []
+        for i, p in enumerate(d.get('ps', [])):
+            lf = tk.LabelFrame(self.scroll_f, text=f"Property {i+1}"); lf.pack(fill="x", pady=2)
+            row = {k: self.create_f(lf, k, p.get(k,'')) for k in ['adr','n','s','e','w']}
+            self.ents['ps'].append(row)
 
-        # Final Generate Button
-        tk.Button(self.scrollable_frame, text="Generate Final Word Document", command=self.generate_doc,
-                  bg="#2196F3", fg="white", font=("Arial", 12, "bold"), pady=10).pack(fill="x", pady=20)
+        # Bank
+        tk.Label(self.scroll_f, text="BANK SIGNATORY", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        bs = d.get('bsign', {})
+        self.ents['bsign'] = {k: self.create_f(self.scroll_f, k, bs.get(k,'')) for k in ['n','r','rn']}
 
-    def create_field(self, parent, label, value, key):
-        frame = tk.Frame(parent)
-        frame.pack(fill="x", pady=2)
-        tk.Label(frame, text=label, width=20, anchor="w").pack(side="left")
-        ent = tk.Entry(frame)
-        ent.insert(0, str(value))
-        ent.pack(side="left", fill="x", expand=True)
-        self.entries[key] = ent
+        # Witnesses
+        tk.Label(self.scroll_f, text="WITNESSES", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.ents['ws'] = []
+        for i, w in enumerate(d.get('ws', [])):
+            lf = tk.LabelFrame(self.scroll_f, text=f"Witness {i+1}"); lf.pack(fill="x", pady=2)
+            row = {k: self.create_f(lf, k, w.get(k,'')) for k in ['n','r','rn', 'adr']}
+            self.ents['ws'].append(row)
 
-    def generate_doc(self):
-        final_context = {}
-        for key, widget in self.entries.items():
-            if isinstance(widget, tk.Entry):
-                final_context[key] = widget.get()
-            elif isinstance(widget, tk.Text):
-                docs = widget.get("1.0", tk.END).strip().split('\n')
-                final_context[key] = [{"text": d.strip()} for d in docs if d.strip()]
+        # Docs
+        tk.Label(self.scroll_f, text="DOCUMENTS (SCHEDULE II)", fg="blue", font=("Arial", 10, "bold")).pack(anchor="w")
+        t = tk.Text(self.scroll_f, height=10); t.pack(fill="x")
+        t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])]))
+        self.ents['ds'] = t
 
-        # Generate amount in words automatically
-        extractor = DataExtractor()
-        final_context['loan_amount_words'] = extractor.amount_to_words(final_context.get('loan_amount', '0'))
+        tk.Button(self.scroll_f, text="Generate Word RM", command=self.generate,
+                  bg="blue", fg="white", font=("Arial", 12, "bold")).pack(pady=20, fill="x")
 
-        save_path = filedialog.asksaveasfilename(defaultextension=".docx", filetypes=[("Word document", "*.docx")])
-        if save_path:
+    def create_f(self, p, l, v):
+        f = tk.Frame(p); f.pack(fill="x", pady=1)
+        tk.Label(f, text=l, width=15, anchor="w").pack(side="left")
+        e = tk.Entry(f); e.insert(0, str(v)); e.pack(side="left", fill="x", expand=True)
+        return e
+
+    def generate(self):
+        c = {
+            'rd': self.ents['rd'].get(),
+            'ad': self.ents['ad'].get(),
+            'bs': [{k: v.get() for k, v in b.items()} for b in self.ents['bs']],
+            'ls': [{k: v.get() for k, v in l.items()} for l in self.ents['ls']],
+            'ps': [{k: v.get() for k, v in p.items()} for p in self.ents['ps']],
+            'bsign': {k: v.get() for k, v in self.ents['bsign'].items()},
+            'ws': [{k: v.get() for k, v in w.items()} for w in self.ents['ws']],
+            'ds': [{'t': x.strip()} for x in self.ents['ds'].get("1.0", tk.END).split('\n') if x.strip()]
+        }
+        sp = filedialog.asksaveasfilename(defaultextension=".docx")
+        if sp:
             try:
-                processor = TemplateProcessor(self.template_path)
-                processor.generate(final_context, save_path)
-                messagebox.showinfo("Success", f"Document generated successfully at:\n{save_path}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to generate document: {str(e)}")
+                TemplateProcessor(self.template_path).generate(c, sp)
+                messagebox.showinfo("Done", f"RM Document saved to:\n{sp}")
+            except Exception as e: messagebox.showerror("Error", str(e))
 
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = LawApp(root)
-    root.mainloop()
+if __name__ == "__main__": root = tk.Tk(); LawApp(root); root.mainloop()
