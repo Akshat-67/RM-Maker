@@ -9,7 +9,9 @@ class DataExtractor:
     def __init__(self, api_key=None):
         if api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            # Using 'gemini-1.5-flash-latest' which is often more stable
+            # across different regional API versions.
+            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
         else:
             self.model = None
 
@@ -75,4 +77,11 @@ class DataExtractor:
             else:
                 return {"error": "Invalid AI response", "raw": response.text}
         except Exception as e:
-            return {"error": str(e)}
+            err_msg = str(e)
+            if "404" in err_msg:
+                return {"error": "Model not found. Please check your API key or model availability."}
+            if "403" in err_msg:
+                return {"error": "Permission denied. Is your API key valid and enabled for Gemini 1.5 Flash?"}
+            if "429" in err_msg:
+                return {"error": "Rate limit exceeded. Please wait a minute before trying again."}
+            return {"error": f"AI Error: {err_msg}"}
