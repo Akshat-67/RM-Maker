@@ -69,6 +69,7 @@ class LawApp:
         tk.Label(left_panel, text="Gemini API Key:", bg="#f0f0f0").pack(anchor="w")
         self.api_key_entry = tk.Entry(left_panel, show="*")
         self.api_key_entry.pack(fill="x")
+        tk.Button(left_panel, text="Test Connection", command=self.test_connection, bg="#9E9E9E", fg="white", font=("Arial", 9)).pack(fill="x", pady=2)
 
         self.extract_btn = tk.Button(left_panel, text="START AUTOMATION", command=self.start_process,
                                      bg="#4CAF50", fg="white", font=("Arial", 11, "bold"), height=2)
@@ -97,6 +98,17 @@ class LawApp:
 
     def clear_files(self):
         self.files = []; self.file_list.delete(0, tk.END)
+
+    def test_connection(self):
+        k = self.api_key_entry.get()
+        if not k: messagebox.showwarning("Warning", "Please enter an API Key first."); return
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=k)
+            models = [m.name for m in genai.list_models()]
+            messagebox.showinfo("Success", f"Connection successful!\nFound models: {len(models)}")
+        except Exception as e:
+            messagebox.showerror("Connection Failed", f"Could not connect to Google AI:\n{str(e)}\n\nSuggestions:\n1. Check your internet.\n2. Ensure 'Generative Language API' is enabled in Google Cloud Console.")
 
     def start_process(self):
         k = self.api_key_entry.get()
