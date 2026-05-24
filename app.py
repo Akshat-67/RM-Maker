@@ -29,10 +29,18 @@ class LawApp:
                     "3+ Loans": "templates/ICICI_SINGLE_BORROWER_3_LOANS.docx"
                 },
                 "Multiple": {
-                    "1 Loan": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx",
+                    "1 Loan": "templates/ICICI_MULTI_BORROWER_1_LOAN.docx",
                     "2 Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx",
-                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx"
+                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_3_LOANS.docx"
                 }
+            },
+            "Home First": {
+                "Single": {"1 Loan": "templates/HOME_FIRST_SINGLE_1_LOAN.docx"},
+                "Multiple": {"1 Loan": "templates/HOME_FIRST_MULTI_1_LOAN.docx"}
+            },
+            "Piramal": {
+                "Single": {"1 Loan": "templates/PIRAMAL_SINGLE_1_LOAN.docx"},
+                "Multiple": {"1 Loan": "templates/PIRAMAL_MULTI_1_LOAN.docx"}
             }
         }
         self.setup_ui()
@@ -144,6 +152,16 @@ class LawApp:
             sec_l = tk.LabelFrame(self.scroll_f, text=f" LOAN {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_l.pack(fill="x", pady=10)
             self.ents['ls'].append({k: self.create_input(sec_l, k, l.get(k,'')) for k in ['n','a','w','t']})
 
+        self.ents['ps'] = []
+        for i, p in enumerate(d.get('ps', [])):
+            sec_p = tk.LabelFrame(self.scroll_f, text=f" PROPERTY {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_p.pack(fill="x", pady=10)
+            self.ents['ps'].append({k: self.create_input(sec_p, k, p.get(k,'')) for k in ['adr','n','s','e','w']})
+
+        self.ents['ws'] = []
+        for i, w in enumerate(d.get('ws', [])):
+            sec_w = tk.LabelFrame(self.scroll_f, text=f" WITNESS {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_w.pack(fill="x", pady=10)
+            self.ents['ws'].append({k: self.create_input(sec_w, k, w.get(k,'')) for k in ['n','r','rn','adr']})
+
         sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
         bs = d.get('bsign', {}); self.ents['bsign'] = {k: self.create_input(sec_end, f"Bank {k}", bs.get(k,'')) for k in ['n','r','rn']}
         t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=0); t.pack(fill="x", pady=5)
@@ -166,6 +184,8 @@ class LawApp:
             'rd': self.ents['rd'].get(), 'ad': self.ents['ad'].get(),
             'bs': [{k: v.get() for k, v in b.items()} for b in self.ents['bs']],
             'ls': [{k: v.get() for k, v in l.items()} for l in self.ents['ls']],
+            'ps': [{k: v.get() for k, v in p.items()} for p in self.ents['ps']],
+            'ws': [{k: v.get() for k, v in w.items()} for w in self.ents['ws']],
             'bsign': {k: v.get() for k, v in self.ents['bsign'].items()},
             'ds': [{'t': x.strip()} for x in self.ents['ds'].get("1.0", tk.END).split('\n') if x.strip()]
         }
