@@ -1,9 +1,13 @@
 import os
+import sys
 import json
 import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from docx import Document
+
+# Add root directory to path so extractor can be found
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from extractor import DataExtractor
 
 class TemplateBuilder:
@@ -81,8 +85,13 @@ class TemplateBuilder:
         if not key: messagebox.showerror("Error", "Need API Key"); return
 
         doc = Document(self.doc_path)
-        full_text = [p.text for p in doc.paragraphs if p.text.strip()]
-        raw_content = "\n".join(full_text)
+        content_parts = []
+        for p in doc.paragraphs:
+            if p.text.strip(): content_parts.append(p.text)
+        for table in doc.tables:
+            for row in table.rows:
+                content_parts.append(" | ".join(cell.text.strip() for cell in row.cells))
+        raw_content = "\n".join(content_parts)
 
         prompt = f"""
         Analyze this Registered Mortgage text. Identify every variable piece of data (Names, Dates, Amounts, Addresses, LANs, Boundaries, Ages).
@@ -114,16 +123,75 @@ class TemplateBuilder:
         doc = Document(self.doc_path)
         reps = sorted(self.mapping.items(), key=lambda x: len(x[0]), reverse=True)
 
+        # Process all paragraphs in main body
         for p in doc.paragraphs:
-            if not p.text.strip(): continue
-            for old, new in reps:
-                if old in p.text:
-                    # Merging runs to ensure replacement doesn't break formatting
-                    text = p.text
-                    p.text = text.replace(old, new)
+            self.apply_reps(p, reps)
+
+        # Process all tables
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        self.apply_reps(p, reps)
+
+        # Process Headers and Footers
+        for section in doc.sections:
+            for hp in section.header.paragraphs: self.apply_reps(hp, reps)
+            for fp in section.footer.paragraphs: self.apply_reps(fp, reps)
 
         save_p = filedialog.asksaveasfilename(defaultextension=".docx")
         if save_p: doc.save(save_p); messagebox.showinfo("Success", "Master Template Created!")
+
+    def apply_reps(self, p, reps):
+        if not p.text.strip(): return
+        for old, new in reps:
+            if old in p.text:
+                self.replace_text_preserving_format(p, old, new)
+
+    def replace_text_preserving_format(self, paragraph, old_text, new_text):
+        """Replaces text while trying to preserve run-level formatting."""
+        # 1. Try simple replacement within runs
+        for run in paragraph.runs:
+            if old_text in run.text:
+                run.text = run.text.replace(old_text, new_text)
+
+        # 2. Handle split runs
+        while old_text in paragraph.text:
+            full_text = "".join(r.text for r in paragraph.runs)
+            start_idx = full_text.find(old_text)
+            if start_idx == -1: break
+            end_idx = start_idx + len(old_text)
+
+            cur_len = 0
+            start_run_idx = -1
+            end_run_idx = -1
+            start_offset = -1
+            end_offset = -1
+
+            for i, run in enumerate(paragraph.runs):
+                run_len = len(run.text)
+                if start_run_idx == -1 and cur_len <= start_idx < cur_len + run_len:
+                    start_run_idx = i
+                    start_offset = start_idx - cur_len
+                if cur_len <= end_idx <= cur_len + run_len:
+                    end_run_idx = i
+                    end_offset = end_idx - cur_len
+                    break
+                cur_len += run_len
+
+            if start_run_idx != -1 and end_run_idx != -1:
+                start_run = paragraph.runs[start_run_idx]
+                end_run = paragraph.runs[end_run_idx]
+
+                if start_run_idx == end_run_idx:
+                    start_run.text = start_run.text[:start_offset] + new_text + start_run.text[end_offset:]
+                else:
+                    start_run.text = start_run.text[:start_offset] + new_text
+                    for i in range(start_run_idx + 1, end_run_idx):
+                        paragraph.runs[i].text = ""
+                    end_run.text = end_run.text[end_offset:]
+            else:
+                break
 
 if __name__ == "__main__":
     root = tk.Tk(); app = TemplateBuilder(root); root.mainloop()

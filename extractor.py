@@ -3,7 +3,6 @@ from google import genai
 from num2words import num2words
 import json
 import os
-from PIL import Image
 
 class DataExtractor:
     def __init__(self, api_key=None):
@@ -26,7 +25,8 @@ class DataExtractor:
         try:
             # Listing models in the new SDK
             models = self.client.models.list()
-            return [m.name for m in models if 'generateContent' in m.supported_generation_methods]
+            # The new SDK uses 'supported_actions'
+            return [m.name for m in models if 'generateContent' in m.supported_actions]
         except Exception:
             return []
 
@@ -43,22 +43,21 @@ class DataExtractor:
         if not self.client:
             return {"error": "API Key Missing"}
 
+        from google.genai import types
+        import mimetypes
+
         contents = []
         for path in file_paths:
             ext = os.path.splitext(path)[1].lower()
-            if ext in ['.jpg', '.jpeg', '.png']:
-                contents.append(Image.open(path))
-            elif ext == '.pdf':
-                # New SDK handles PDF bytes directly
-                with open(path, "rb") as f:
-                    pdf_data = f.read()
-                contents.append({
-                    "mime_type": "application/pdf",
-                    "data": pdf_data
-                })
+            mime_type, _ = mimetypes.guess_type(path)
+
+            if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+                with open(path, 'rb') as f:
+                    data = f.read()
+                contents.append(types.Part.from_bytes(data=data, mime_type=mime_type or 'application/octet-stream'))
             elif ext == '.txt':
                 with open(path, 'r', encoding='utf-8') as f:
-                    contents.append(f.read())
+                    contents.append(types.Part.from_text(text=f.read()))
 
         prompt = """
         Analyze these legal documents. Return ONLY a JSON object with this structure:
