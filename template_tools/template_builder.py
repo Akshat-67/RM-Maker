@@ -94,9 +94,26 @@ class TemplateBuilder:
         raw_content = "\n".join(content_parts)
 
         prompt = f"""
-        Analyze this Registered Mortgage text. Identify every variable piece of data (Names, Dates, Amounts, Addresses, LANs, Boundaries, Ages).
-        Provide the EXACT string as it appears. Return a JSON dictionary: {{"EXACT STRING": "{{{{tag}}}}"}}
-        TEXT:
+        Analyze this Registered Mortgage (RM) document text.
+        Your task is to identify variable data strings and map them to our specific system tags.
+
+        SYSTEM TAG SCHEMA:
+        - rd: RM Date -> {{{{rd}}}}
+        - ad: Loan Agreement Date -> {{{{ad}}}}
+        - bs: Borrowers (list) -> {{{{bs[0].n}}}} (name), {{{{bs[0].s}}}} (salutation), {{{{bs[0].a}}}} (age), {{{{bs[0].r}}}} (relation S/o, W/o), {{{{bs[0].rn}}}} (relative name), {{{{bs[0].adr}}}} (address)
+        - ls: Loans (list) -> {{{{ls[0].n}}}} (LAN No), {{{{ls[0].a}}}} (Amount), {{{{ls[0].w}}}} (Amount in words), {{{{ls[0].t}}}} (Tenure)
+        - ps: Properties (list) -> {{{{ps[0].adr}}}} (address), {{{{ps[0].n}}}} (North), {{{{ps[0].s}}}} (South), {{{{ps[0].e}}}} (East), {{{{ps[0].w}}}} (West)
+        - bsign: Bank Signatory -> {{{{bsign.n}}}} (name), {{{{bsign.r}}}} (relation), {{{{bsign.rn}}}} (relative name)
+        - ws: Witnesses (list) -> {{{{ws[0].n}}}} (name), {{{{ws[0].r}}}} (relation), {{{{ws[0].rn}}}} (relative), {{{{ws[0].adr}}}} (address)
+
+        IMPORTANT INSTRUCTIONS:
+        1. Identify the EXACT string as it appears in the document.
+        2. Map it to the correct index (e.g., if there are 2 borrowers, use index [0] and [1]).
+        3. Tenure (e.g. "240 Months") should be {{{{ls[i].t}}}}, NOT {{{{bs[i].a}}}}.
+        4. Amounts (e.g. "17,15,000/-") should be {{{{ls[i].a}}}}.
+        5. Return ONLY a JSON dictionary where the keys are the "EXACT STRING" and the values are the "{{{{tag}}}}".
+
+        TEXT TO ANALYZE:
         {raw_content}
         """
 
