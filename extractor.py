@@ -65,7 +65,7 @@ class DataExtractor:
           "rd": "RM Date",
           "ad": "Loan Agreement Date",
           "bs": [
-            {"s": "Mr./Mrs.", "n": "Name", "a": "Age", "r": "S/o, W/o", "rn": "Relative Name", "adr": "Address"}
+            {"s": "Mr./Mrs.", "n": "Name", "a": "Age", "r": "S/o, W/o", "rn": "Relative Name", "adr": "Address", "id": "Aadhar/ID"}
           ],
           "ls": [
             {"n": "LAN No", "a": "Amount", "w": "Amount in words", "t": "Tenure"}
