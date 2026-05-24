@@ -29,18 +29,10 @@ class LawApp:
                     "3+ Loans": "templates/ICICI_SINGLE_BORROWER_3_LOANS.docx"
                 },
                 "Multiple": {
-                    "1 Loan": "templates/ICICI_MULTI_BORROWER_1_LOAN.docx",
+                    "1 Loan": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx", # Use 2-loan template as fallback
                     "2 Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx",
-                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_3_LOANS.docx"
+                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx"
                 }
-            },
-            "Home First": {
-                "Single": {"1 Loan": "templates/HOME_FIRST_SINGLE_1_LOAN.docx"},
-                "Multiple": {"1 Loan": "templates/HOME_FIRST_MULTI_1_LOAN.docx"}
-            },
-            "Piramal": {
-                "Single": {"1 Loan": "templates/PIRAMAL_SINGLE_1_LOAN.docx"},
-                "Multiple": {"1 Loan": "templates/PIRAMAL_MULTI_1_LOAN.docx"}
             }
         }
         self.setup_ui()
@@ -57,7 +49,7 @@ class LawApp:
 
         tk.Label(left_p, text="1. CASE SETTINGS", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE).pack(anchor="w", pady=(0,10))
         self.bank_var = tk.StringVar(value="ICICI")
-        ttk.Combobox(left_p, textvariable=self.bank_var, values=["ICICI", "Home First", "Piramal"]).pack(fill="x")
+        ttk.Combobox(left_p, textvariable=self.bank_var, values=["ICICI"]).pack(fill="x")
 
         self.borr_var = tk.StringVar(value="Single")
         tk.Radiobutton(left_p, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT).pack(anchor="w")

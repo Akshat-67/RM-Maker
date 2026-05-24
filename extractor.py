@@ -13,10 +13,24 @@ class DataExtractor:
 
     def amount_to_words(self, amount_str):
         try:
-            clean_str = re.sub(r'[^\d.]', '', amount_str)
+            clean_str = re.sub(r'[^\d.]', '', str(amount_str))
+            if not clean_str: return ""
             amount = float(clean_str)
-            return num2words(amount, lang='en_IN', to='currency').replace('euro', 'Rupees').replace('cents', 'Paise')
-        except:
+
+            main_val = int(amount)
+            fraction = round((amount - main_val) * 100)
+
+            words = num2words(main_val, lang='en_IN')
+            words = words.replace('thousand', 'Thousand').replace('lakh', 'Lakh').replace('crore', 'Crore')
+
+            result = f"Rupees {words}"
+            if fraction > 0:
+                fraction_words = num2words(fraction, lang='en_IN')
+                result += f" and {fraction_words} Paise"
+
+            return f"{result} Only".title().replace("  ", " ")
+        except Exception as e:
+            print(f"Error converting amount to words: {e}")
             return ""
 
     def get_available_models(self):
@@ -60,36 +74,77 @@ class DataExtractor:
                     contents.append(types.Part.from_text(text=f.read()))
 
         prompt = """
-        Analyze these legal documents. Return ONLY a JSON object with this structure:
+        CRITICAL: Analyze the provided legal documents (LSR, Sanction Letter, IDs, etc.) and extract EXACT data.
+        Return ONLY a JSON object. Accuracy is mandatory.
+
+        REQUIRED STRUCTURE:
         {
-          "rd": "RM Date",
+          "rd": "RM Execution Date (e.g. 15th January 2024)",
           "ad": "Loan Agreement Date",
           "bs": [
-            {"s": "Mr./Mrs.", "n": "Name", "a": "Age", "r": "S/o, W/o", "rn": "Relative Name", "adr": "Address", "id": "Aadhar/ID"}
+            {
+              "s": "Salutation (Mr./Ms./Mrs.)",
+              "n": "Full Name",
+              "a": "Age (years)",
+              "r": "Relation Type (S/o, W/o, D/o)",
+              "rn": "Relative's Full Name",
+              "adr": "Full Residential Address",
+              "id": "Aadhar Number or ID Proof Number"
+            }
           ],
           "ls": [
-            {"n": "LAN No", "a": "Amount", "w": "Amount in words", "t": "Tenure"}
+            {
+              "n": "Loan Account Number (LAN)",
+              "a": "Loan Amount (Figures, e.g., 1500000)",
+              "w": "Loan Amount in Words",
+              "t": "Loan Tenure (e.g., 240 Months)"
+            }
           ],
           "ps": [
-            {"adr": "Prop Address", "n": "North", "s": "South", "e": "East", "w": "West"}
+            {
+              "adr": "Full Property Address/Description",
+              "n": "North Boundary",
+              "s": "South Boundary",
+              "e": "East Boundary",
+              "w": "West Boundary"
+            }
           ],
-          "bsign": {"n": "Bank Signatory", "r": "S/o", "rn": "Father Name"},
+          "bsign": {
+            "n": "Bank Signatory Name",
+            "r": "Relation Type",
+            "rn": "Relative Name"
+          },
           "ws": [
-            {"n": "Name", "r": "S/o", "rn": "Relative", "adr": "Address"}
+            {
+              "n": "Witness Name",
+              "r": "Relation Type",
+              "rn": "Relative Name",
+              "adr": "Witness Address"
+            }
           ],
           "ds": [
-            {"t": "Document description from LSR"}
+            {
+              "t": "Full description of title deeds from LSR/Report"
+            }
           ]
         }
+
+        INSTRUCTIONS:
+        1. Extract data for ALL borrowers found.
+        2. Ensure 'id' contains the Aadhar number if available.
+        3. For 'ds', extract the list of documents deposited as mentioned in the LSR or Search Report.
+        4. If a field is not found, use an empty string.
         """
 
         try:
             # New SDK generate_content syntax
             # Note: contents and prompt are joined
-            final_content = contents + [prompt]
+            # Ensuring prompt is the last Part for context
+            final_contents = contents + [types.Part.from_text(text=prompt)]
+
             response = self.client.models.generate_content(
                 model=selected_model,
-                contents=final_content
+                contents=final_contents
             )
 
             match = re.search(r'\{.*\}', response.text, re.DOTALL)

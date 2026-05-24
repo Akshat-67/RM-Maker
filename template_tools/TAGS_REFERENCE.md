@@ -11,6 +11,7 @@
 - `{{b.r}}`: Relation
 - `{{b.rn}}`: Relative's Name
 - `{{b.adr}}`: Address
+- `{{b.id}}`: Aadhar/ID Number
 `{% endfor %}`
 
 ### 3. Loans (Loop: `{% for l in ls %}`)

@@ -32,13 +32,18 @@ class TemplateBuilder:
             ("Borrower 1 Address", "{{bs[0].adr}}"),
             ("Borrower 1 Aadhar/ID", "{{bs[0].id}}"),
             ("Borrower 2 Name", "{{bs[1].n}}"),
+            ("Borrower 2 Relation", "{{bs[1].r}}"),
+            ("Borrower 2 Rel Name", "{{bs[1].rn}}"),
             ("Borrower 2 Address", "{{bs[1].adr}}"),
+            ("Borrower 2 Aadhar/ID", "{{bs[1].id}}"),
             ("Loan 1 LAN No", "{{ls[0].n}}"),
             ("Loan 1 Amount (Value)", "{{ls[0].a}}"),
             ("Loan 1 Amount (Words)", "{{ls[0].w}}"),
             ("Loan 1 Tenure", "{{ls[0].t}}"),
             ("Loan 2 LAN No", "{{ls[1].n}}"),
-            ("Loan 2 Amount", "{{ls[1].a}}"),
+            ("Loan 2 Amount (Value)", "{{ls[1].a}}"),
+            ("Loan 2 Amount (Words)", "{{ls[1].w}}"),
+            ("Loan 2 Tenure", "{{ls[1].t}}"),
             ("Property Address", "{{ps[0].adr}}"),
             ("Property North", "{{ps[0].n}}"),
             ("Property South", "{{ps[0].s}}"),
@@ -99,7 +104,7 @@ class TemplateBuilder:
         tk.Button(group2, text="Verify API Status", command=self.refresh_models, bg="#E8F0FE", fg=self.c_blue, bd=0, font=("Segoe UI", 9, "bold")).pack(fill="x", pady=5)
 
         # Discovery Action
-        self.discover_btn = tk.Button(left_panel, text="🔍 START FULL AI DATA DISCOVERY", command=self.discover_data, bg=self.c_green, fg="white", font=("Segoe UI", 13, "bold"), bd=0, pady=18, cursor="hand2")
+        self.discover_btn = tk.Button(left_panel, text="🔍 START FULL AI DATA DISCOVERY", command=self.discover_data, bg=self.c_success, fg="white", font=("Segoe UI", 13, "bold"), bd=0, pady=18, cursor="hand2")
         self.discover_btn.pack(fill="x", pady=15)
 
         # 3. Mapping Audit
@@ -145,10 +150,10 @@ class TemplateBuilder:
         right_panel.pack_propagate(False)
 
         # targeted re-scan
-        r1 = tk.LabelFrame(right_panel, text=" SMART GAP FIXER ", bg=self.c_panel, font=("Segoe UI", 10, "bold"), padx=15, pady=15, fg=self.c_red)
+        r1 = tk.LabelFrame(right_panel, text=" SMART GAP FIXER ", bg=self.c_panel, font=("Segoe UI", 10, "bold"), padx=15, pady=15, fg=self.c_danger)
         r1.pack(fill="x", pady=(0, 10))
         tk.Label(r1, text="Untick items on the left then run:", bg=self.c_panel, font=("Segoe UI", 9), justify="left", fg=self.c_text).pack(pady=5)
-        self.refetch_btn = tk.Button(r1, text="REFETCH UNCHECKED FIELDS", command=self.refetch_missing, bg=self.c_red, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=15, cursor="hand2")
+        self.refetch_btn = tk.Button(r1, text="REFETCH UNCHECKED FIELDS", command=self.refetch_missing, bg=self.c_danger, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=15, cursor="hand2")
         self.refetch_btn.pack(fill="x")
 
         # manual override
@@ -318,8 +323,15 @@ class TemplateBuilder:
 
         # Comprehensive cross-section replacement
         for section in doc.sections:
-            for p in section.header.paragraphs: self.apply_reps(p, reps)
-            for p in section.footer.paragraphs: self.apply_reps(p, reps)
+            # Handle all header/footer types (Default, First Page, Even Page)
+            for hf_name in ['header', 'footer', 'first_page_header', 'first_page_footer', 'even_page_header', 'even_page_footer']:
+                hf = getattr(section, hf_name, None)
+                if hf:
+                    for p in hf.paragraphs: self.apply_reps(p, reps)
+                    for table in hf.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                for p in cell.paragraphs: self.apply_reps(p, reps)
 
         for p in doc.paragraphs: self.apply_reps(p, reps)
         for table in doc.tables:
