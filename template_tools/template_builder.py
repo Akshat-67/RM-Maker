@@ -59,8 +59,8 @@ class TemplateBuilder:
         self.c_bg = "#F3F4F6"
         self.c_panel = "#FFFFFF"
         self.c_blue = "#1A73E8"
-        self.c_green = "#0F9D58"
-        self.c_red = "#D93025"
+        self.c_success = "#0F9D58"
+        self.c_danger = "#D93025"
         self.c_border = "#DADCE0"
         self.c_text = "#3C4043"
 
