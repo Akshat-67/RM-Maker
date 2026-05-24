@@ -145,7 +145,7 @@ class LawApp:
         self.ents['bs'] = []
         for i, b in enumerate(d.get('bs', [])):
             sec_b = tk.LabelFrame(self.scroll_f, text=f" BORROWER {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_b.pack(fill="x", pady=10)
-            self.ents['bs'].append({k: self.create_input(sec_b, k, b.get(k,'')) for k in ['s','n','a','r','rn','adr']})
+            self.ents['bs'].append({k: self.create_input(sec_b, k, b.get(k,'')) for k in ['s','n','a','r','rn','adr','id']})
 
         self.ents['ls'] = []
         for i, l in enumerate(d.get('ls', [])):
