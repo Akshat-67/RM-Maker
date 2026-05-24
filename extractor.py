@@ -74,66 +74,40 @@ class DataExtractor:
                     contents.append(types.Part.from_text(text=f.read()))
 
         prompt = """
-        CRITICAL: Analyze the provided legal documents (LSR, Sanction Letter, IDs, etc.) and extract EXACT data.
-        Return ONLY a JSON object. Accuracy is mandatory.
+        CRITICAL TASK: Extract EXACT data from the provided legal documents.
+        Return ONLY a JSON object. NO conversational text.
 
-        REQUIRED STRUCTURE:
+        STRUCTURE:
         {
-          "rd": "RM Execution Date (e.g. 15th January 2024)",
+          "rd": "RM Execution Date (character-perfect, e.g. 10th May 2024)",
           "ad": "Loan Agreement Date",
           "bs": [
             {
-              "s": "Salutation (Mr./Ms./Mrs.)",
-              "n": "Full Name",
-              "a": "Age (years)",
-              "r": "Relation Type (S/o, W/o, D/o)",
-              "rn": "Relative's Full Name",
-              "adr": "Full Residential Address",
-              "id": "Aadhar Number or ID Proof Number"
+              "s": "Mr./Ms.", "n": "Full Name", "a": "Age",
+              "r": "Relation (S/o, W/o)", "rn": "Relative Name",
+              "adr": "Address", "id": "Aadhar/ID"
             }
           ],
           "ls": [
-            {
-              "n": "Loan Account Number (LAN)",
-              "a": "Loan Amount (Figures, e.g., 1500000)",
-              "w": "Loan Amount in Words",
-              "t": "Loan Tenure (e.g., 240 Months)"
-            }
+            {"n": "LAN No", "a": "Amount Figures", "w": "Amount Words", "t": "Tenure"}
           ],
           "ps": [
-            {
-              "adr": "Full Property Address/Description",
-              "n": "North Boundary",
-              "s": "South Boundary",
-              "e": "East Boundary",
-              "w": "West Boundary"
-            }
+            {"adr": "Address", "n": "North", "s": "South", "e": "East", "w": "West"}
           ],
-          "bsign": {
-            "n": "Bank Signatory Name",
-            "r": "Relation Type",
-            "rn": "Relative Name"
-          },
+          "bsign": {"n": "Bank Signatory", "r": "Rel", "rn": "Rel Name"},
           "ws": [
-            {
-              "n": "Witness Name",
-              "r": "Relation Type",
-              "rn": "Relative Name",
-              "adr": "Witness Address"
-            }
+            {"n": "Name", "r": "Rel", "rn": "Rel Name", "adr": "Address"}
           ],
           "ds": [
-            {
-              "t": "Full description of title deeds from LSR/Report"
-            }
+            {"t": "Document Description"}
           ]
         }
 
-        INSTRUCTIONS:
-        1. Extract data for ALL borrowers found.
-        2. Ensure 'id' contains the Aadhar number if available.
-        3. For 'ds', extract the list of documents deposited as mentioned in the LSR or Search Report.
-        4. If a field is not found, use an empty string.
+        RULES:
+        1. Accuracy is 100% required. Do not guess.
+        2. If multiple borrowers or loans, include all.
+        3. For 'ds', list title deeds mentioned in LSR.
+        4. Leave empty strings for missing data.
         """
 
         try:
