@@ -95,23 +95,27 @@ class TemplateBuilder:
 
         prompt = f"""
         Analyze this Registered Mortgage (RM) document text.
-        Your task is to identify variable data strings and map them to our specific system tags.
+        Your goal is to transform it into a 'Master Template' by identifying ALL variable data and replacing it with system tags.
 
-        SYSTEM TAG SCHEMA:
-        - rd: RM Date -> {{{{rd}}}}
-        - ad: Loan Agreement Date -> {{{{ad}}}}
-        - bs: Borrowers (list) -> {{{{bs[0].n}}}} (name), {{{{bs[0].s}}}} (salutation), {{{{bs[0].a}}}} (age), {{{{bs[0].r}}}} (relation S/o, W/o), {{{{bs[0].rn}}}} (relative name), {{{{bs[0].adr}}}} (address)
-        - ls: Loans (list) -> {{{{ls[0].n}}}} (LAN No), {{{{ls[0].a}}}} (Amount), {{{{ls[0].w}}}} (Amount in words), {{{{ls[0].t}}}} (Tenure)
-        - ps: Properties (list) -> {{{{ps[0].adr}}}} (address), {{{{ps[0].n}}}} (North), {{{{ps[0].s}}}} (South), {{{{ps[0].e}}}} (East), {{{{ps[0].w}}}} (West)
-        - bsign: Bank Signatory -> {{{{bsign.n}}}} (name), {{{{bsign.r}}}} (relation), {{{{bsign.rn}}}} (relative name)
-        - ws: Witnesses (list) -> {{{{ws[0].n}}}} (name), {{{{ws[0].r}}}} (relation), {{{{ws[0].rn}}}} (relative), {{{{ws[0].adr}}}} (address)
+        SYSTEM TAG SCHEMA (Core Fields):
+        - Borrowers (bs): {{{{bs[i].s}}}} (Salutation), {{{{bs[i].n}}}} (Name), {{{{bs[i].a}}}} (Age), {{{{bs[i].r}}}} (Relation S/o, W/o), {{{{bs[i].rn}}}} (Relative Name), {{{{bs[i].adr}}}} (Address)
+        - Loans (ls): {{{{ls[i].n}}}} (LAN No), {{{{ls[i].a}}}} (Amount value), {{{{ls[i].w}}}} (Amount in words), {{{{ls[i].t}}}} (Tenure/Period)
+        - Properties (ps): {{{{ps[i].adr}}}} (Address), {{{{ps[i].n}}}} (North), {{{{ps[i].s}}}} (South), {{{{ps[i].e}}}} (East), {{{{ps[i].w}}}} (West)
+        - Bank Signatory (bsign): {{{{bsign.n}}}} (Name), {{{{bsign.r}}}} (S/o, W/o), {{{{bsign.rn}}}} (Relative Name)
+        - Dates: {{{{rd}}}} (RM Execution Date), {{{{ad}}}} (Loan Agreement Date)
+        - Witnesses (ws): {{{{ws[i].n}}}} (Name), {{{{ws[i].r}}}} (S/o, W/o), {{{{ws[i].rn}}}} (Relative Name), {{{{ws[i].adr}}}} (Address)
 
-        IMPORTANT INSTRUCTIONS:
-        1. Identify the EXACT string as it appears in the document.
-        2. Map it to the correct index (e.g., if there are 2 borrowers, use index [0] and [1]).
-        3. Tenure (e.g. "240 Months") should be {{{{ls[i].t}}}}, NOT {{{{bs[i].a}}}}.
-        4. Amounts (e.g. "17,15,000/-") should be {{{{ls[i].a}}}}.
-        5. Return ONLY a JSON dictionary where the keys are the "EXACT STRING" and the values are the "{{{{tag}}}}".
+        UNIVERSAL STRATEGY FOR TEMPLATE BUILDING:
+        1. NO FRAGMENTS: Do not map small words like "Age", "Date", "S/o" alone. They will cause incorrect global replacements.
+        2. CHUNKING: Replace the LARGEST logical block that contains the variable.
+           Example: Instead of mapping "Jaipur", map "executed at Jaipur on this 5th day of May 2026" -> "executed at Jaipur on this {{{{rd}}}}".
+           Example: Instead of "17,15,000/-", map "RS. 17,15,000/-" -> "RS. {{{{ls[0].a}}}}".
+        3. OVER-COVERAGE: If you find a variable not in the core schema (like a Seller's name or a previous deed number), invent a logical tag like {{{{seller.n}}}} or {{{{prev_deed.no}}}}.
+        4. REPETITION: Identify ALL occurrences of variables. If the same name appears in different parts, ensure it's mapped correctly.
+        5. ACCURACY: The 'key' in your JSON must be the EXACT sub-string from the text below, including all symbols and spaces.
+
+        Return ONLY a JSON dictionary: {{"EXACT STRING FROM TEXT": "TEXT WITH {{{{tags}}}}"}}
+        Example: {{"RS. 12,00,000/-": "RS. {{{{ls[0].a}}}}", "executed by Mrs. Sharma": "executed by {{{{bs[0].s}}}} {{{{bs[0].n}}}}"}}
 
         TEXT TO ANALYZE:
         {raw_content}
@@ -162,22 +166,43 @@ class TemplateBuilder:
     def apply_reps(self, p, reps):
         if not p.text.strip(): return
         for old, new in reps:
-            if old in p.text:
-                self.replace_text_preserving_format(p, old, new)
+            self.replace_text_preserving_format(p, old, new)
 
     def replace_text_preserving_format(self, paragraph, old_text, new_text):
-        """Replaces text while trying to preserve run-level formatting."""
-        # 1. Try simple replacement within runs
-        for run in paragraph.runs:
-            if old_text in run.text:
-                run.text = run.text.replace(old_text, new_text)
+        """Replaces text while trying to preserve run-level formatting, with extreme robustness."""
+        if not old_text or old_text == new_text: return
 
-        # 2. Handle split runs
-        while old_text in paragraph.text:
+        # 1. Normalize spaces in search string
+        normalized_old = re.sub(r'\s+', ' ', old_text).strip()
+
+        # 2. Create an extremely robust regex pattern
+        # re.escape handles most special chars.
+        # In Python 3.12+, re.escape might escape spaces as '\ '.
+        pattern_str = re.escape(normalized_old)
+
+        # 3. Handle spaces robustly: Replace escaped spaces or literal spaces with \s*
+        pattern_str = pattern_str.replace(r'\ ', r'\s*').replace(' ', r'\s*')
+
+        # 4. Allow optional space after common punctuation/symbols often split in Word runs
+        # These are already escaped by re.escape, so we match the escaped versions
+        for char in [r'\.', r'\/', r'\-', r'\,', r'\(', r'\)', r'\:', r'\\', r'\[', r'\]']:
+            pattern_str = pattern_str.replace(char, char + r'\s*')
+
+        try:
+            # Multi-line and Dotall to handle text split in weird ways across runs
+            pattern = re.compile(pattern_str, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        except Exception:
+            return
+
+        # Use a limit to prevent infinite loops if something goes wrong
+        max_reps = 100
+        while max_reps > 0:
+            max_reps -= 1
             full_text = "".join(r.text for r in paragraph.runs)
-            start_idx = full_text.find(old_text)
-            if start_idx == -1: break
-            end_idx = start_idx + len(old_text)
+            match = pattern.search(full_text)
+            if not match: break
+
+            start_idx, end_idx = match.start(), match.end()
 
             cur_len = 0
             start_run_idx = -1
@@ -190,24 +215,25 @@ class TemplateBuilder:
                 if start_run_idx == -1 and cur_len <= start_idx < cur_len + run_len:
                     start_run_idx = i
                     start_offset = start_idx - cur_len
-                if cur_len <= end_idx <= cur_len + run_len:
+                if cur_len < end_idx <= cur_len + run_len:
                     end_run_idx = i
                     end_offset = end_idx - cur_len
                     break
                 cur_len += run_len
 
             if start_run_idx != -1 and end_run_idx != -1:
-                start_run = paragraph.runs[start_run_idx]
-                end_run = paragraph.runs[end_run_idx]
-
                 if start_run_idx == end_run_idx:
-                    start_run.text = start_run.text[:start_offset] + new_text + start_run.text[end_offset:]
+                    r = paragraph.runs[start_run_idx]
+                    r.text = r.text[:start_offset] + new_text + r.text[end_offset:]
                 else:
-                    start_run.text = start_run.text[:start_offset] + new_text
+                    paragraph.runs[start_run_idx].text = paragraph.runs[start_run_idx].text[:start_offset] + new_text
                     for i in range(start_run_idx + 1, end_run_idx):
                         paragraph.runs[i].text = ""
-                    end_run.text = end_run.text[end_offset:]
+                    paragraph.runs[end_run_idx].text = paragraph.runs[end_run_idx].text[end_offset:]
             else:
+                # Fallback to simple replace if run tracking fails (rare)
+                text = paragraph.text
+                paragraph.text = pattern.sub(new_text, text, count=1)
                 break
 
 if __name__ == "__main__":
