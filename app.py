@@ -17,7 +17,7 @@ FONT_MONO = ("Consolas", 10)
 class LawApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("LegalDoc Automator Pro - Integrated AI")
+        self.root.title("LegalDoc Automator Pro - RM Generator")
         self.root.geometry("1300x950")
         self.root.configure(bg=BG_MAIN)
         self.files = []; self.extracted_data = {}
@@ -39,7 +39,8 @@ class LawApp:
 
     def setup_ui(self):
         header = tk.Frame(self.root, bg=ACCENT_BLUE, height=60); header.pack(fill="x")
-        tk.Label(header, text="LegalDoc Automator Pro", fg="white", bg=ACCENT_BLUE, font=("Segoe UI", 16, "bold"), padx=20, pady=15).pack(side="left")
+        tk.Label(header, text="RM GENERATION MODE", fg="white", bg=ACCENT_BLUE, font=("Segoe UI", 14, "bold"), padx=20, pady=15).pack(side="left")
+        tk.Label(header, text="Use template_builder.py for new banks", fg="#BBDEFB", bg=ACCENT_BLUE, font=("Segoe UI", 9, "italic")).pack(side="right", padx=20)
 
         main_c = tk.Frame(self.root, bg=BG_MAIN); main_c.pack(fill="both", expand=True, padx=20, pady=20)
 
@@ -51,8 +52,8 @@ class LawApp:
         ttk.Combobox(left_p, textvariable=self.bank_var, values=["ICICI", "Home First", "Piramal"]).pack(fill="x")
 
         self.borr_var = tk.StringVar(value="Single")
-        tk.Radiobutton(left_p, text="Individual / Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT).pack(anchor="w")
-        tk.Radiobutton(left_p, text="Joint / Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT).pack(anchor="w")
+        tk.Radiobutton(left_p, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT).pack(anchor="w")
+        tk.Radiobutton(left_p, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT).pack(anchor="w")
 
         self.loan_var = tk.StringVar(value="1 Loan")
         tk.Radiobutton(left_p, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=PANEL_LEFT).pack(anchor="w")
@@ -69,8 +70,8 @@ class LawApp:
         self.api_key_entry = tk.Entry(left_p, show="*", bg="#F1F3F4", bd=0); self.api_key_entry.pack(fill="x", ipady=6)
 
         tk.Label(left_p, text="Select AI Model:", font=("Segoe UI", 8), bg=PANEL_LEFT).pack(anchor="w", pady=(8,0))
-        self.model_var = tk.StringVar(value="models/gemini-1.5-flash")
-        self.model_dropdown = ttk.Combobox(left_p, textvariable=self.model_var, values=["models/gemini-1.5-flash"])
+        self.model_var = tk.StringVar(value="gemini-1.5-flash")
+        self.model_dropdown = ttk.Combobox(left_p, textvariable=self.model_var, values=["gemini-1.5-flash"])
         self.model_dropdown.pack(fill="x")
         tk.Button(left_p, text="Verify Key & Get Models", command=self.refresh_models, bg="#E8F0FE", fg=ACCENT_BLUE, bd=0).pack(fill="x", pady=5)
 
@@ -91,13 +92,14 @@ class LawApp:
         k = self.api_key_entry.get()
         if not k: messagebox.showwarning("Key Required", "Please paste your Gemini API Key first."); return
         try:
-            models = DataExtractor(k).get_available_models()
+            extractor = DataExtractor(k)
+            models = extractor.get_available_models()
             if models:
                 self.model_dropdown['values'] = models
                 self.model_var.set(models[0])
-                messagebox.showinfo("Success", f"Found {len(models)} models available for your key!")
-            else: messagebox.showerror("No Models", "No compatible models found for this key. Check if Generative Language API is enabled.")
-        except Exception as e: messagebox.showerror("Connection Error", str(e))
+                messagebox.showinfo("Success", f"Connected! Found {len(models)} models.")
+            else: messagebox.showerror("No Models", "Check if API key is valid.")
+        except Exception as e: messagebox.showerror("Error", str(e))
 
     def add_files(self):
         for p in filedialog.askopenfilenames():
@@ -108,8 +110,8 @@ class LawApp:
 
     def start_process(self):
         k, m = self.api_key_entry.get(), self.model_var.get()
-        if not k or not self.files: messagebox.showerror("Error", "Please add files and provide API key."); return
-        self.extract_btn.config(state="disabled", text="AI IS READING DOCS...")
+        if not k or not self.files: messagebox.showerror("Incomplete", "Add files and key first."); return
+        self.extract_btn.config(state="disabled", text="AI THINKING...")
         threading.Thread(target=self.run_automation, args=(k,m)).start()
 
     def run_automation(self, k, m):
@@ -127,34 +129,23 @@ class LawApp:
         self.ents = {}
         d = self.extracted_data
 
-        # 1. Dates
+        # UI Rendering
         sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
         self.ents['rd'] = self.create_input(sec1, "RM Date", d.get('rd',''))
         self.ents['ad'] = self.create_input(sec1, "Agreement Date", d.get('ad',''))
 
-        # 2. Borrowers
         self.ents['bs'] = []
         for i, b in enumerate(d.get('bs', [])):
             sec_b = tk.LabelFrame(self.scroll_f, text=f" BORROWER {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_b.pack(fill="x", pady=10)
             self.ents['bs'].append({k: self.create_input(sec_b, k, b.get(k,'')) for k in ['s','n','a','r','rn','adr']})
 
-        # 3. Loans
         self.ents['ls'] = []
         for i, l in enumerate(d.get('ls', [])):
             sec_l = tk.LabelFrame(self.scroll_f, text=f" LOAN {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_l.pack(fill="x", pady=10)
             self.ents['ls'].append({k: self.create_input(sec_l, k, l.get(k,'')) for k in ['n','a','w','t']})
 
-        # 4. Properties
-        self.ents['ps'] = []
-        for i, p in enumerate(d.get('ps', [])):
-            sec_p = tk.LabelFrame(self.scroll_f, text=f" PROPERTY {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_p.pack(fill="x", pady=10)
-            self.ents['ps'].append({k: self.create_input(sec_p, k, p.get(k,'')) for k in ['adr','n','s','e','w']})
-
-        # 5. Signs & Docs
-        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL SIGNATORIES ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
-        bs = d.get('bsign', {}); self.ents['bsign'] = {k: self.create_input(sec_end, k, bs.get(k,'')) for k in ['n','r','rn']}
-
-        tk.Label(sec_end, text="Second Schedule (Title Chain):", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w", pady=(10,0))
+        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
+        bs = d.get('bsign', {}); self.ents['bsign'] = {k: self.create_input(sec_end, f"Bank {k}", bs.get(k,'')) for k in ['n','r','rn']}
         t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=0); t.pack(fill="x", pady=5)
         t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])])); self.ents['ds'] = t
 
@@ -169,17 +160,16 @@ class LawApp:
     def generate(self):
         bank, borr, loan = self.bank_var.get(), self.borr_var.get(), self.loan_var.get()
         try: t_path = self.template_map[bank][borr][loan]
-        except KeyError: messagebox.showerror("Error", "No template defined for this selection."); return
+        except KeyError: messagebox.showerror("Error", "No template defined"); return
 
         c = {
             'rd': self.ents['rd'].get(), 'ad': self.ents['ad'].get(),
             'bs': [{k: v.get() for k, v in b.items()} for b in self.ents['bs']],
             'ls': [{k: v.get() for k, v in l.items()} for l in self.ents['ls']],
-            'ps': [{k: v.get() for k, v in p.items()} for p in self.ents['ps']],
             'bsign': {k: v.get() for k, v in self.ents['bsign'].items()},
             'ds': [{'t': x.strip()} for x in self.ents['ds'].get("1.0", tk.END).split('\n') if x.strip()]
         }
         sp = filedialog.asksaveasfilename(defaultextension=".docx")
-        if sp: TemplateProcessor(t_path).generate(c, sp); messagebox.showinfo("Success", "Registered Mortgage Generated!")
+        if sp: TemplateProcessor(t_path).generate(c, sp); messagebox.showinfo("Success", "RM Generated!")
 
 if __name__ == "__main__": root = tk.Tk(); LawApp(root); root.mainloop()
