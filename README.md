@@ -4,13 +4,18 @@ An automated Registered Mortgage (RM) generation system for law firms.
 
 ## Workflow
 1. **Choose Settings:** Select the Bank, number of borrowers, and number of loans.
-2. **Dump Documents:** Add all photos (JPG/PNG) or PDFs of source documents at once.
-3. **Automate:** Click "START AUTOMATION". The tool performs OCR and extraction via Gemini AI.
-4. **Verify:** Check the extracted data on the right panel and edit any fields.
-5. **Generate:** Click "GENERATE FINAL RM DOCX". The app automatically uses the correct Master Template based on your settings.
+2. **Choose Template:** Let the app auto-pick from `templates/`, or upload your own `.docx` containing placeholders such as `{{bs[0].n}}`, `{{ls[0].a}}`, and `{{ws[0].n}}`.
+3. **Dump Documents:** Add all photos (JPG/PNG) or PDFs of source documents at once.
+4. **Guide AI:** Optionally type known borrower/witness names. This is useful when signatures or witness sections could confuse extraction.
+5. **Automate:** Click "START AUTOMATION". The tool performs OCR and extraction via Gemini AI.
+6. **Verify:** Check the extracted data on the right panel and edit any fields.
+7. **Generate:** Click "GENERATE FINAL RM DOCX". The app fills the selected template and safely leaves missing indexed fields blank instead of crashing.
+
+## Formatting
+The final RM keeps the static formatting from the selected Word template. Inserted values inherit the formatting applied to their placeholders, so place each placeholder exactly where the variable text belongs and style the placeholder with the required font, size, bold, underline, etc.
 
 ## Folder Structure
-- `templates/`: Contains the Master .docx files with short-tags.
+- `templates/`: Contains the Master .docx files with short-tags/placeholders.
 - `template_tools/`: Contains `template_builder.py` to create new Master Templates for other banks.
 - `app.py`: The main desktop application.
 

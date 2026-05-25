@@ -6,6 +6,8 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from docx import Document
+from docx.table import _Cell, Table
+from docx.text.paragraph import Paragraph
 
 # Add root directory to path so extractor can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -36,6 +38,12 @@ class TemplateBuilder:
             ("Borrower 2 Rel Name", "{{bs[1].rn}}"),
             ("Borrower 2 Address", "{{bs[1].adr}}"),
             ("Borrower 2 Aadhar/ID", "{{bs[1].id}}"),
+            ("Borrower 3 Salutation", "{{bs[2].s}}"),
+            ("Borrower 3 Name", "{{bs[2].n}}"),
+            ("Borrower 3 Relation", "{{bs[2].r}}"),
+            ("Borrower 3 Rel Name", "{{bs[2].rn}}"),
+            ("Borrower 3 Address", "{{bs[2].adr}}"),
+            ("Borrower 3 Aadhar/ID", "{{bs[2].id}}"),
             ("Loan 1 LAN No", "{{ls[0].n}}"),
             ("Loan 1 Amount (Value)", "{{ls[0].a}}"),
             ("Loan 1 Amount (Words)", "{{ls[0].w}}"),
@@ -44,17 +52,30 @@ class TemplateBuilder:
             ("Loan 2 Amount (Value)", "{{ls[1].a}}"),
             ("Loan 2 Amount (Words)", "{{ls[1].w}}"),
             ("Loan 2 Tenure", "{{ls[1].t}}"),
-            ("Property Address", "{{ps[0].adr}}"),
-            ("Property North", "{{ps[0].n}}"),
-            ("Property South", "{{ps[0].s}}"),
-            ("Property East", "{{ps[0].e}}"),
-            ("Property West", "{{ps[0].w}}"),
+            ("Loan 3 LAN No", "{{ls[2].n}}"),
+            ("Loan 3 Amount (Value)", "{{ls[2].a}}"),
+            ("Loan 3 Amount (Words)", "{{ls[2].w}}"),
+            ("Loan 3 Tenure", "{{ls[2].t}}"),
+            ("Property 1 Address", "{{ps[0].adr}}"),
+            ("Property 1 North", "{{ps[0].n}}"),
+            ("Property 1 South", "{{ps[0].s}}"),
+            ("Property 1 East", "{{ps[0].e}}"),
+            ("Property 1 West", "{{ps[0].w}}"),
+            ("Property 2 Address", "{{ps[1].adr}}"),
+            ("Property 2 North", "{{ps[1].n}}"),
+            ("Property 2 South", "{{ps[1].s}}"),
+            ("Property 2 East", "{{ps[1].e}}"),
+            ("Property 2 West", "{{ps[1].w}}"),
             ("Bank Signatory Name", "{{bsign.n}}"),
             ("Bank Signatory Rel", "{{bsign.r}}"),
             ("Bank Signatory Rel Name", "{{bsign.rn}}"),
             ("Witness 1 Name", "{{ws[0].n}}"),
+            ("Witness 1 Relation", "{{ws[0].r}}"),
+            ("Witness 1 Rel Name", "{{ws[0].rn}}"),
             ("Witness 1 Address", "{{ws[0].adr}}"),
             ("Witness 2 Name", "{{ws[1].n}}"),
+            ("Witness 2 Relation", "{{ws[1].r}}"),
+            ("Witness 2 Rel Name", "{{ws[1].rn}}"),
             ("Witness 2 Address", "{{ws[1].adr}}")
         ]
         self.setup_ui()
@@ -188,7 +209,12 @@ class TemplateBuilder:
 
     def load_doc(self):
         p = filedialog.askopenfilename(filetypes=[("Word Document", "*.docx")])
-        if p: self.doc_path = p; self.path_lbl.config(text=os.path.basename(p), fg=self.c_blue)
+        if p:
+            if not p.lower().endswith(".docx"):
+                messagebox.showwarning("Unsupported Format", "Please select a .docx file. Older .doc files must be saved as .docx first.")
+                return
+            self.doc_path = p
+            self.path_lbl.config(text=os.path.basename(p), fg=self.c_blue)
 
     def refresh_models(self):
         k = self.api_key_entry.get()
@@ -228,14 +254,27 @@ class TemplateBuilder:
             - ws[i]: Witnesses list. n=Name, r=Relation, rn=Relative Name, adr=Address
 
             MAPPING RULES:
-            1. ANCHORED MAPPING (MANDATORY): Do NOT return bare values. Return the WHOLE phrase including static text surrounding the value to ensure character-perfect replacement without breaking layout.
-               GOOD: {{"this 24th day of March 2024": "this {{{{rd}}}}"}}
-               GOOD: {{"MORTGAGE MONEY RS. 17,15,000/-": "MORTGAGE MONEY RS. {{{{ls[0].a}}}}/-"}}
-               BAD: {{"17,15,000": "{{{{ls[0].a}}}}"}}
+            1. MINIMAL VALUE MAPPING (MANDATORY): Return the smallest exact variable text, not the static legal wording around it.
+               GOOD: {{"24th day of March 2024": "{{{{rd}}}}"}}
+               GOOD: {{"17,15,000": "{{{{ls[0].a}}}}"}}
+               GOOD: {{"180 Months": "{{{{ls[0].t}}}}"}}
+               BAD: {{"this 24th day of March 2024": "this {{{{rd}}}}"}}
+               BAD: {{"MORTGAGE MONEY RS. 17,15,000/-": "MORTGAGE MONEY RS. {{{{ls[0].a}}}}/-"}}
 
-            2. EXACT MATCH: The JSON 'Key' must be EXACTLY as it appears in the text, including punctuation and spaces.
+            2. EXACT MATCH: The JSON key must be copied EXACTLY as it appears in the document text, including line breaks where shown.
             3. ENTITY INDEXING: Use [0] for the first entity, [1] for the second, etc.
             4. EXHAUSTIVE SEARCH: Look into headers, footers, and table cells.
+            5. DO NOT MISS THESE COMMONLY MISSED FIELDS:
+               - salutations: Mr., Mrs., Ms., Shri, Smt.
+               - relations: S/o, W/o, D/o, Son of, Wife of, Daughter of
+               - relative names following those relation markers
+               - both witness names, relations, relative names, and full addresses
+               - full property address/schedule and all boundaries
+               - loan tenure such as 120 Months, 180 Months, 240 Months
+            6. If a line reads like "Mr. Ram Kumar S/o Shyam Lal R/o Jaipur", map it separately:
+               {{"Mr.": "{{{{bs[0].s}}}}", "Ram Kumar": "{{{{bs[0].n}}}}", "S/o": "{{{{bs[0].r}}}}", "Shyam Lal": "{{{{bs[0].rn}}}}", "Jaipur": "{{{{bs[0].adr}}}}"}}
+               Exception: if a tiny value like "Mr." or "S/o" appears more than once, include the adjacent name to make it unique:
+               {{"Mr. Ram Kumar": "{{{{bs[0].s}}}} {{{{bs[0].n}}}}", "S/o Shyam Lal": "{{{{bs[0].r}}}} {{{{bs[0].rn}}}}"}}
 
             Return ONLY a valid JSON dictionary. No preamble.
 
@@ -245,12 +284,18 @@ class TemplateBuilder:
 
             extractor = DataExtractor(self.api_key_entry.get())
             raw = extractor.raw_generate(prompt, self.model_var.get())
+            if not raw:
+                self.root.after(0, lambda: messagebox.showerror("AI Error", "AI returned an empty response."))
+                return
             match = re.search(r'\{.*\}', raw, re.DOTALL)
             if match:
-                self.mapping = json.loads(match.group(0))
+                self.mapping = self.clean_mapping(json.loads(match.group(0)))
+                self.mapping.update(self.suggest_common_mappings(content, self.mapping))
                 self.root.after(0, self.update_tree)
             else: self.root.after(0, lambda: messagebox.showerror("AI Error", "AI failed to generate a valid mapping structure."))
-        except Exception as e: self.root.after(0, lambda: messagebox.showerror("System Error", str(e)))
+        except Exception as e:
+            error_msg = str(e)
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("System Error", msg))
         finally: self.root.after(0, lambda: self.discover_btn.config(state="normal", text="🔍 START FULL DATA DISCOVERY"))
 
     def refetch_missing(self):
@@ -269,8 +314,9 @@ class TemplateBuilder:
             prompt = f"""
             GAP ANALYSIS: We missed these fields in the first pass: {missing_tags}.
             Find the EXACT strings for them in the text below.
-            Use the ANCHORED mapping strategy (include surrounding words).
+            Use MINIMAL VALUE MAPPING: return the exact variable value only, not surrounding static wording.
             Also look for ANY other names, dates, or unique numbers that haven't been tagged yet.
+            Pay special attention to witness addresses, property address/schedule, salutations, relation markers (S/o/W/o/D/o), relative names, and loan tenure.
 
             SCHEMA: {self.expected_fields}
 
@@ -282,37 +328,141 @@ class TemplateBuilder:
 
             extractor = DataExtractor(self.api_key_entry.get())
             raw = extractor.raw_generate(prompt, self.model_var.get())
+            if not raw:
+                self.root.after(0, lambda: messagebox.showerror("AI Error", "AI returned an empty response."))
+                return
             match = re.search(r'\{.*\}', raw, re.DOTALL)
             if match:
-                new_data = json.loads(match.group(0))
+                new_data = self.clean_mapping(json.loads(match.group(0)))
+                new_data.update(self.suggest_common_mappings(content, {**self.mapping, **new_data}))
                 self.mapping.update(new_data)
                 self.root.after(0, self.update_tree)
                 self.root.after(0, lambda: messagebox.showinfo("Gap Fix Success", f"Added {len(new_data)} more entries! Check the checklist."))
-        except Exception as e: self.root.after(0, lambda: messagebox.showerror("AI Error", str(e)))
+        except Exception as e:
+            error_msg = str(e)
+            self.root.after(0, lambda msg=error_msg: messagebox.showerror("AI Error", msg))
         finally: self.root.after(0, lambda: self.refetch_btn.config(state="normal", text="REFETCH UNCHECKED FIELDS"))
 
-    def get_doc_content(self, doc):
-        text = ""
-        # 1. Main Document Paragraphs
-        text += "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+    def iter_block_items(self, parent):
+        if hasattr(parent, "element") and hasattr(parent.element, "body"):
+            parent_elm = parent.element.body
+        elif isinstance(parent, _Cell):
+            parent_elm = parent._tc
+        else:
+            parent_elm = parent._element
 
-        # 2. Main Document Tables
-        for table in doc.tables:
-            for row in table.rows:
-                text += "\n" + " | ".join(cell.text.strip() for cell in row.cells)
+        for child in parent_elm.iterchildren():
+            if child.tag.endswith("}p"):
+                yield Paragraph(child, parent)
+            elif child.tag.endswith("}tbl"):
+                yield Table(child, parent)
 
-        # 3. Headers and Footers (including all sections and types)
+    def iter_paragraphs_deep(self, parent):
+        for block in self.iter_block_items(parent):
+            if isinstance(block, Paragraph):
+                yield block
+            elif isinstance(block, Table):
+                for row in block.rows:
+                    for cell in row.cells:
+                        yield from self.iter_paragraphs_deep(cell)
+
+    def iter_story_parts(self, doc):
+        yield "body", doc
         for section in doc.sections:
             for hf_attr in ['header', 'footer', 'first_page_header', 'first_page_footer', 'even_page_header', 'even_page_footer']:
                 hf = getattr(section, hf_attr, None)
                 if hf:
-                    for p in hf.paragraphs:
-                        if p.text.strip(): text += f"\n[{hf_attr}] " + p.text
-                    for table in hf.tables:
-                        for row in table.rows:
-                            text += f"\n[{hf_attr}-table] " + " | ".join(cell.text.strip() for cell in row.cells)
+                    yield hf_attr, hf
 
-        return text
+    def get_doc_content(self, doc):
+        chunks = []
+        for part_name, part in self.iter_story_parts(doc):
+            for p in self.iter_paragraphs_deep(part):
+                text = p.text.strip()
+                if text:
+                    chunks.append(f"[{part_name}] {text}")
+        return "\n".join(chunks)
+
+    def clean_mapping(self, mapping):
+        if not isinstance(mapping, dict):
+            return {}
+
+        cleaned = {}
+        for old, new in mapping.items():
+            old = "" if old is None else str(old).strip()
+            new = "" if new is None else str(new).strip()
+            if not old or not new or old == new:
+                continue
+            if "{{" not in new or "}}" not in new:
+                continue
+            cleaned[old] = new
+        return cleaned
+
+    def tag_exists(self, mapping, tag):
+        return tag in " ".join(str(v) for v in mapping.values())
+
+    def suggest_common_mappings(self, content, mapping):
+        suggestions = {}
+        existing = {**mapping}
+
+        for old, tag in list(mapping.items()):
+            match = re.search(r"\{\{(bs|ws)\[(\d+)\]\.n\}\}", tag)
+            if not match:
+                continue
+
+            group, index = match.group(1), match.group(2)
+            prefix = f"{{{{{group}[{index}]."
+            name = re.escape(old.strip())
+
+            sal_tag = f"{prefix}s}}}}"
+            name_tag = f"{prefix}n}}}}"
+            if group == "bs" and not self.tag_exists(existing, sal_tag):
+                sal_match = re.search(rf"\b(Mr\.|Mrs\.|Ms\.|Shri|Smt\.)\s+({name})\b", content, re.IGNORECASE)
+                if sal_match:
+                    phrase = sal_match.group(0)
+                    replacement = f"{sal_tag} {name_tag}"
+                    suggestions[phrase] = replacement
+                    existing[phrase] = replacement
+
+        for old, tag in list(mapping.items()):
+            match = re.search(r"\{\{(bs|ws|bsign)\[?(\d*)\]?\.rn\}\}|\{\{bsign\.rn\}\}", tag)
+            if not match:
+                continue
+
+            if "bsign" in tag:
+                rel_tag = "{{bsign.r}}"
+            else:
+                group = "bs" if "{{bs[" in tag else "ws"
+                index_match = re.search(r"\[(\d+)\]", tag)
+                if not index_match:
+                    continue
+                rel_tag = f"{{{{{group}[{index_match.group(1)}].r}}}}"
+
+            if self.tag_exists(existing, rel_tag):
+                continue
+
+            rel_name = re.escape(old.strip())
+            rel_match = re.search(rf"\b(S/o|W/o|D/o|Son of|Wife of|Daughter of)\s+({rel_name})\b", content, re.IGNORECASE)
+            if rel_match:
+                phrase = rel_match.group(0)
+                replacement = f"{rel_tag} {tag}"
+                suggestions[phrase] = replacement
+                existing[phrase] = replacement
+
+        tenure_matches = []
+        for tenure in re.findall(r"\b(?:60|84|96|120|144|180|240|300|360)\s*Months?\b", content, re.IGNORECASE):
+            normalized = re.sub(r"\s+", " ", tenure).strip()
+            if normalized not in tenure_matches:
+                tenure_matches.append(normalized)
+
+        unique_tenures = [t for t in tenure_matches if tenure_matches.count(t) == 1]
+        for idx, tenure in enumerate(unique_tenures[:3]):
+            tag = f"{{{{ls[{idx}].t}}}}"
+            if not self.tag_exists(existing, tag):
+                suggestions[tenure] = tag
+                existing[tenure] = tag
+
+        return self.clean_mapping(suggestions)
 
     def update_tree(self):
         for i in self.tree.get_children(): self.tree.delete(i)
@@ -336,25 +486,11 @@ class TemplateBuilder:
     def generate_master(self):
         if not self.doc_path or not self.mapping: messagebox.showwarning("Warning", "Discovery must be run before saving."); return
         doc = Document(self.doc_path)
-        reps = sorted(self.mapping.items(), key=lambda x: len(x[0]), reverse=True)
+        reps = sorted(self.clean_mapping(self.mapping).items(), key=lambda x: len(x[0]), reverse=True)
 
-        # Comprehensive cross-section replacement
-        for section in doc.sections:
-            # Handle all header/footer types (Default, First Page, Even Page)
-            for hf_name in ['header', 'footer', 'first_page_header', 'first_page_footer', 'even_page_header', 'even_page_footer']:
-                hf = getattr(section, hf_name, None)
-                if hf:
-                    for p in hf.paragraphs: self.apply_reps(p, reps)
-                    for table in hf.tables:
-                        for row in table.rows:
-                            for cell in row.cells:
-                                for p in cell.paragraphs: self.apply_reps(p, reps)
-
-        for p in doc.paragraphs: self.apply_reps(p, reps)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for p in cell.paragraphs: self.apply_reps(p, reps)
+        for _, part in self.iter_story_parts(doc):
+            for p in self.iter_paragraphs_deep(part):
+                self.apply_reps(p, reps)
 
         save_p = filedialog.asksaveasfilename(defaultextension=".docx", initialfile="MASTER_TEMPLATE_READY.docx")
         if save_p:
@@ -364,10 +500,84 @@ class TemplateBuilder:
     def apply_reps(self, p, reps):
         if not p.text.strip(): return
         for old, new in reps:
-            self.replace_text_preserving_format(p, old, new)
+            self.safe_replace_text_preserving_format(p, old, new)
+
+    def safe_replace_text_preserving_format(self, paragraph, old_text, new_text):
+        """Replace without assigning paragraph.text, because that destroys Word run formatting."""
+        if not old_text or old_text == new_text: return
+
+        loop_guard = 50
+        while loop_guard > 0:
+            loop_guard -= 1
+            match = self.find_fuzzy_match(paragraph, old_text)
+            if not match:
+                break
+
+            start_r, start_off, end_r, end_off = match
+            if start_r == end_r:
+                rt = paragraph.runs[start_r].text
+                paragraph.runs[start_r].text = rt[:start_off] + new_text + rt[end_off:]
+            else:
+                paragraph.runs[start_r].text = paragraph.runs[start_r].text[:start_off] + new_text
+                for i in range(start_r + 1, end_r):
+                    paragraph.runs[i].text = ""
+                paragraph.runs[end_r].text = paragraph.runs[end_r].text[end_off:]
+
+    def normalize_for_match(self, value):
+        return re.sub(r"[\s\u00A0]+", " ", value or "").strip().casefold()
+
+    def find_fuzzy_match(self, paragraph, needle):
+        if not paragraph.runs:
+            return None
+
+        chars = []
+        positions = []
+        for run_idx, run in enumerate(paragraph.runs):
+            for char_idx, char in enumerate(run.text):
+                chars.append(" " if char.isspace() or char == "\u00A0" else char)
+                positions.append((run_idx, char_idx))
+
+        haystack = "".join(chars)
+        target = self.normalize_for_match(needle)
+        if not haystack or not target:
+            return None
+
+        pattern = re.escape(target).replace(r"\ ", r"[\s\u00A0]+")
+        try:
+            match = re.search(pattern, haystack, re.IGNORECASE | re.DOTALL)
+        except re.error:
+            match = None
+
+        if match:
+            return self.match_to_run_offsets(positions, match.start(), match.end())
+
+        compact_chars = []
+        compact_positions = []
+        for idx, char in enumerate(haystack):
+            if not char.isspace():
+                compact_chars.append(char)
+                compact_positions.append(idx)
+
+        compact_target = re.sub(r"[\s\u00A0]+", "", target)
+        found_at = "".join(compact_chars).casefold().find(compact_target)
+        if found_at == -1:
+            return None
+
+        start = compact_positions[found_at]
+        end = compact_positions[found_at + len(compact_target) - 1] + 1
+        return self.match_to_run_offsets(positions, start, end)
+
+    def match_to_run_offsets(self, positions, start, end):
+        if start >= end or start >= len(positions):
+            return None
+        end = min(end, len(positions))
+        start_r, start_off = positions[start]
+        end_r, end_last_off = positions[end - 1]
+        return start_r, start_off, end_r, end_last_off + 1
 
     def replace_text_preserving_format(self, paragraph, old_text, new_text):
         """Indestructible replacement engine: Preserves styles even if Word splits text into weird runs."""
+        return self.safe_replace_text_preserving_format(paragraph, old_text, new_text)
         if not old_text or old_text == new_text: return
 
         # 1. Normalize spaces for cross-engine compatibility
@@ -393,7 +603,7 @@ class TemplateBuilder:
                 stripped_full = re.sub(r'[\s\u00A0]+', '', full_text)
                 stripped_old = re.sub(r'[\s\u00A0]+', '', norm_old)
                 if stripped_old and stripped_old in stripped_full:
-                    paragraph.text = pattern.sub(new_text, full_text, count=1)
+                    return self.safe_replace_text_preserving_format(paragraph, old_text, new_text)
                 break
 
             s, e = match.start(), match.end()
@@ -418,7 +628,7 @@ class TemplateBuilder:
                     for i in range(start_r + 1, end_r): paragraph.runs[i].text = ""
                     paragraph.runs[end_r].text = paragraph.runs[end_r].text[end_off:]
             else:
-                paragraph.text = pattern.sub(new_text, full_text, count=1)
+                return self.safe_replace_text_preserving_format(paragraph, old_text, new_text)
                 break
 
 if __name__ == "__main__":
