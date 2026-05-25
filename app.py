@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import os
 import threading
+import re
 from extractor import DataExtractor
 from processor import TemplateProcessor
 
@@ -26,21 +27,48 @@ class LawApp:
         self.root.configure(bg=BG_MAIN)
         self.files = []
         self.extracted_data = {}
-        self.template_map = {
-            "ICICI": {
-                "Single": {
-                    "1 Loan": "templates/ICICI_SINGLE_BORROWER_1_LOAN.docx",
-                    "2 Loans": "templates/ICICI_SINGLE_BORROWER_2_LOANS.docx",
-                    "3+ Loans": "templates/ICICI_SINGLE_BORROWER_3_LOANS.docx"
-                },
-                "Multiple": {
-                    "1 Loan": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx", # Use 2-loan template as fallback
-                    "2 Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx",
-                    "3+ Loans": "templates/ICICI_MULTI_BORROWER_2_LOANS.docx"
-                }
-            }
-        }
+        self.template_map = {}
+        self.discover_templates()
         self.setup_ui()
+
+    def discover_templates(self):
+        """Automatically scan the templates/ directory to build the template map."""
+        self.template_map = {}
+        if not os.path.exists("templates"):
+            return
+
+        files = [f for f in os.listdir("templates") if f.endswith(".docx")]
+        for f in files:
+            # Expected format: BANK_BORR_LOAN.docx (e.g., ICICI_SINGLE_1.docx)
+            # Or use a more flexible heuristic if needed
+            name = f.replace(".docx", "")
+            parts = name.split("_")
+            if len(parts) >= 3:
+                bank = parts[0]
+                borr = "Single" if "SINGLE" in f.upper() else "Multiple"
+                # Extract loan count
+                loan_match = re.search(r'(\d+)', f)
+                loan_key = f"{loan_match.group(1)} Loan" if loan_match else "1 Loan"
+                if loan_match and int(loan_match.group(1)) >= 3:
+                    loan_key = "3+ Loans"
+                elif loan_match and int(loan_match.group(1)) == 2:
+                    loan_key = "2 Loans"
+
+                if bank not in self.template_map: self.template_map[bank] = {"Single": {}, "Multiple": {}}
+                self.template_map[bank][borr][loan_key] = os.path.join("templates", f)
+
+        # Fallbacks for banks found but missing specific combinations
+        for bank in self.template_map:
+            for borr in ["Single", "Multiple"]:
+                keys = list(self.template_map[bank][borr].keys())
+                if not keys: continue
+                # If "1 Loan" missing, use first available
+                if "1 Loan" not in self.template_map[bank][borr]:
+                    self.template_map[bank][borr]["1 Loan"] = self.template_map[bank][borr][keys[0]]
+                if "2 Loans" not in self.template_map[bank][borr]:
+                    self.template_map[bank][borr]["2 Loans"] = self.template_map[bank][borr][keys[0]]
+                if "3+ Loans" not in self.template_map[bank][borr]:
+                    self.template_map[bank][borr]["3+ Loans"] = self.template_map[bank][borr][keys[0]]
 
     def setup_ui(self):
         header = tk.Frame(self.root, bg=ACCENT_BLUE, height=70)
@@ -60,8 +88,9 @@ class LawApp:
         tk.Label(left_p, text="1. CASE SETTINGS", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE).pack(anchor="w", pady=(0,15))
 
         tk.Label(left_p, text="Select Bank:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
-        self.bank_var = tk.StringVar(value="ICICI")
-        self.bank_dropdown = ttk.Combobox(left_p, textvariable=self.bank_var, values=["ICICI"], font=FONT_LABEL)
+        banks = list(self.template_map.keys()) if self.template_map else ["ICICI"]
+        self.bank_var = tk.StringVar(value=banks[0])
+        self.bank_dropdown = ttk.Combobox(left_p, textvariable=self.bank_var, values=banks, font=FONT_LABEL)
         self.bank_dropdown.pack(fill="x", pady=(5, 15))
 
         tk.Label(left_p, text="Borrower Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
@@ -160,67 +189,154 @@ class LawApp:
         self.ents = {}
         d = self.extracted_data
 
-        # UI Rendering
+        # --- GENERAL INFO ---
         sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
-        self.ents['rd'] = self.create_input(sec1, "RM Date", d.get('rd',''))
-        self.ents['ad'] = self.create_input(sec1, "Agreement Date", d.get('ad',''))
+        self.ents['rd'] = self.create_input(sec1, "RM Execution Date", d.get('rd',''))
+        self.ents['ad'] = self.create_input(sec1, "Loan Agreement Date", d.get('ad',''))
 
+        # --- BORROWERS ---
+        self.borr_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.borr_container.pack(fill="x")
         self.ents['bs'] = []
-        for i, b in enumerate(d.get('bs', [])):
-            sec_b = tk.LabelFrame(self.scroll_f, text=f" BORROWER {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_b.pack(fill="x", pady=10)
-            self.ents['bs'].append({k: self.create_input(sec_b, k, b.get(k,'')) for k in ['s','n','a','r','rn','adr','id']})
+        for i, b in enumerate(d.get('bs', [])): self.add_borrower_ui(b)
+        tk.Button(self.scroll_f, text="+ Add Borrower", command=lambda: self.add_borrower_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
+        # --- LOANS ---
+        self.loan_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.loan_container.pack(fill="x")
         self.ents['ls'] = []
-        for i, l in enumerate(d.get('ls', [])):
-            sec_l = tk.LabelFrame(self.scroll_f, text=f" LOAN {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_l.pack(fill="x", pady=10)
-            self.ents['ls'].append({k: self.create_input(sec_l, k, l.get(k,'')) for k in ['n','a','w','t']})
+        for i, l in enumerate(d.get('ls', [])): self.add_loan_ui(l)
+        tk.Button(self.scroll_f, text="+ Add Loan Account", command=lambda: self.add_loan_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
+        # --- PROPERTIES ---
+        self.prop_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.prop_container.pack(fill="x")
         self.ents['ps'] = []
-        for i, p in enumerate(d.get('ps', [])):
-            sec_p = tk.LabelFrame(self.scroll_f, text=f" PROPERTY {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_p.pack(fill="x", pady=10)
-            self.ents['ps'].append({k: self.create_input(sec_p, k, p.get(k,'')) for k in ['adr','n','s','e','w']})
+        for i, p in enumerate(d.get('ps', [])): self.add_property_ui(p)
+        tk.Button(self.scroll_f, text="+ Add Property", command=lambda: self.add_property_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
+        # --- WITNESSES ---
+        self.wit_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.wit_container.pack(fill="x")
         self.ents['ws'] = []
-        for i, w in enumerate(d.get('ws', [])):
-            sec_w = tk.LabelFrame(self.scroll_f, text=f" WITNESS {i+1} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_w.pack(fill="x", pady=10)
-            self.ents['ws'].append({k: self.create_input(sec_w, k, w.get(k,'')) for k in ['n','r','rn','adr']})
+        for i, w in enumerate(d.get('ws', [])): self.add_witness_ui(w)
+        tk.Button(self.scroll_f, text="+ Add Witness", command=lambda: self.add_witness_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
-        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
-        bs = d.get('bsign', {}); self.ents['bsign'] = {k: self.create_input(sec_end, f"Bank {k}", bs.get(k,'')) for k in ['n','r','rn']}
-        t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=0); t.pack(fill="x", pady=5)
+        # --- LEGAL & SIGNATORY ---
+        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL & BANK SIGNATORY ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
+        bs = d.get('bsign', {})
+        self.ents['bsign'] = {
+            'n': self.create_input(sec_end, "Signatory Name", bs.get('n','')),
+            'r': self.create_input(sec_end, "Relation", bs.get('r','')),
+            'rn': self.create_input(sec_end, "Rel Name", bs.get('rn',''))
+        }
+
+        tk.Label(sec_end, text="Document Schedule (ds):", font=FONT_LABEL, bg=PANEL_LEFT, fg="#5F6368").pack(anchor="w", pady=(10, 0))
+        t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=1, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        t.pack(fill="x", pady=5)
         t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])])); self.ents['ds'] = t
 
-        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL MASTER WORD DOCX", command=self.generate, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
+        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL RM DOCX", command=self.generate, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
 
-    def create_input(self, parent, label, value):
+    def add_borrower_ui(self, b):
+        idx = len(self.ents['bs']) + 1
+        f = tk.LabelFrame(self.borr_container, text=f" BORROWER {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
+        f.pack(fill="x", pady=10)
+        row = {
+            's': self.create_input(f, "Salutation", b.get('s','')),
+            'n': self.create_input(f, "Full Name", b.get('n','')),
+            'a': self.create_input(f, "Age", b.get('a','')),
+            'r': self.create_input(f, "Relation (S/o)", b.get('r','')),
+            'rn': self.create_input(f, "Relative Name", b.get('rn','')),
+            'adr': self.create_input(f, "Address", b.get('adr',''), True),
+            'id': self.create_input(f, "Aadhar/ID", b.get('id',''))
+        }
+        self.ents['bs'].append(row)
+
+    def add_loan_ui(self, l):
+        idx = len(self.ents['ls']) + 1
+        f = tk.LabelFrame(self.loan_container, text=f" LOAN ACCOUNT {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
+        f.pack(fill="x", pady=10)
+        row = {
+            'n': self.create_input(f, "LAN No", l.get('n','')),
+            'a': self.create_input(f, "Amount (Figures)", l.get('a','')),
+            'w': self.create_input(f, "Amount (Words)", l.get('w',''), True),
+            't': self.create_input(f, "Tenure", l.get('t',''))
+        }
+        self.ents['ls'].append(row)
+
+    def add_property_ui(self, p):
+        idx = len(self.ents['ps']) + 1
+        f = tk.LabelFrame(self.prop_container, text=f" PROPERTY {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
+        f.pack(fill="x", pady=10)
+        row = {
+            'adr': self.create_input(f, "Full Address", p.get('adr',''), True),
+            'n': self.create_input(f, "North", p.get('n','')),
+            's': self.create_input(f, "South", p.get('s','')),
+            'e': self.create_input(f, "East", p.get('e','')),
+            'w': self.create_input(f, "West", p.get('w',''))
+        }
+        self.ents['ps'].append(row)
+
+    def add_witness_ui(self, w):
+        idx = len(self.ents['ws']) + 1
+        f = tk.LabelFrame(self.wit_container, text=f" WITNESS {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
+        f.pack(fill="x", pady=10)
+        row = {
+            'n': self.create_input(f, "Full Name", w.get('n','')),
+            'r': self.create_input(f, "Relation", w.get('r','')),
+            'rn': self.create_input(f, "Rel Name", w.get('rn','')),
+            'adr': self.create_input(f, "Address", w.get('adr',''), True)
+        }
+        self.ents['ws'].append(row)
+
+    def create_input(self, parent, label, value, is_long=False):
         f = tk.Frame(parent, bg=PANEL_LEFT)
         f.pack(fill="x", pady=6)
         tk.Label(f, text=label, width=20, anchor="w", bg=PANEL_LEFT, font=FONT_LABEL, fg="#5F6368").pack(side="left")
-        e = tk.Entry(f, bg="#F1F3F4", bd=0, font=FONT_LABEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        e.insert(0, str(value))
-        e.pack(side="left", fill="x", expand=True, ipady=8)
 
-        # Add focus effects
-        e.bind("<FocusIn>", lambda event: e.config(highlightbackground=ACCENT_BLUE))
-        e.bind("<FocusOut>", lambda event: e.config(highlightbackground=BORDER_COLOR))
+        if is_long:
+            e = tk.Text(f, bg="#F1F3F4", font=FONT_LABEL, height=3, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+            e.insert("1.0", str(value))
+            e.pack(side="left", fill="x", expand=True, pady=2)
+            e.bind("<FocusIn>", lambda event: e.config(highlightbackground=ACCENT_BLUE))
+            e.bind("<FocusOut>", lambda event: e.config(highlightbackground=BORDER_COLOR))
+        else:
+            e = tk.Entry(f, bg="#F1F3F4", bd=0, font=FONT_LABEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
+            e.insert(0, str(value))
+            e.pack(side="left", fill="x", expand=True, ipady=8)
+            e.bind("<FocusIn>", lambda event: e.config(highlightbackground=ACCENT_BLUE))
+            e.bind("<FocusOut>", lambda event: e.config(highlightbackground=BORDER_COLOR))
 
         return e
 
+    def get_val(self, e):
+        if isinstance(e, tk.Text): return e.get("1.0", tk.END).strip()
+        return e.get()
+
     def generate(self):
         bank, borr, loan = self.bank_var.get(), self.borr_var.get(), self.loan_var.get()
-        try: t_path = self.template_map[bank][borr][loan]
-        except KeyError: messagebox.showerror("Error", "No template defined"); return
+        try:
+            t_path = self.template_map[bank][borr][loan]
+        except KeyError:
+            messagebox.showerror("Error", f"No template found for {bank} ({borr}, {loan})"); return
 
-        c = {
-            'rd': self.ents['rd'].get(), 'ad': self.ents['ad'].get(),
-            'bs': [{k: v.get() for k, v in b.items()} for b in self.ents['bs']],
-            'ls': [{k: v.get() for k, v in l.items()} for l in self.ents['ls']],
-            'ps': [{k: v.get() for k, v in p.items()} for p in self.ents['ps']],
-            'ws': [{k: v.get() for k, v in w.items()} for w in self.ents['ws']],
-            'bsign': {k: v.get() for k, v in self.ents['bsign'].items()},
-            'ds': [{'t': x.strip()} for x in self.ents['ds'].get("1.0", tk.END).split('\n') if x.strip()]
-        }
-        sp = filedialog.asksaveasfilename(defaultextension=".docx")
-        if sp: TemplateProcessor(t_path).generate(c, sp); messagebox.showinfo("Success", "RM Generated!")
+        try:
+            c = {
+                'rd': self.get_val(self.ents['rd']),
+                'ad': self.get_val(self.ents['ad']),
+                'bs': [{k: self.get_val(v) for k, v in b.items()} for b in self.ents['bs']],
+                'ls': [{k: self.get_val(v) for k, v in l.items()} for l in self.ents['ls']],
+                'ps': [{k: self.get_val(v) for k, v in p.items()} for p in self.ents['ps']],
+                'ws': [{k: self.get_val(v) for k, v in w.items()} for w in self.ents['ws']],
+                'bsign': {k: self.get_val(v) for k, v in self.ents['bsign'].items()},
+                'ds': [{'t': x.strip()} for x in self.get_val(self.ents['ds']).split('\n') if x.strip()]
+            }
+            sp = filedialog.asksaveasfilename(defaultextension=".docx", initialfile=f"RM_{bank}.docx")
+            if sp:
+                TemplateProcessor(t_path).generate(c, sp)
+                messagebox.showinfo("Success", f"RM Generated successfully at:\n{sp}")
+        except Exception as e:
+            messagebox.showerror("Generation Error", str(e))
 
 if __name__ == "__main__": root = tk.Tk(); LawApp(root); root.mainloop()
