@@ -8,8 +8,8 @@ from extractor import DataExtractor
 from processor import TemplateProcessor
 
 try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD
-except ImportError:
+    from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore
+except (ImportError, ModuleNotFoundError):
     DND_FILES = None
     TkinterDnD = None
 
