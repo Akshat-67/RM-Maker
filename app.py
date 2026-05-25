@@ -79,52 +79,73 @@ class LawApp:
         main_c = tk.Frame(self.root, bg=BG_MAIN)
         main_c.pack(fill="both", expand=True, padx=25, pady=25)
 
-        # --- LEFT PANEL ---
-        left_p = tk.Frame(main_c, bg=PANEL_LEFT, width=480, padx=25, pady=25, highlightbackground=BORDER_COLOR, highlightthickness=1)
-        left_p.pack(side="left", fill="y")
-        left_p.pack_propagate(False)
+        # --- LEFT PANEL (Scrollable) ---
+        left_container = tk.Frame(main_c, bg=PANEL_LEFT, width=480, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        left_container.pack(side="left", fill="y")
+        left_container.pack_propagate(False)
+
+        left_canvas = tk.Canvas(left_container, bg=PANEL_LEFT, highlightthickness=0)
+        left_sb = ttk.Scrollbar(left_container, orient="vertical", command=left_canvas.yview)
+        left_p = tk.Frame(left_canvas, bg=PANEL_LEFT, padx=20, pady=20)
+
+        left_canvas.create_window((0,0), window=left_p, anchor="nw", width=460)
+        left_canvas.configure(yscrollcommand=left_sb.set)
+
+        left_canvas.pack(side="left", fill="both", expand=True)
+        left_sb.pack(side="right", fill="y")
+        left_p.bind("<Configure>", lambda e: left_canvas.configure(scrollregion=left_canvas.bbox("all")))
 
         # 1. Case Settings
-        tk.Label(left_p, text="1. CASE SETTINGS", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE).pack(anchor="w", pady=(0,15))
+        sec1 = tk.LabelFrame(left_p, text=" 1. CASE SETTINGS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec1.pack(fill="x", pady=(0,15))
 
+<<<<<<< HEAD
         tk.Label(left_p, text="Select Bank:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         banks = list(self.template_map.keys()) if self.template_map else ["ICICI"]
         self.bank_var = tk.StringVar(value=banks[0])
         self.bank_dropdown = ttk.Combobox(left_p, textvariable=self.bank_var, values=banks, font=FONT_LABEL)
         self.bank_dropdown.pack(fill="x", pady=(5, 15))
+=======
+        tk.Label(sec1, text="Select Bank:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        self.bank_var = tk.StringVar(value="ICICI")
+        self.bank_dropdown = ttk.Combobox(sec1, textvariable=self.bank_var, values=["ICICI"], font=FONT_LABEL)
+        self.bank_dropdown.pack(fill="x", pady=(5, 10))
+>>>>>>> origin/jules-legal-doc-automation-12026513979570836757
 
-        tk.Label(left_p, text="Borrower Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        tk.Label(sec1, text="Borrower Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         self.borr_var = tk.StringVar(value="Single")
-        tk.Radiobutton(left_p, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(left_p, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w", pady=(0, 10))
+        tk.Radiobutton(sec1, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w", pady=(0, 10))
 
-        tk.Label(left_p, text="Loan Account Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        tk.Label(sec1, text="Loan Account Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         self.loan_var = tk.StringVar(value="1 Loan")
-        tk.Radiobutton(left_p, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(left_p, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(left_p, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
 
         # 2. Document Upload
-        tk.Label(left_p, text="\n2. UPLOAD DOCUMENTS", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE).pack(anchor="w", pady=(15,5))
-        tk.Button(left_p, text="+ ADD PHOTOS / PDFS", command=self.add_files, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=12, cursor="hand2").pack(fill="x", pady=10)
-        self.file_list = tk.Listbox(left_p, height=8, bg="#F1F3F4", bd=0, font=("Segoe UI", 9), selectbackground=ACCENT_BLUE)
+        sec2 = tk.LabelFrame(left_p, text=" 2. UPLOAD DOCUMENTS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec2.pack(fill="x", pady=15)
+        tk.Button(sec2, text="+ ADD PHOTOS / PDFS", command=self.add_files, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=12, cursor="hand2").pack(fill="x", pady=10)
+        self.file_list = tk.Listbox(sec2, height=6, bg="#F1F3F4", bd=0, font=("Segoe UI", 9), selectbackground=ACCENT_BLUE)
         self.file_list.pack(fill="both", pady=5)
-        tk.Button(left_p, text="Clear List", command=self.clear_files, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x", pady=(0, 15))
+        tk.Button(sec2, text="Clear List", command=self.clear_files, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x")
 
         # 3. AI Configuration
-        tk.Label(left_p, text="3. AI CONFIGURATION", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE).pack(anchor="w", pady=(10,5))
-        tk.Label(left_p, text="Paste API Key:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w")
-        self.api_key_entry = tk.Entry(left_p, show="*", bg="#F1F3F4", bd=0, font=FONT_MONO)
-        self.api_key_entry.pack(fill="x", ipady=10, pady=5)
+        sec3 = tk.LabelFrame(left_p, text=" 3. AI CONFIGURATION ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec3.pack(fill="x", pady=15)
+        tk.Label(sec3, text="Paste API Key:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w")
+        self.api_key_entry = tk.Entry(sec3, show="*", bg="#F1F3F4", bd=0, font=FONT_MONO, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        self.api_key_entry.pack(fill="x", ipady=8, pady=5)
 
-        tk.Label(left_p, text="Select AI Model:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w", pady=(8,0))
+        tk.Label(sec3, text="Select AI Model:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w", pady=(8,0))
         self.model_var = tk.StringVar(value="gemini-1.5-flash")
-        self.model_dropdown = ttk.Combobox(left_p, textvariable=self.model_var, values=["gemini-1.5-flash"], font=FONT_LABEL)
+        self.model_dropdown = ttk.Combobox(sec3, textvariable=self.model_var, values=["gemini-1.5-flash"], font=FONT_LABEL)
         self.model_dropdown.pack(fill="x", pady=5)
-        tk.Button(left_p, text="Verify Key & Get Models", command=self.refresh_models, bg="#E8F0FE", fg=ACCENT_BLUE, bd=0, font=("Segoe UI", 9, "bold"), cursor="hand2").pack(fill="x", pady=5)
+        tk.Button(sec3, text="Verify Key & Get Models", command=self.refresh_models, bg="#E8F0FE", fg=ACCENT_BLUE, bd=0, font=("Segoe UI", 9, "bold"), cursor="hand2").pack(fill="x", pady=5)
 
-        self.extract_btn = tk.Button(left_p, text="START AI AUTOMATION", command=self.start_process, bg=BTN_SUCCESS, fg="white", font=("Segoe UI", 12, "bold"), bd=0, pady=15, cursor="hand2")
-        self.extract_btn.pack(fill="x", pady=(20, 0))
+        self.extract_btn = tk.Button(left_p, text="START AI AUTOMATION", command=self.start_process, bg=BTN_SUCCESS, fg="white", font=("Segoe UI", 12, "bold"), bd=0, pady=18, cursor="hand2")
+        self.extract_btn.pack(fill="x", pady=(10, 20))
 
         # --- RIGHT PANEL ---
         right_p = tk.Frame(main_c, bg=BG_MAIN, padx=25)
