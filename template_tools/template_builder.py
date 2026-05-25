@@ -214,29 +214,30 @@ class TemplateBuilder:
             content = self.get_doc_content(doc)
 
             prompt = f"""
-            CRITICAL MISSION: CONVERT DOCUMENT TO MASTER TEMPLATE.
-            You are a legal document analyst. Your goal is 100% accuracy.
-            Identify ALL variable fields in the text below and map them to our system tags.
+            CRITICAL MISSION: CONVERT COMPLETED DOCUMENT TO MASTER JINJA2 TEMPLATE.
+            You are an expert legal document analyst. Your goal is 100% discovery of variable data.
+            Identify ALL case-specific variable fields in the text below and map them to our system tags.
 
-            CORE SCHEMA:
-            - rd: RM Execution Date (e.g. 5th day of May 2026)
-            - ad: Loan Agreement Date
-            - bs[i]: Borrowers. s=Salutation, n=Name, a=Age, r=Relation, rn=Rel Name, adr=Address, id=Aadhar/ID
-            - ls[i]: Loans. n=LAN, a=Amount Value, w=Amount Words, t=Tenure
-            - ps[i]: Properties. adr=Address, n=North, s=South, e=East, w=West
-            - bsign: Bank Signatory. n=Name, r=Rel, rn=Rel Name
-            - ws[i]: Witnesses. n=Name, r=Rel, rn=Rel Name, adr=Address
+            CORE TAG SCHEMA:
+            - rd: RM Execution Date (e.g., '10th day of May 2024')
+            - ad: Loan Agreement Date (e.g., '15.04.2024')
+            - bs[i]: Borrowers list. s=Salutation, n=Name, a=Age, r=Relation, rn=Rel Name, adr=Address, id=Aadhar/ID
+            - ls[i]: Loans list. n=LAN No, a=Amount in Figures, w=Amount in Words, t=Tenure
+            - ps[i]: Property schedules. adr=Address, n=North, s=South, e=East, w=West
+            - bsign: Bank Signatory. n=Name, r=Relation, rn=Relative Name
+            - ws[i]: Witnesses list. n=Name, r=Relation, rn=Relative Name, adr=Address
 
-            ABSOLUTE RULES:
-            1. ANCHORED MAPPING: Do NOT return bare values. Return the WHOLE phrase including static text.
-               GOOD: {{"MORTGAGE MONEY RS. 17,15,000/-": "MORTGAGE MONEY RS. {{{{ls[0].a}}}}"}}
+            MAPPING RULES:
+            1. ANCHORED MAPPING (MANDATORY): Do NOT return bare values. Return the WHOLE phrase including static text surrounding the value to ensure character-perfect replacement without breaking layout.
+               GOOD: {{"this 24th day of March 2024": "this {{{{rd}}}}"}}
+               GOOD: {{"MORTGAGE MONEY RS. 17,15,000/-": "MORTGAGE MONEY RS. {{{{ls[0].a}}}}/-"}}
                BAD: {{"17,15,000": "{{{{ls[0].a}}}}"}}
 
-            2. MULTIPLE ENTITIES: Carefully separate Borrower 1 [0] from Borrower 2 [1], and Loan 1 [0] from Loan 2 [1].
-            3. EXACT MATCH: Keys MUST be character-perfect substrings from the text.
-            4. EXHAUSTIVE: Check Headers, Footers, and Tables.
+            2. EXACT MATCH: The JSON 'Key' must be EXACTLY as it appears in the text, including punctuation and spaces.
+            3. ENTITY INDEXING: Use [0] for the first entity, [1] for the second, etc.
+            4. EXHAUSTIVE SEARCH: Look into headers, footers, and table cells.
 
-            Return ONLY a valid JSON dictionary: {{"EXACT SUBSTRING": "SUBSTRING WITH {{{{tags}}}}"}}
+            Return ONLY a valid JSON dictionary. No preamble.
 
             DOCUMENT TEXT:
             {content}
@@ -291,10 +292,26 @@ class TemplateBuilder:
         finally: self.root.after(0, lambda: self.refetch_btn.config(state="normal", text="REFETCH UNCHECKED FIELDS"))
 
     def get_doc_content(self, doc):
-        text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+        text = ""
+        # 1. Main Document Paragraphs
+        text += "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+
+        # 2. Main Document Tables
         for table in doc.tables:
             for row in table.rows:
                 text += "\n" + " | ".join(cell.text.strip() for cell in row.cells)
+
+        # 3. Headers and Footers (including all sections and types)
+        for section in doc.sections:
+            for hf_attr in ['header', 'footer', 'first_page_header', 'first_page_footer', 'even_page_header', 'even_page_footer']:
+                hf = getattr(section, hf_attr, None)
+                if hf:
+                    for p in hf.paragraphs:
+                        if p.text.strip(): text += f"\n[{hf_attr}] " + p.text
+                    for table in hf.tables:
+                        for row in table.rows:
+                            text += f"\n[{hf_attr}-table] " + " | ".join(cell.text.strip() for cell in row.cells)
+
         return text
 
     def update_tree(self):
