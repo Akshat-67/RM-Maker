@@ -14,17 +14,13 @@ except ImportError:
     TkinterDnD = None
 
 # --- DESIGN CONSTANTS ---
-BG_MAIN = "#F8FAFC"
-SURFACE_CARD = "#FFFFFF"
-ACCENT_BLUE = "#2563EB"
-BTN_SUCCESS = "#10B981"
-BTN_DANGER = "#EF4444"
-BORDER_COLOR = "#E2E8F0"
-PRIMARY_NAV = "#0F172A"
-TEXT_PRIMARY = "#1E293B"
-TEXT_SECONDARY = "#64748B"
-FONT_DISPLAY = ("Segoe UI", 14, "bold")
-TEXT_PRIMARY = "#3C4043"
+BG_MAIN = "#F3F4F6"
+PANEL_LEFT = "#FFFFFF"
+ACCENT_BLUE = "#1A73E8"
+BTN_SUCCESS = "#0F9D58"
+BTN_DANGER = "#D93025"
+BORDER_COLOR = "#DADCE0"
+TEXT_COLOR = "#3C4043"
 
 FONT_HEADER = ("Segoe UI", 12, "bold")
 FONT_LABEL = ("Segoe UI", 10)
@@ -116,13 +112,13 @@ class LawApp:
         main_c.pack(fill="both", expand=True, padx=25, pady=25)
 
         # --- LEFT PANEL (Scrollable) ---
-        left_container = tk.Frame(main_c, bg=SURFACE_CARD, width=480, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        left_container = tk.Frame(main_c, bg=PANEL_LEFT, width=480, highlightbackground=BORDER_COLOR, highlightthickness=1)
         left_container.pack(side="left", fill="y")
         left_container.pack_propagate(False)
 
-        left_canvas = tk.Canvas(left_container, bg=SURFACE_CARD, highlightthickness=0)
+        left_canvas = tk.Canvas(left_container, bg=PANEL_LEFT, highlightthickness=0)
         left_sb = ttk.Scrollbar(left_container, orient="vertical", command=left_canvas.yview)
-        left_p = tk.Frame(left_canvas, bg=SURFACE_CARD, padx=20, pady=20)
+        left_p = tk.Frame(left_canvas, bg=PANEL_LEFT, padx=20, pady=20)
 
         left_canvas.create_window((0,0), window=left_p, anchor="nw", width=460)
         left_canvas.configure(yscrollcommand=left_sb.set)
@@ -132,36 +128,36 @@ class LawApp:
         left_p.bind("<Configure>", lambda e: left_canvas.configure(scrollregion=left_canvas.bbox("all")))
 
         # 1. Case Settings
-        sec1 = tk.LabelFrame(left_p, text=" 1. CASE SETTINGS ", font=FONT_HEADER, bg=SURFACE_CARD, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec1 = tk.LabelFrame(left_p, text=" 1. CASE SETTINGS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
         sec1.pack(fill="x", pady=(0,15))
 
-        tk.Label(left_p, text="Select Bank:", font=FONT_LABEL, bg=SURFACE_CARD).pack(anchor="w")
+        tk.Label(left_p, text="Select Bank:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         banks = list(self.template_map.keys()) if self.template_map else ["ICICI"]
         self.bank_var = tk.StringVar(value=banks[0])
         self.bank_dropdown = ttk.Combobox(left_p, textvariable=self.bank_var, values=banks, font=FONT_LABEL)
         self.bank_dropdown.pack(fill="x", pady=(5, 15))
 
-        tk.Label(sec1, text="Borrower Count:", font=FONT_LABEL, bg=SURFACE_CARD).pack(anchor="w")
+        tk.Label(sec1, text="Borrower Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         self.borr_var = tk.StringVar(value="Single")
-        tk.Radiobutton(sec1, text="Single Borrower", variable=self.borr_var, value="Single", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(sec1, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w", pady=(0, 10))
+        tk.Radiobutton(sec1, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w", pady=(0, 10))
 
-        tk.Label(sec1, text="Loan Account Count:", font=FONT_LABEL, bg=SURFACE_CARD).pack(anchor="w")
+        tk.Label(sec1, text="Loan Account Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
         self.loan_var = tk.StringVar(value="1 Loan")
-        tk.Radiobutton(sec1, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(sec1, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w")
-        tk.Radiobutton(sec1, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
 
         # 2. Template Upload
-        sec_template = tk.LabelFrame(left_p, text=" 2. RM TEMPLATE ", font=FONT_HEADER, bg=SURFACE_CARD, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec_template = tk.LabelFrame(left_p, text=" 2. RM TEMPLATE ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
         sec_template.pack(fill="x", pady=15)
         tk.Button(sec_template, text="+ USE CUSTOM TEMPLATE DOCX", command=self.choose_template, bg="#E8F0FE", fg=ACCENT_BLUE, font=("Segoe UI", 10, "bold"), bd=0, pady=10, cursor="hand2").pack(fill="x", pady=(0, 8))
-        self.template_lbl = tk.Label(sec_template, text="Auto-selecting from templates folder", bg=SURFACE_CARD, fg="#5F6368", font=("Segoe UI", 9), wraplength=390, justify="left")
+        self.template_lbl = tk.Label(sec_template, text="Auto-selecting from templates folder", bg=PANEL_LEFT, fg="#5F6368", font=("Segoe UI", 9), wraplength=390, justify="left")
         self.template_lbl.pack(fill="x", anchor="w")
         tk.Button(sec_template, text="Clear Custom Template", command=self.clear_template, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x", pady=(8, 0))
 
         # 3. Document Upload
-        sec2 = tk.LabelFrame(left_p, text=" 3. UPLOAD DOCUMENTS ", font=FONT_HEADER, bg=SURFACE_CARD, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec2 = tk.LabelFrame(left_p, text=" 3. UPLOAD DOCUMENTS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
         sec2.pack(fill="x", pady=15)
         tk.Button(sec2, text="+ ADD PHOTOS / PDFS", command=self.add_files, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=12, cursor="hand2").pack(fill="x", pady=10)
         self.file_list = tk.Listbox(sec2, height=6, bg="#F1F3F4", bd=0, font=("Segoe UI", 9), selectbackground=ACCENT_BLUE)
@@ -173,14 +169,14 @@ class LawApp:
         tk.Button(sec2, text="Clear List", command=self.clear_files, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x")
 
         # 4. AI Configuration
-        sec3 = tk.LabelFrame(left_p, text=" 4. AI CONFIGURATION ", font=FONT_HEADER, bg=SURFACE_CARD, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec3 = tk.LabelFrame(left_p, text=" 4. AI CONFIGURATION ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
         sec3.pack(fill="x", pady=15)
-        tk.Label(sec3, text="Gemini API Key:", font=("Segoe UI", 9), bg=SURFACE_CARD).pack(anchor="w")
+        tk.Label(sec3, text="Gemini API Key:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w")
         self.api_key_entry = tk.Entry(sec3, show="*", bg="#F1F3F4", bd=0, font=FONT_MONO, highlightthickness=1, highlightbackground=BORDER_COLOR)
         self.api_key_entry.insert(0, DEFAULT_GEMINI_API_KEY)
         self.api_key_entry.pack(fill="x", ipady=8, pady=5)
 
-        tk.Label(sec3, text="Select AI Model:", font=("Segoe UI", 9), bg=SURFACE_CARD).pack(anchor="w", pady=(8,0))
+        tk.Label(sec3, text="Select AI Model:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w", pady=(8,0))
         self.model_var = tk.StringVar(value="gemini-1.5-flash")
         self.model_dropdown = ttk.Combobox(sec3, textvariable=self.model_var, values=["gemini-1.5-flash"], font=FONT_LABEL)
         self.model_dropdown.pack(fill="x", pady=5)
@@ -195,7 +191,7 @@ class LawApp:
 
         top_bar = tk.Frame(right_p, bg=BG_MAIN)
         top_bar.pack(fill="x", pady=(0, 15))
-        tk.Label(top_bar, text="VERIFICATION & EDITING", font=FONT_HEADER, bg=BG_MAIN, fg=TEXT_PRIMARY).pack(side="left")
+        tk.Label(top_bar, text="VERIFICATION & EDITING", font=FONT_HEADER, bg=BG_MAIN, fg=TEXT_COLOR).pack(side="left")
         self.status_lbl = tk.Label(top_bar, text="Ready", font=("Segoe UI", 9, "italic"), bg=BG_MAIN, fg="#5F6368")
         self.status_lbl.pack(side="right")
 
@@ -305,7 +301,7 @@ class LawApp:
             tk.Label(warn_sec, text="\n".join(warnings), bg="#FFF8E1", fg="#8A6D00", font=FONT_LABEL, justify="left", wraplength=760).pack(anchor="w")
 
         # --- GENERAL INFO ---
-        sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
+        sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
         self.ents['rd'] = self.create_input(sec1, "RM Execution Date", d.get('rd',''))
         self.ents['ad'] = self.create_input(sec1, "Loan Agreement Date", d.get('ad',''))
 
@@ -338,7 +334,7 @@ class LawApp:
         for i, w in enumerate(d.get('ws', [])): self.add_witness_ui(w)
 
         # --- LEGAL & SIGNATORY ---
-        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL & BANK SIGNATORY ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
+        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL & BANK SIGNATORY ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
         bs = d.get('bsign', {})
         self.ents['bsign'] = {
             'n': self.create_input(sec_end, "Signatory Name", bs.get('n','')),
@@ -346,7 +342,7 @@ class LawApp:
             'rn': self.create_input(sec_end, "Rel Name", bs.get('rn',''))
         }
 
-        tk.Label(sec_end, text="Document Schedule (ds):", font=FONT_LABEL, bg=SURFACE_CARD, fg="#5F6368").pack(anchor="w", pady=(10, 0))
+        tk.Label(sec_end, text="Document Schedule (ds):", font=FONT_LABEL, bg=PANEL_LEFT, fg="#5F6368").pack(anchor="w", pady=(10, 0))
         t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=1, highlightthickness=1, highlightbackground=BORDER_COLOR)
         t.pack(fill="x", pady=5)
         t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])])); self.ents['ds'] = t
@@ -397,7 +393,7 @@ class LawApp:
 
     def add_borrower_ui(self, b):
         idx = len(self.ents['bs']) + 1
-        f = tk.LabelFrame(self.borr_container, text=f" BORROWER {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
+        f = tk.LabelFrame(self.borr_container, text=f" BORROWER {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
         f.pack(fill="x", pady=10)
         row = {
             's': self.create_input(f, "Salutation", b.get('s','')),
@@ -414,7 +410,7 @@ class LawApp:
 
     def add_loan_ui(self, l):
         idx = len(self.ents['ls']) + 1
-        f = tk.LabelFrame(self.loan_container, text=f" LOAN ACCOUNT {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
+        f = tk.LabelFrame(self.loan_container, text=f" LOAN ACCOUNT {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
         f.pack(fill="x", pady=10)
         row = {
             'n': self.create_input(f, "LAN No", l.get('n','')),
@@ -427,7 +423,7 @@ class LawApp:
 
     def add_property_ui(self, p):
         idx = len(self.ents['ps']) + 1
-        f = tk.LabelFrame(self.prop_container, text=f" PROPERTY {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
+        f = tk.LabelFrame(self.prop_container, text=f" PROPERTY {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
         f.pack(fill="x", pady=10)
         row = {
             'adr': self.create_input(f, "Full Address", p.get('adr',''), True),
@@ -441,7 +437,7 @@ class LawApp:
 
     def add_witness_ui(self, w):
         idx = len(self.ents['ws']) + 1
-        f = tk.LabelFrame(self.wit_container, text=f" WITNESS {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
+        f = tk.LabelFrame(self.wit_container, text=f" WITNESS {idx} ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10)
         f.pack(fill="x", pady=10)
         row = {
             'n': self.create_input(f, "Full Name", w.get('n','')),
@@ -458,9 +454,9 @@ class LawApp:
         frame.destroy()
 
     def create_input(self, parent, label, value, is_long=False):
-        f = tk.Frame(parent, bg=SURFACE_CARD)
+        f = tk.Frame(parent, bg=PANEL_LEFT)
         f.pack(fill="x", pady=6)
-        tk.Label(f, text=label, width=20, anchor="w", bg=SURFACE_CARD, font=FONT_LABEL, fg="#5F6368").pack(side="left")
+        tk.Label(f, text=label, width=20, anchor="w", bg=PANEL_LEFT, font=FONT_LABEL, fg="#5F6368").pack(side="left")
 
         if is_long:
             e = tk.Text(f, bg="#F1F3F4", font=FONT_LABEL, height=3, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
