@@ -31,6 +31,25 @@ FONT_MONO = ("JetBrains Mono", 9) if os.name == "nt" else ("Courier New", 9)
 DEFAULT_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
 
 class LawApp:
+
+    def create_section_title(self, parent, text):
+        f = tk.Frame(parent, bg=parent["bg"])
+        f.pack(fill="x", pady=(25, 12))
+        tk.Label(f, text=text, bg=parent["bg"], fg=PRIMARY_NAV, font=FONT_DISPLAY, anchor="w").pack(side="left")
+        tk.Frame(f, bg=BORDER_COLOR, height=1).pack(side="left", fill="x", expand=True, padx=(15, 0))
+
+    def create_card(self, parent, title=None, is_danger=False):
+        card = tk.Frame(parent, bg=SURFACE_CARD, bd=0, highlightthickness=1,
+                        highlightbackground=BTN_DANGER if is_danger else BORDER_COLOR)
+        card.pack(fill="x", pady=10)
+        inner = tk.Frame(card, bg=SURFACE_CARD, padx=18, pady=18)
+        inner.pack(fill="both", expand=True)
+        if title:
+            header_f = tk.Frame(inner, bg=SURFACE_CARD)
+            header_f.pack(fill="x", pady=(0, 15))
+            tk.Label(header_f, text=title, bg=SURFACE_CARD, fg=TEXT_SECONDARY, font=FONT_HEADER, anchor="w").pack(side="left")
+        return inner
+
     def __init__(self, root):
         self.root = root
         self.root.title("LegalDoc Automator Pro - RM Generator v4")
@@ -106,120 +125,108 @@ class LawApp:
         return False
 
     def setup_ui(self):
-        header = tk.Frame(self.root, bg=PRIMARY_NAV, height=70)
-        header.pack(fill="x", side="top")
-        header.pack_propagate(False)
-        tk.Label(header, text="LegalDoc Automator Pro", bg=PRIMARY_NAV, fg="white", font=("Segoe UI", 18, "bold"), padx=30).pack(side="left")
-        tk.Label(header, text="RM GENERATION ENGINE v4.1", bg=PRIMARY_NAV, fg="#94A3B8", font=("Segoe UI", 9, "bold"), padx=30).pack(side="right")
+        header = tk.Frame(self.root, bg=ACCENT_BLUE, height=70)
+        header.pack(fill="x")
+        tk.Label(header, text="RM GENERATION MODE", fg="white", bg=ACCENT_BLUE, font=("Segoe UI", 16, "bold"), padx=25, pady=20).pack(side="left")
+        tk.Label(header, text="Use template_builder.py for new banks", fg="#E8F0FE", bg=ACCENT_BLUE, font=("Segoe UI", 10, "italic")).pack(side="right", padx=25)
 
-        main_body = tk.Frame(self.root, bg=BG_MAIN)
-        main_body.pack(fill="both", expand=True)
+        main_c = tk.Frame(self.root, bg=BG_MAIN)
+        main_c.pack(fill="both", expand=True, padx=25, pady=25)
 
-        self.left_p_container = tk.Frame(main_body, bg=SURFACE_CARD, width=400, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        self.left_p_container.pack(side="left", fill="y", padx=(20, 10), pady=20)
-        self.left_p_container.pack_propagate(False)
+        # --- LEFT PANEL (Scrollable) ---
+        left_container = tk.Frame(main_c, bg=PANEL_LEFT, width=480, highlightbackground=BORDER_COLOR, highlightthickness=1)
+        left_container.pack(side="left", fill="y")
+        left_container.pack_propagate(False)
 
-        canvas_l = tk.Canvas(self.left_p_container, bg=SURFACE_CARD, highlightthickness=0)
-        scroll_l = ttk.Scrollbar(self.left_p_container, orient="vertical", command=canvas_l.yview)
-        self.left_p = tk.Frame(canvas_l, bg=SURFACE_CARD, padx=20)
-        self.left_p.bind("<Configure>", lambda e: canvas_l.configure(scrollregion=canvas_l.bbox("all")))
-        canvas_l.create_window((0, 0), window=self.left_p, anchor="nw", width=360)
-        canvas_l.configure(yscrollcommand=scroll_l.set)
-        canvas_l.pack(side="left", fill="both", expand=True)
-        scroll_l.pack(side="right", fill="y")
+        left_canvas = tk.Canvas(left_container, bg=PANEL_LEFT, highlightthickness=0)
+        left_sb = ttk.Scrollbar(left_container, orient="vertical", command=left_canvas.yview)
+        left_p = tk.Frame(left_canvas, bg=PANEL_LEFT, padx=20, pady=20)
 
-        self.right_p_container = tk.Frame(main_body, bg=BG_MAIN)
-        self.right_p_container.pack(side="left", fill="both", expand=True, padx=(10, 20), pady=0)
+        left_canvas.create_window((0,0), window=left_p, anchor="nw", width=460)
+        left_canvas.configure(yscrollcommand=left_sb.set)
 
-        # 1. CASE SETTINGS
-        self.create_section_title(self.left_p, "1. CASE SETTINGS")
-        cs_card = self.create_card(self.left_p)
-        tk.Label(cs_card, text="Borrower Count:", bg=SURFACE_CARD, font=FONT_HEADER, fg=TEXT_SECONDARY).pack(anchor="w")
-        self.borr_var = tk.StringVar(value="Single")
-        tk.Radiobutton(cs_card, text="Single Borrower", variable=self.borr_var, value="Single", bg=SURFACE_CARD, font=FONT_LABEL, command=self.on_settings_change).pack(anchor="w", pady=2)
-        tk.Radiobutton(cs_card, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=SURFACE_CARD, font=FONT_LABEL, command=self.on_settings_change).pack(anchor="w", pady=(0, 10))
+        left_canvas.pack(side="left", fill="both", expand=True)
+        left_sb.pack(side="right", fill="y")
+        left_p.bind("<Configure>", lambda e: left_canvas.configure(scrollregion=left_canvas.bbox("all")))
 
-        tk.Label(cs_card, text="Loan Account Count:", bg=SURFACE_CARD, font=FONT_HEADER, fg=TEXT_SECONDARY).pack(anchor="w")
-        self.loan_var = tk.StringVar(value="1 Loan")
-        tk.Radiobutton(cs_card, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=SURFACE_CARD, font=FONT_LABEL, command=self.on_settings_change).pack(anchor="w")
-        tk.Radiobutton(cs_card, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=SURFACE_CARD, font=FONT_LABEL, command=self.on_settings_change).pack(anchor="w")
-        tk.Radiobutton(cs_card, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=SURFACE_CARD, font=FONT_LABEL, command=self.on_settings_change).pack(anchor="w", pady=(0, 10))
+        # 1. Case Settings
+        sec1 = tk.LabelFrame(left_p, text=" 1. CASE SETTINGS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec1.pack(fill="x", pady=(0,15))
 
-        tk.Label(self.left_p, text="Select Bank:", bg=SURFACE_CARD, font=FONT_HEADER, fg=TEXT_SECONDARY).pack(anchor="w", pady=(10,0))
-        banks = sorted(list(self.template_map.keys())) if self.template_map else ["ICICI"]
+        tk.Label(left_p, text="Select Bank:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        banks = list(self.template_map.keys()) if self.template_map else ["ICICI"]
         self.bank_var = tk.StringVar(value=banks[0])
-        self.bank_dropdown = ttk.Combobox(self.left_p, textvariable=self.bank_var, values=banks, font=FONT_LABEL, state="readonly")
+        self.bank_dropdown = ttk.Combobox(left_p, textvariable=self.bank_var, values=banks, font=FONT_LABEL)
         self.bank_dropdown.pack(fill="x", pady=(5, 15))
 
-        # 2. RM TEMPLATE
-        self.create_section_title(self.left_p, "2. RM TEMPLATE")
-        tm_card = self.create_card(self.left_p)
-        tk.Button(tm_card, text="+ USE CUSTOM TEMPLATE DOCX", command=self.choose_template, bg="#EBF2FF", fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, pady=12, cursor="hand2").pack(fill="x")
-        self.template_lbl = tk.Label(tm_card, text="Auto-selecting template", bg=SURFACE_CARD, fg=TEXT_SECONDARY, font=("Segoe UI", 8), wraplength=300)
-        self.template_lbl.pack(pady=5)
-        tk.Button(tm_card, text="Clear Custom Template", command=self.clear_template, bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8, "underline"), bd=0, cursor="hand2").pack()
+        tk.Label(sec1, text="Borrower Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        self.borr_var = tk.StringVar(value="Single")
+        tk.Radiobutton(sec1, text="Single Borrower", variable=self.borr_var, value="Single", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="Multiple Borrowers", variable=self.borr_var, value="Multiple", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w", pady=(0, 10))
 
-        # 3. UPLOAD DOCUMENTS
-        self.create_section_title(self.left_p, "3. UPLOAD DOCUMENTS")
-        up_card = self.create_card(self.left_p)
-        self.drop_zone = tk.Label(up_card, text="Drag & Drop Files Here", bg="#F8FAFC", fg=TEXT_SECONDARY, font=("Segoe UI", 10, "italic"), bd=1, relief="dash", height=4)
-        self.drop_zone.pack(fill="x")
-        if TkinterDnD:
-            self.drop_zone.drop_target_register(DND_FILES)
-            self.drop_zone.dnd_bind("<<Drop>>", self.drop_files)
-        tk.Button(up_card, text="Browse Files", command=self.add_files, bg=SURFACE_CARD, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(pady=5)
-        self.file_listbox = tk.Listbox(up_card, height=4, font=FONT_MONO, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        self.file_listbox.pack(fill="x", pady=5)
-        tk.Button(up_card, text="Clear All Files", command=self.clear_files, bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8), bd=0, cursor="hand2").pack(anchor="e")
+        tk.Label(sec1, text="Loan Account Count:", font=FONT_LABEL, bg=PANEL_LEFT).pack(anchor="w")
+        self.loan_var = tk.StringVar(value="1 Loan")
+        tk.Radiobutton(sec1, text="1 Loan Account", variable=self.loan_var, value="1 Loan", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="2 Loan Accounts", variable=self.loan_var, value="2 Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
+        tk.Radiobutton(sec1, text="3+ Loan Accounts", variable=self.loan_var, value="3+ Loans", bg=PANEL_LEFT, font=FONT_LABEL).pack(anchor="w")
 
-        # 4. AI CONFIGURATION
-        self.create_section_title(self.left_p, "4. AI CONFIGURATION")
-        ai_card = self.create_card(self.left_p)
-        tk.Label(ai_card, text="Gemini API Key:", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w")
-        self.key_ent = tk.Entry(ai_card, show="*", font=FONT_MONO, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        self.key_ent.insert(0, DEFAULT_GEMINI_API_KEY)
-        self.key_ent.pack(fill="x", ipady=8, pady=5)
-        tk.Label(ai_card, text="AI Model:", bg=SURFACE_CARD, font=FONT_LABEL).pack(anchor="w", pady=(10,0))
+        # 2. Template Upload
+        sec_template = tk.LabelFrame(left_p, text=" 2. RM TEMPLATE ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec_template.pack(fill="x", pady=15)
+        tk.Button(sec_template, text="+ USE CUSTOM TEMPLATE DOCX", command=self.choose_template, bg="#E8F0FE", fg=ACCENT_BLUE, font=("Segoe UI", 10, "bold"), bd=0, pady=10, cursor="hand2").pack(fill="x", pady=(0, 8))
+        self.template_lbl = tk.Label(sec_template, text="Auto-selecting from templates folder", bg=PANEL_LEFT, fg="#5F6368", font=("Segoe UI", 9), wraplength=390, justify="left")
+        self.template_lbl.pack(fill="x", anchor="w")
+        tk.Button(sec_template, text="Clear Custom Template", command=self.clear_template, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x", pady=(8, 0))
+
+        # 3. Document Upload
+        sec2 = tk.LabelFrame(left_p, text=" 3. UPLOAD DOCUMENTS ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec2.pack(fill="x", pady=15)
+        tk.Button(sec2, text="+ ADD PHOTOS / PDFS", command=self.add_files, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 10, "bold"), bd=0, pady=12, cursor="hand2").pack(fill="x", pady=10)
+        self.file_list = tk.Listbox(sec2, height=6, bg="#F1F3F4", bd=0, font=("Segoe UI", 9), selectbackground=ACCENT_BLUE)
+        self.file_list.pack(fill="both", pady=5)
+        if DND_FILES:
+            self.file_list.drop_target_register(DND_FILES)
+            self.file_list.dnd_bind("<<Drop>>", self.drop_files)
+            self.file_list.insert(tk.END, "  Drop files here or use the add button")
+        tk.Button(sec2, text="Clear List", command=self.clear_files, bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat", font=("Segoe UI", 9)).pack(fill="x")
+
+        # 4. AI Configuration
+        sec3 = tk.LabelFrame(left_p, text=" 4. AI CONFIGURATION ", font=FONT_HEADER, bg=PANEL_LEFT, fg=ACCENT_BLUE, padx=15, pady=15)
+        sec3.pack(fill="x", pady=15)
+        tk.Label(sec3, text="Gemini API Key:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w")
+        self.api_key_entry = tk.Entry(sec3, show="*", bg="#F1F3F4", bd=0, font=FONT_MONO, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        self.api_key_entry.insert(0, DEFAULT_GEMINI_API_KEY)
+        self.api_key_entry.pack(fill="x", ipady=8, pady=5)
+
+        tk.Label(sec3, text="Select AI Model:", font=("Segoe UI", 9), bg=PANEL_LEFT).pack(anchor="w", pady=(8,0))
         self.model_var = tk.StringVar(value="gemini-1.5-flash")
-        self.model_dropdown = ttk.Combobox(ai_card, textvariable=self.model_var, values=["gemini-1.5-flash", "gemini-2.0-flash-exp"], font=FONT_LABEL)
+        self.model_dropdown = ttk.Combobox(sec3, textvariable=self.model_var, values=["gemini-1.5-flash"], font=FONT_LABEL)
         self.model_dropdown.pack(fill="x", pady=5)
-        tk.Button(ai_card, text="Verify Key & Get Models", command=self.refresh_models, bg=SURFACE_CARD, fg=ACCENT_BLUE, font=("Segoe UI", 8), bd=0, cursor="hand2").pack()
+        tk.Button(sec3, text="Verify Key & Get Models", command=self.refresh_models, bg="#E8F0FE", fg=ACCENT_BLUE, bd=0, font=("Segoe UI", 9, "bold"), cursor="hand2").pack(fill="x", pady=5)
 
-        self.btn_extract = tk.Button(self.left_p, text="START AI AUTOMATION", command=self.start_process, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 12, "bold"), pady=15, bd=0, cursor="hand2")
-        self.btn_extract.pack(fill="x", pady=30)
-        self.status_var = tk.StringVar(value="Ready")
-        tk.Label(self.left_p, textvariable=self.status_var, bg=SURFACE_CARD, fg=TEXT_SECONDARY, font=("Segoe UI", 9, "italic")).pack()
+        self.extract_btn = tk.Button(left_p, text="START AI AUTOMATION", command=self.start_process, bg=BTN_SUCCESS, fg="white", font=("Segoe UI", 12, "bold"), bd=0, pady=18, cursor="hand2")
+        self.extract_btn.pack(fill="x", pady=(10, 20))
 
-        # RIGHT PANEL (Scrollable)
-        canvas_r = tk.Canvas(self.right_p_container, bg=BG_MAIN, highlightthickness=0)
-        scroll_r = ttk.Scrollbar(self.right_p_container, orient="vertical", command=canvas_r.yview)
-        self.scroll_f = tk.Frame(canvas_r, bg=BG_MAIN, padx=20)
-        self.scroll_f.bind("<Configure>", lambda e: canvas_r.configure(scrollregion=canvas_r.bbox("all")))
-        canvas_r.create_window((0, 0), window=self.scroll_f, anchor="nw", width=900)
-        canvas_r.configure(yscrollcommand=scroll_r.set)
-        canvas_r.pack(side="left", fill="both", expand=True)
-        scroll_r.pack(side="right", fill="y")
+        # --- RIGHT PANEL ---
+        right_p = tk.Frame(main_c, bg=BG_MAIN, padx=25)
+        right_p.pack(side="right", fill="both", expand=True)
 
-        self.ents = {"bs": [], "ls": [], "ps": [], "ws": []}
-        self.display_data()
+        top_bar = tk.Frame(right_p, bg=BG_MAIN)
+        top_bar.pack(fill="x", pady=(0, 15))
+        tk.Label(top_bar, text="VERIFICATION & EDITING", font=FONT_HEADER, bg=BG_MAIN, fg=TEXT_COLOR).pack(side="left")
+        self.status_lbl = tk.Label(top_bar, text="Ready", font=("Segoe UI", 9, "italic"), bg=BG_MAIN, fg="#5F6368")
+        self.status_lbl.pack(side="right")
 
-    def create_section_title(self, parent, text):
-        f = tk.Frame(parent, bg=parent["bg"])
-        f.pack(fill="x", pady=(25, 12))
-        tk.Label(f, text=text, bg=parent["bg"], fg=PRIMARY_NAV, font=FONT_DISPLAY, anchor="w").pack(side="left")
-        tk.Frame(f, bg=BORDER_COLOR, height=1).pack(side="left", fill="x", expand=True, padx=(15, 0))
+        self.canvas = tk.Canvas(right_p, bg=BG_MAIN, highlightthickness=0)
+        self.sb = ttk.Scrollbar(right_p, orient="vertical", command=self.canvas.yview)
+        self.scroll_f = tk.Frame(self.canvas, bg=BG_MAIN)
+        self.canvas_window = self.canvas.create_window((0,0), window=self.scroll_f, anchor="nw")
 
-    def create_card(self, parent, title=None, is_danger=False):
-        card = tk.Frame(parent, bg=SURFACE_CARD, bd=0, highlightthickness=1,
-                        highlightbackground=BTN_DANGER if is_danger else BORDER_COLOR)
-        card.pack(fill="x", pady=10)
-        inner = tk.Frame(card, bg=SURFACE_CARD, padx=18, pady=18)
-        inner.pack(fill="both", expand=True)
-        if title:
-            header_f = tk.Frame(inner, bg=SURFACE_CARD)
-            header_f.pack(fill="x", pady=(0, 15))
-            tk.Label(header_f, text=title, bg=SURFACE_CARD, fg=TEXT_SECONDARY, font=FONT_HEADER, anchor="w").pack(side="left")
-        return inner
+        self.canvas.configure(yscrollcommand=self.sb.set)
+        self.scroll_f.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.root.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=self.canvas.winfo_width()))
+        self.canvas.pack(side="left", fill="both", expand=True); self.sb.pack(side="right", fill="y")
+
     def refresh_models(self):
         k = self.api_key_entry.get().strip() or DEFAULT_GEMINI_API_KEY
         if not k: messagebox.showwarning("Key Required", "Gemini API key is missing."); return
@@ -315,61 +322,64 @@ class LawApp:
 
     def display_data(self):
         for w in self.scroll_f.winfo_children(): w.destroy()
-        if "error" in self.extracted_data:
-            messagebox.showerror("Error", self.extracted_data["error"])
-            return
-
-        self.ents = {"bs": [], "ls": [], "ps": [], "ws": []}
+        if "error" in self.extracted_data: messagebox.showerror("Error", self.extracted_data["error"]); return
+        self.ents = {}
         d = self.enforce_case_counts(self.extracted_data)
-
-        tk.Label(self.scroll_f, text="VERIFICATION & EDITING", font=("Segoe UI", 18, "bold"), bg=BG_MAIN, fg=PRIMARY_NAV).pack(anchor="w", pady=(10, 5))
-        tk.Label(self.scroll_f, text="Review extracted data before generating final document", font=("Segoe UI", 10), bg=BG_MAIN, fg=TEXT_SECONDARY).pack(anchor="w", pady=(0, 20))
-
         warnings = self.get_extraction_warnings(d)
         if warnings:
-            warn_card = self.create_card(self.scroll_f, "EXTRACTION WARNINGS", is_danger=True)
-            tk.Label(warn_card, text="\n".join(warnings), bg=SURFACE_CARD, fg=BTN_DANGER, font=FONT_LABEL, justify="left", wraplength=760).pack(anchor="w")
+            warn_sec = tk.LabelFrame(self.scroll_f, text=" EXTRACTION WARNINGS ", bg="#FFF8E1", font=FONT_HEADER, padx=15, pady=10)
+            warn_sec.pack(fill="x", pady=10)
+            tk.Label(warn_sec, text="\n".join(warnings), bg="#FFF8E1", fg="#8A6D00", font=FONT_LABEL, justify="left", wraplength=760).pack(anchor="w")
 
-        dates_card = self.create_card(self.scroll_f, "EXECUTION DATES")
-        self.ents["rd"] = self.create_input(dates_card, "RM Execution Date", d.get("rd", ""))
-        self.ents["ad"] = self.create_input(dates_card, "Loan Agreement Date", d.get("ad", ""))
+        # --- GENERAL INFO ---
+        sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
+        self.ents['rd'] = self.create_input(sec1, "RM Execution Date", d.get('rd',''))
+        self.ents['ad'] = self.create_input(sec1, "Loan Agreement Date", d.get('ad',''))
 
-        self.create_section_title(self.scroll_f, "BORROWERS")
-        self.borr_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.borr_container.pack(fill="x")
-        for b in d.get("bs", []): self.add_borrower_ui(b)
-        tk.Button(self.scroll_f, text="+ Add Borrower", command=lambda: self.add_borrower_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
+        # --- BORROWERS ---
+        self.borr_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.borr_container.pack(fill="x")
+        self.ents['bs'] = []
+        for i, b in enumerate(d.get('bs', [])): self.add_borrower_ui(b)
+        if self.borr_var.get() == "Multiple":
+            tk.Button(self.scroll_f, text="+ Add Borrower", command=lambda: self.add_borrower_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
-        self.create_section_title(self.scroll_f, "LOAN ACCOUNTS")
-        self.loan_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.loan_container.pack(fill="x")
-        for l in d.get("ls", []): self.add_loan_ui(l)
-        tk.Button(self.scroll_f, text="+ Add Loan Account", command=lambda: self.add_loan_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
+        # --- LOANS ---
+        self.loan_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.loan_container.pack(fill="x")
+        self.ents['ls'] = []
+        for i, l in enumerate(d.get('ls', [])): self.add_loan_ui(l)
+        tk.Button(self.scroll_f, text="+ Add Loan Account", command=lambda: self.add_loan_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
-        self.create_section_title(self.scroll_f, "PROPERTY SCHEDULES")
-        self.prop_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.prop_container.pack(fill="x")
-        for p in d.get("ps", []): self.add_property_ui(p)
-        tk.Button(self.scroll_f, text="+ Add Property", command=lambda: self.add_property_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
+        # --- PROPERTIES ---
+        self.prop_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.prop_container.pack(fill="x")
+        self.ents['ps'] = []
+        for i, p in enumerate(d.get('ps', [])): self.add_property_ui(p)
+        tk.Button(self.scroll_f, text="+ Add Property", command=lambda: self.add_property_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
 
-        self.create_section_title(self.scroll_f, "BANK SIGNATORY")
-        bsign_card = self.create_card(self.scroll_f)
-        sig = d.get("bsign", {})
-        self.ents["bsign"] = {
-            "n": self.create_input(bsign_card, "Name", sig.get("n", "")),
-            "r": self.create_input(bsign_card, "Relation", sig.get("r", "")),
-            "rn": self.create_input(bsign_card, "Rel Name", sig.get("rn", ""))
+        # --- WITNESSES ---
+        self.wit_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        self.wit_container.pack(fill="x")
+        self.ents['ws'] = []
+        for i, w in enumerate(d.get('ws', [])): self.add_witness_ui(w)
+
+        # --- LEGAL & SIGNATORY ---
+        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL & BANK SIGNATORY ", bg=PANEL_LEFT, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
+        bs = d.get('bsign', {})
+        self.ents['bsign'] = {
+            'n': self.create_input(sec_end, "Signatory Name", bs.get('n','')),
+            'r': self.create_input(sec_end, "Relation", bs.get('r','')),
+            'rn': self.create_input(sec_end, "Rel Name", bs.get('rn',''))
         }
 
-        self.create_section_title(self.scroll_f, "WITNESSES")
-        self.wit_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.wit_container.pack(fill="x")
-        for w in d.get("ws", []): self.add_witness_ui(w)
-        tk.Button(self.scroll_f, text="+ Add Witness", command=lambda: self.add_witness_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
+        tk.Label(sec_end, text="Document Schedule (ds):", font=FONT_LABEL, bg=PANEL_LEFT, fg="#5F6368").pack(anchor="w", pady=(10, 0))
+        t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=1, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        t.pack(fill="x", pady=5)
+        t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])])); self.ents['ds'] = t
 
-        self.create_section_title(self.scroll_f, "DOCUMENT SCHEDULE (ds)")
-        ds_card = self.create_card(self.scroll_f)
-        t = tk.Text(ds_card, height=8, bg="#F8FAFC", font=FONT_MONO, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        t.pack(fill="x")
-        t.insert("1.0", "\n".join([x.get("t","") for x in d.get("ds", [])])); self.ents["ds"] = t
+        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL RM DOCX", command=self.generate, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
 
-        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL RM DOCX", command=self.generate, bg=BTN_SUCCESS, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
     def enforce_case_counts(self, data):
         data = dict(data)
         borrowers = list(data.get("bs", []))
