@@ -1,4 +1,4 @@
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, RichText
 import os
 import re
 import zipfile
@@ -45,15 +45,45 @@ class TemplateProcessor:
             context[list_name] = values
         return context
 
-    def generate(self, context, output_path):
+    def generate(self, context, output_path, highlight_ai=False, highlight_missing=False, verified_fields=None):
         """
         context: A dictionary containing the data to fill in the template.
         output_path: Where to save the generated .docx file.
+        verified_fields: A set of field paths (e.g., "bs.0.n") that are verified.
         """
+        if verified_fields is None: verified_fields = set()
         context = self._pad_indexed_lists(context)
+
+        # Apply highlighting if requested
+        if highlight_ai or highlight_missing:
+            context = self._apply_highlighting(context, verified_fields, highlight_ai, highlight_missing)
+
         self.doc.render(context)
         self.doc.save(output_path)
         return output_path
+
+    def _apply_highlighting(self, data, verified, h_ai, h_miss, path=""):
+        if isinstance(data, dict):
+            new_data = {}
+            for k, v in data.items():
+                new_path = f"{path}.{k}" if path else k
+                new_data[k] = self._apply_highlighting(v, verified, h_ai, h_miss, new_path)
+            return new_data
+        elif isinstance(data, list):
+            return [self._apply_highlighting(item, verified, h_ai, h_miss, f"{path}.{i}") for i, item in enumerate(data)]
+        else:
+            val = str(data).strip()
+            if not val:
+                if h_miss:
+                    return RichText("[MISSING]", color="FF0000", bold=True)
+                return ""
+
+            # If not verified and h_ai is True, highlight yellow
+            if h_ai and path not in verified:
+                # We assume if it has a value but is not verified, it was AI filled or needs review
+                return RichText(val, highlight="yellow")
+
+            return val
 
 if __name__ == "__main__":
     # Small test if a test_template.docx exists
