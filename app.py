@@ -34,15 +34,25 @@ DEFAULT_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyDs32YIJx35FDhb9qO
 class LawApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("LegalDoc Automator Pro - RM Generator v4")
+        self.root.title("LegalDoc Automator Pro v5")
         self.root.geometry("1400x980")
         self.root.configure(bg=BG_MAIN)
+
+        # Session State
+        self.active_case_id = None
+        self.cases_dir = "cases"
+        os.makedirs(self.cases_dir, exist_ok=True)
+
         self.files = []
         self.extracted_data = {}
+        self.verified_fields = set()
+
         self.template_map = {}
         self.custom_template_path = tk.StringVar(value="")
+
         self.discover_templates()
-        self.setup_ui()
+        self.show_dashboard()
+        self.watch_folder = None
 
     def discover_templates(self):
         """Automatically scan the templates/ directory to build the template map."""
@@ -276,8 +286,8 @@ class LawApp:
 
     def run_automation(self, k, m, bank, borrower_count, loan_count):
         try:
-            self.root.after(0, lambda: self.status_lbl.config(text="AI is processing documents..."))
-            self.extracted_data = DataExtractor(k).extract_with_ai(
+            self.root.after(0, lambda: self.status_var.set("AI is processing documents..."))
+            new_data = DataExtractor(k).extract_with_ai(
                 self.files,
                 m,
                 bank_name=bank,
@@ -285,74 +295,104 @@ class LawApp:
                 expected_loans=loan_count,
                 expected_witnesses=2,
             )
+
+            if "error" in new_data:
+                 self.root.after(0, lambda: messagebox.showerror("AI Error", new_data["error"]))
+                 return
+
+            # SMART MERGE: Keep verified fields, update others
+            self.extracted_data = self.smart_merge(self.extracted_data, new_data)
+
             self.root.after(0, self.display_data)
+            self.root.after(0, self.save_case)
         except Exception as e:
             error_msg = str(e)
             self.root.after(0, lambda msg=error_msg: messagebox.showerror("AI Error", msg))
         finally:
             self.root.after(0, lambda: self.extract_btn.config(state="normal", text="START AI AUTOMATION"))
-            self.root.after(0, lambda: self.status_lbl.config(text="Extraction Complete"))
+            self.root.after(0, lambda: self.status_var.set("Extraction Complete"))
 
+    def smart_merge(self, old, new, path=""):
+        if not old: return new
+        if isinstance(new, dict):
+            merged = old.copy() if isinstance(old, dict) else {}
+            for k, v in new.items():
+                new_path = f"{path}.{k}" if path else k
+                if new_path in self.verified_fields: continue
+                merged[k] = self.smart_merge(merged.get(k), v, new_path)
+            return merged
+        elif isinstance(new, list):
+            # For lists, we merge by index
+            merged = list(old) if isinstance(old, list) else []
+            while len(merged) < len(new): merged.append({})
+            return [self.smart_merge(merged[i], item, f"{path}.{i}") for i, item in enumerate(new)]
+        else:
+            return new
     def display_data(self):
         for w in self.scroll_f.winfo_children(): w.destroy()
-        if "error" in self.extracted_data: messagebox.showerror("Error", self.extracted_data["error"]); return
-        self.ents = {}
+        if not self.extracted_data: return
+        if "error" in self.extracted_data:
+            messagebox.showerror("Error", self.extracted_data["error"])
+            return
+
+        self.ents = {"bs": [], "ls": [], "ps": [], "ws": []}
         d = self.enforce_case_counts(self.extracted_data)
+
+        tk.Label(self.scroll_f, text="VERIFICATION & EDITING", font=("Segoe UI", 18, "bold"), bg=BG_MAIN, fg=PRIMARY_NAV).pack(anchor="w", pady=(10, 5))
+        tk.Label(self.scroll_f, text="Review extracted data before generating final document", font=("Segoe UI", 10), bg=BG_MAIN, fg=TEXT_SECONDARY).pack(anchor="w", pady=(0, 20))
+
         warnings = self.get_extraction_warnings(d)
         if warnings:
-            warn_sec = tk.LabelFrame(self.scroll_f, text=" EXTRACTION WARNINGS ", bg="#FFF8E1", font=FONT_HEADER, padx=15, pady=10)
-            warn_sec.pack(fill="x", pady=10)
-            tk.Label(warn_sec, text="\n".join(warnings), bg="#FFF8E1", fg="#8A6D00", font=FONT_LABEL, justify="left", wraplength=760).pack(anchor="w")
+            warn_card = self.create_card(self.scroll_f, "EXTRACTION WARNINGS", is_danger=True)
+            tk.Label(warn_card, text="\n".join(warnings), bg=SURFACE_CARD, fg=BTN_DANGER, font=FONT_LABEL, justify="left", wraplength=760).pack(anchor="w")
 
-        # --- GENERAL INFO ---
-        sec1 = tk.LabelFrame(self.scroll_f, text=" GENERAL INFO ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10); sec1.pack(fill="x", pady=10)
-        self.ents['rd'] = self.create_input(sec1, "RM Execution Date", d.get('rd',''))
-        self.ents['ad'] = self.create_input(sec1, "Loan Agreement Date", d.get('ad',''))
+        dates_card = self.create_card(self.scroll_f, "EXECUTION DATES")
+        self.ents["rd"] = self.create_input(dates_card, "RM Execution Date", d.get("rd", ""), field_path="rd")
+        self.ents["ad"] = self.create_input(dates_card, "Loan Agreement Date", d.get("ad", ""), field_path="ad")
 
-        # --- BORROWERS ---
-        self.borr_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
-        self.borr_container.pack(fill="x")
-        self.ents['bs'] = []
-        for i, b in enumerate(d.get('bs', [])): self.add_borrower_ui(b)
-        if self.borr_var.get() == "Multiple":
-            tk.Button(self.scroll_f, text="+ Add Borrower", command=lambda: self.add_borrower_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
+        self.create_section_title(self.scroll_f, "BORROWERS")
+        self.borr_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.borr_container.pack(fill="x")
+        for b in d.get("bs", []): self.add_borrower_ui(b)
+        tk.Button(self.scroll_f, text="+ Add Borrower", command=lambda: self.add_borrower_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
 
-        # --- LOANS ---
-        self.loan_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
-        self.loan_container.pack(fill="x")
-        self.ents['ls'] = []
-        for i, l in enumerate(d.get('ls', [])): self.add_loan_ui(l)
-        tk.Button(self.scroll_f, text="+ Add Loan Account", command=lambda: self.add_loan_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
+        self.create_section_title(self.scroll_f, "LOAN ACCOUNTS")
+        self.loan_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.loan_container.pack(fill="x")
+        for l in d.get("ls", []): self.add_loan_ui(l)
+        tk.Button(self.scroll_f, text="+ Add Loan Account", command=lambda: self.add_loan_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
 
-        # --- PROPERTIES ---
-        self.prop_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
-        self.prop_container.pack(fill="x")
-        self.ents['ps'] = []
-        for i, p in enumerate(d.get('ps', [])): self.add_property_ui(p)
-        tk.Button(self.scroll_f, text="+ Add Property", command=lambda: self.add_property_ui({}), bg="#E8F0FE", fg=ACCENT_BLUE).pack(pady=5)
+        self.create_section_title(self.scroll_f, "PROPERTY SCHEDULES")
+        self.prop_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.prop_container.pack(fill="x")
+        for p in d.get("ps", []): self.add_property_ui(p)
+        tk.Button(self.scroll_f, text="+ Add Property", command=lambda: self.add_property_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
 
-        # --- WITNESSES ---
-        self.wit_container = tk.Frame(self.scroll_f, bg=BG_MAIN)
-        self.wit_container.pack(fill="x")
-        self.ents['ws'] = []
-        for i, w in enumerate(d.get('ws', [])): self.add_witness_ui(w)
-
-        # --- LEGAL & SIGNATORY ---
-        sec_end = tk.LabelFrame(self.scroll_f, text=" LEGAL & BANK SIGNATORY ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10); sec_end.pack(fill="x", pady=10)
-        bs = d.get('bsign', {})
-        self.ents['bsign'] = {
-            'n': self.create_input(sec_end, "Signatory Name", bs.get('n','')),
-            'r': self.create_input(sec_end, "Relation", bs.get('r','')),
-            'rn': self.create_input(sec_end, "Rel Name", bs.get('rn',''))
+        self.create_section_title(self.scroll_f, "BANK SIGNATORY")
+        bsign_card = self.create_card(self.scroll_f)
+        sig = d.get("bsign", {})
+        self.ents["bsign"] = {
+            "n": self.create_input(bsign_card, "Name", sig.get("n", ""), field_path="bsign.n"),
+            "r": self.create_input(bsign_card, "Relation", sig.get("r", ""), field_path="bsign.r"),
+            "rn": self.create_input(bsign_card, "Rel Name", sig.get("rn", ""), field_path="bsign.rn")
         }
 
-        tk.Label(sec_end, text="Document Schedule (ds):", font=FONT_LABEL, bg=SURFACE_CARD, fg="#5F6368").pack(anchor="w", pady=(10, 0))
-        t = tk.Text(sec_end, height=8, bg="#F8F9FA", font=FONT_MONO, bd=1, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        t.pack(fill="x", pady=5)
-        t.insert("1.0", "\n".join([x.get('t','') for x in d.get('ds', [])])); self.ents['ds'] = t
+        self.create_section_title(self.scroll_f, "WITNESSES")
+        self.wit_container = tk.Frame(self.scroll_f, bg=BG_MAIN); self.wit_container.pack(fill="x")
+        for w in d.get("ws", []): self.add_witness_ui(w)
+        tk.Button(self.scroll_f, text="+ Add Witness", command=lambda: self.add_witness_ui({}), bg=BG_MAIN, fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), bd=0, cursor="hand2").pack(anchor="w")
 
-        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL RM DOCX", command=self.generate, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
+        self.create_section_title(self.scroll_f, "DOCUMENT SCHEDULE (ds)")
+        ds_card = self.create_card(self.scroll_f)
+        t = tk.Text(ds_card, height=8, bg="#F8FAFC", font=FONT_MONO, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        t.pack(fill="x")
+        t.insert("1.0", "\n".join([x.get("t","") for x in d.get("ds", [])])); self.ents["ds"] = t
 
+        # Draft Options
+        opt_f = tk.Frame(self.scroll_f, bg=BG_MAIN)
+        opt_f.pack(fill="x", pady=5)
+        self.h_ai_var = tk.BooleanVar(value=True)
+        self.h_miss_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(opt_f, text="Highlight AI Data (Yellow)", variable=self.h_ai_var, bg=BG_MAIN, font=("Segoe UI", 8)).pack(side="left")
+        tk.Checkbutton(opt_f, text="Highlight Missing (Red)", variable=self.h_miss_var, bg=BG_MAIN, font=("Segoe UI", 8)).pack(side="left", padx=20)
+        tk.Button(self.scroll_f, text="VERIFIED: GENERATE FINAL RM DOCX", command=self.generate, bg=BTN_SUCCESS, fg="white", font=("Segoe UI", 13, "bold"), pady=20, bd=0, cursor="hand2").pack(fill="x", pady=40)
     def enforce_case_counts(self, data):
         data = dict(data)
         borrowers = list(data.get("bs", []))
@@ -395,88 +435,90 @@ class LawApp:
             warnings.append("Two witnesses are required. Fill any blank witness details before generating.")
         return warnings
 
-    def add_borrower_ui(self, b):
-        idx = len(self.ents['bs']) + 1
-        f = tk.LabelFrame(self.borr_container, text=f" BORROWER {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
-        f.pack(fill="x", pady=10)
+    def add_borrower_ui(self, data_obj):
+        idx = len(self.ents["bs"]) + 1
+        f = self.create_card(self.br_container, f"BS {idx}")
         row = {
-            's': self.create_input(f, "Salutation", b.get('s','')),
-            'n': self.create_input(f, "Full Name", b.get('n','')),
-            'a': self.create_input(f, "Age", b.get('a','')),
-            'r': self.create_input(f, "Relation (S/o)", b.get('r','')),
-            'rn': self.create_input(f, "Relative Name", b.get('rn','')),
-            'adr': self.create_input(f, "Address", b.get('adr',''), True),
-            'id': self.create_input(f, "Aadhar/ID", b.get('id',''))
-        }
-        self.ents['bs'].append(row)
-        if self.borr_var.get() == "Multiple":
-            tk.Button(f, text="Remove Borrower", command=lambda r=row, frame=f: self.remove_entity(self.ents['bs'], r, frame), bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat").pack(anchor="e", pady=(8, 0))
+            "s": self.create_input(f, "s", data_obj.get("s",""), is_long=False, field_path=f"bs.{idx-1}.s"),
+            "n": self.create_input(f, "n", data_obj.get("n",""), is_long=False, field_path=f"bs.{idx-1}.n"),
+            "a": self.create_input(f, "a", data_obj.get("a",""), is_long=False, field_path=f"bs.{idx-1}.a"),
+            "r": self.create_input(f, "r", data_obj.get("r",""), is_long=False, field_path=f"bs.{idx-1}.r"),
+            "rn": self.create_input(f, "rn", data_obj.get("rn",""), is_long=False, field_path=f"bs.{idx-1}.rn"),
+            "adr": self.create_input(f, "adr", data_obj.get("adr",""), is_long=True, field_path=f"bs.{idx-1}.adr"),
+            "id": self.create_input(f, "id", data_obj.get("id",""), is_long=False, field_path=f"bs.{idx-1}.id")
 
-    def add_loan_ui(self, l):
-        idx = len(self.ents['ls']) + 1
-        f = tk.LabelFrame(self.loan_container, text=f" LOAN ACCOUNT {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
-        f.pack(fill="x", pady=10)
+        }
+        self.ents["bs"].append(row)
+        tk.Button(f, text="Remove", command=lambda r=row, fr=f.master.master: self.remove_entity(self.ents["bs"], r, fr), bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8, "bold"), bd=0, cursor="hand2").pack(anchor="e")
+    def add_loan_ui(self, data_obj):
+        idx = len(self.ents["ls"]) + 1
+        f = self.create_card(self.lr_container, f"LS {idx}")
         row = {
-            'n': self.create_input(f, "LAN No", l.get('n','')),
-            'a': self.create_input(f, "Amount (Figures)", l.get('a','')),
-            'w': self.create_input(f, "Amount (Words)", l.get('w',''), True),
-            't': self.create_input(f, "Tenure", l.get('t',''))
-        }
-        self.ents['ls'].append(row)
-        tk.Button(f, text="Remove Loan Account", command=lambda r=row, frame=f: self.remove_entity(self.ents['ls'], r, frame), bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat").pack(anchor="e", pady=(8, 0))
+            "n": self.create_input(f, "n", data_obj.get("n",""), is_long=False, field_path=f"ls.{idx-1}.n"),
+            "a": self.create_input(f, "a", data_obj.get("a",""), is_long=False, field_path=f"ls.{idx-1}.a"),
+            "w": self.create_input(f, "w", data_obj.get("w",""), is_long=False, field_path=f"ls.{idx-1}.w"),
+            "t": self.create_input(f, "t", data_obj.get("t",""), is_long=False, field_path=f"ls.{idx-1}.t")
 
-    def add_property_ui(self, p):
-        idx = len(self.ents['ps']) + 1
-        f = tk.LabelFrame(self.prop_container, text=f" PROPERTY {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
-        f.pack(fill="x", pady=10)
+        }
+        self.ents["ls"].append(row)
+        tk.Button(f, text="Remove", command=lambda r=row, fr=f.master.master: self.remove_entity(self.ents["ls"], r, fr), bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8, "bold"), bd=0, cursor="hand2").pack(anchor="e")
+    def add_property_ui(self, data_obj):
+        idx = len(self.ents["ps"]) + 1
+        f = self.create_card(self.pr_container, f"PS {idx}")
         row = {
-            'adr': self.create_input(f, "Full Address", p.get('adr',''), True),
-            'n': self.create_input(f, "North", p.get('n','')),
-            's': self.create_input(f, "South", p.get('s','')),
-            'e': self.create_input(f, "East", p.get('e','')),
-            'w': self.create_input(f, "West", p.get('w',''))
-        }
-        self.ents['ps'].append(row)
-        tk.Button(f, text="Remove Property", command=lambda r=row, frame=f: self.remove_entity(self.ents['ps'], r, frame), bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat").pack(anchor="e", pady=(8, 0))
+            "adr": self.create_input(f, "adr", data_obj.get("adr",""), is_long=True, field_path=f"ps.{idx-1}.adr"),
+            "n": self.create_input(f, "n", data_obj.get("n",""), is_long=False, field_path=f"ps.{idx-1}.n"),
+            "s": self.create_input(f, "s", data_obj.get("s",""), is_long=False, field_path=f"ps.{idx-1}.s"),
+            "e": self.create_input(f, "e", data_obj.get("e",""), is_long=False, field_path=f"ps.{idx-1}.e"),
+            "w": self.create_input(f, "w", data_obj.get("w",""), is_long=False, field_path=f"ps.{idx-1}.w")
 
-    def add_witness_ui(self, w):
-        idx = len(self.ents['ws']) + 1
-        f = tk.LabelFrame(self.wit_container, text=f" WITNESS {idx} ", bg=SURFACE_CARD, font=FONT_HEADER, padx=15, pady=10)
-        f.pack(fill="x", pady=10)
+        }
+        self.ents["ps"].append(row)
+        tk.Button(f, text="Remove", command=lambda r=row, fr=f.master.master: self.remove_entity(self.ents["ps"], r, fr), bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8, "bold"), bd=0, cursor="hand2").pack(anchor="e")
+    def add_witness_ui(self, data_obj):
+        idx = len(self.ents["ws"]) + 1
+        f = self.create_card(self.wr_container, f"WS {idx}")
         row = {
-            'n': self.create_input(f, "Full Name", w.get('n','')),
-            'r': self.create_input(f, "Relation", w.get('r','')),
-            'rn': self.create_input(f, "Rel Name", w.get('rn','')),
-            'adr': self.create_input(f, "Address", w.get('adr',''), True)
-        }
-        self.ents['ws'].append(row)
-        tk.Button(f, text="Remove Witness", command=lambda r=row, frame=f: self.remove_entity(self.ents['ws'], r, frame), bg="#FFFFFF", fg=BTN_DANGER, bd=1, relief="flat").pack(anchor="e", pady=(8, 0))
+            "n": self.create_input(f, "n", data_obj.get("n",""), is_long=False, field_path=f"ws.{idx-1}.n"),
+            "r": self.create_input(f, "r", data_obj.get("r",""), is_long=False, field_path=f"ws.{idx-1}.r"),
+            "rn": self.create_input(f, "rn", data_obj.get("rn",""), is_long=False, field_path=f"ws.{idx-1}.rn"),
+            "adr": self.create_input(f, "adr", data_obj.get("adr",""), is_long=True, field_path=f"ws.{idx-1}.adr")
 
+        }
+        self.ents["ws"].append(row)
+        tk.Button(f, text="Remove", command=lambda r=row, fr=f.master.master: self.remove_entity(self.ents["ws"], r, fr), bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8, "bold"), bd=0, cursor="hand2").pack(anchor="e")
     def remove_entity(self, collection, row, frame):
         if row in collection:
             collection.remove(row)
         frame.destroy()
 
-    def create_input(self, parent, label, value, is_long=False):
+    def create_input(self, parent, label, value, is_long=False, field_path=None):
         f = tk.Frame(parent, bg=SURFACE_CARD)
-        f.pack(fill="x", pady=6)
-        tk.Label(f, text=label, width=20, anchor="w", bg=SURFACE_CARD, font=FONT_LABEL, fg="#5F6368").pack(side="left")
-
+        f.pack(fill="x", pady=8)
+        header_f = tk.Frame(f, bg=SURFACE_CARD)
+        header_f.pack(fill="x")
+        tk.Label(header_f, text=label.upper(), bg=SURFACE_CARD, fg=TEXT_SECONDARY, font=("Segoe UI", 8, "bold")).pack(side="left")
+        is_verified = field_path in self.verified_fields if field_path else True
+        bg_color = "#FEF9C3" if (value and not is_verified) else "#F8FAFC"
         if is_long:
-            e = tk.Text(f, bg="#F1F3F4", font=FONT_LABEL, height=3, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+            e = tk.Text(f, bg=bg_color, font=FONT_LABEL, height=3, bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, padx=10, pady=8)
             e.insert("1.0", str(value))
-            e.pack(side="left", fill="x", expand=True, pady=2)
-            e.bind("<FocusIn>", lambda event: e.config(highlightbackground=ACCENT_BLUE))
-            e.bind("<FocusOut>", lambda event: e.config(highlightbackground=BORDER_COLOR))
+            e.pack(fill="x", pady=(4, 0))
         else:
-            e = tk.Entry(f, bg="#F1F3F4", bd=0, font=FONT_LABEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
+            e = tk.Entry(f, bg=bg_color, bd=0, font=FONT_LABEL, highlightthickness=1, highlightbackground=BORDER_COLOR)
             e.insert(0, str(value))
-            e.pack(side="left", fill="x", expand=True, ipady=8)
-            e.bind("<FocusIn>", lambda event: e.config(highlightbackground=ACCENT_BLUE))
-            e.bind("<FocusOut>", lambda event: e.config(highlightbackground=BORDER_COLOR))
-
+            e.pack(fill="x", ipady=10, pady=(4, 0))
+        if field_path:
+            v_btn = tk.Button(header_f, text="✓ VERIFIED" if is_verified else "MARK VERIFIED", font=("Segoe UI", 7, "bold"), bg=SURFACE_CARD, fg=BTN_SUCCESS if is_verified else ACCENT_BLUE, bd=0, cursor="hand2")
+            v_btn.pack(side="right")
+            def toggle_verify(p=field_path, b=v_btn, widget=e):
+                if p in self.verified_fields: self.verified_fields.remove(p); b.config(text="MARK VERIFIED", fg=ACCENT_BLUE); widget.config(bg="#FEF9C3" if self.get_val(widget) else "#F8FAFC")
+                else: self.verified_fields.add(p); b.config(text="✓ VERIFIED", fg=BTN_SUCCESS); widget.config(bg="#F8FAFC")
+                self.save_case()
+            v_btn.config(command=toggle_verify)
+        e.bind("<FocusIn>", lambda ev: e.config(highlightbackground=ACCENT_BLUE))
+        e.bind("<FocusOut>", lambda ev: e.config(highlightbackground=BORDER_COLOR))
         return e
-
     def get_val(self, e):
         if isinstance(e, tk.Text): return e.get("1.0", tk.END).strip()
         return e.get()
@@ -507,7 +549,7 @@ class LawApp:
             base_name = os.path.splitext(os.path.basename(t_path))[0] if self.custom_template_path.get().strip() else bank
             sp = filedialog.asksaveasfilename(defaultextension=".docx", initialfile=f"RM_{base_name}.docx")
             if sp:
-                TemplateProcessor(t_path).generate(c, sp)
+                TemplateProcessor(t_path).generate(c, sp, highlight_ai=self.h_ai_var.get(), highlight_missing=self.h_miss_var.get(), verified_fields=self.verified_fields)
                 messagebox.showinfo("Success", f"RM Generated successfully at:\n{sp}")
         except Exception as e:
             messagebox.showerror("Generation Error", str(e))
@@ -526,6 +568,193 @@ class LawApp:
             context["ws"].append({"n": "", "r": "", "rn": "", "adr": ""})
 
         return context
+
+
+    def show_dashboard(self):
+        self.active_case_id = None
+        """Display the central case management view."""
+        for w in self.root.winfo_children(): w.destroy()
+
+        # Header
+        header = tk.Frame(self.root, bg=PRIMARY_NAV, height=70)
+        header.pack(fill="x", side="top")
+        header.pack_propagate(False)
+        tk.Label(header, text="LegalDoc Automator Dashboard", bg=PRIMARY_NAV, fg="white", font=("Segoe UI", 18, "bold"), padx=30).pack(side="left")
+
+        main_c = tk.Frame(self.root, bg=BG_MAIN, padx=40, pady=40)
+        main_c.pack(fill="both", expand=True)
+
+        # Actions Row
+        actions = tk.Frame(main_c, bg=BG_MAIN)
+        actions.pack(fill="x", pady=(0, 20))
+        tk.Button(actions, text="+ NEW CASE SESSION", command=self.new_case, bg=ACCENT_BLUE, fg="white", font=("Segoe UI", 11, "bold"), padx=20, pady=12, bd=0, cursor="hand2").pack(side="left")
+
+        # Case List Area
+        self.create_section_title(main_c, "ACTIVE & PENDING CASES")
+
+        scroll_c = tk.Frame(main_c, bg=BG_MAIN)
+        scroll_c.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(scroll_c, bg=BG_MAIN, highlightthickness=0)
+        sb = ttk.Scrollbar(scroll_c, orient="vertical", command=canvas.yview)
+        list_f = tk.Frame(canvas, bg=BG_MAIN)
+
+        canvas.create_window((0,0), window=list_f, anchor="nw", width=1300)
+        canvas.configure(yscrollcommand=sb.set)
+        list_f.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        canvas.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        cases = self.list_cases()
+        if not cases:
+            tk.Label(list_f, text="No active cases found. Start a new case to begin.", bg=BG_MAIN, fg=TEXT_SECONDARY, font=FONT_LABEL, pady=40).pack()
+        else:
+            for case in cases:
+                self.add_case_row(list_f, case)
+
+    def list_cases(self):
+        cases = []
+        if not os.path.exists(self.cases_dir): return []
+        for d in os.listdir(self.cases_dir):
+            path = os.path.join(self.cases_dir, d, "session.json")
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    cases.append(json.load(f))
+        return sorted(cases, key=lambda x: x.get('last_updated', 0), reverse=True)
+
+    def add_case_row(self, parent, case):
+        c = self.create_card(parent)
+        name = case.get('borrower_name', 'Unnamed Case') or 'Unnamed Case'
+        bank = case.get('bank', 'Not Selected')
+        updated = time.strftime('%d %b, %H:%M', time.localtime(case.get('last_updated', 0)))
+
+        left = tk.Frame(c, bg=SURFACE_CARD)
+        left.pack(side="left", fill="x", expand=True)
+
+        tk.Label(left, text=name, font=FONT_DISPLAY, bg=SURFACE_CARD, fg=TEXT_PRIMARY, anchor="w").pack(fill="x")
+        tk.Label(left, text=f"{bank} | Updated: {updated}", font=FONT_LABEL, bg=SURFACE_CARD, fg=TEXT_SECONDARY, anchor="w").pack(fill="x")
+
+        # Simple Progress Indicator
+        prog_f = tk.Frame(c, bg=SURFACE_CARD)
+        prog_f.pack(side="left", padx=40)
+
+        stats = case.get('stats', {})
+        for label, val in [("KYC", stats.get('kyc')), ("Loan", stats.get('loan')), ("Legal", stats.get('legal'))]:
+            color = BTN_SUCCESS if val else "#E2E8F0"
+            f = tk.Frame(prog_f, bg=color, width=80, height=25)
+            f.pack(side="left", padx=5)
+            f.pack_propagate(False)
+            tk.Label(f, text=label, bg=color, fg="white" if val else TEXT_SECONDARY, font=("Segoe UI", 8, "bold")).pack(expand=True)
+
+        tk.Button(c, text="RESUME SESSION", command=lambda: self.load_case(case['id']), bg="#EBF2FF", fg=ACCENT_BLUE, font=("Segoe UI", 9, "bold"), padx=15, pady=8, bd=0, cursor="hand2").pack(side="right", padx=10)
+        tk.Button(c, text="DELETE", command=lambda: self.delete_case(case['id']), bg=SURFACE_CARD, fg=BTN_DANGER, font=("Segoe UI", 8), bd=0, cursor="hand2").pack(side="right")
+
+    def new_case(self):
+        self.active_case_id = f"case_{int(time.time())}"
+        self.files = []
+        self.extracted_data = {}
+        self.verified_fields = set()
+        os.makedirs(os.path.join(self.cases_dir, self.active_case_id), exist_ok=True)
+        self.setup_ui()
+
+    def save_case(self):
+        if not self.active_case_id: return
+
+        # Gather current data from UI
+        data = self.get_context_from_ui()
+
+        session = {
+            "id": self.active_case_id,
+            "borrower_name": data['bs'][0].get('n', 'New Case'),
+            "bank": self.bank_var.get(),
+            "last_updated": time.time(),
+            "data": data,
+            "verified_fields": list(self.verified_fields),
+            "files": self.files,
+            "watch_folder": self.watch_folder,
+            "stats": {
+                "kyc": bool(data['bs'][0].get('id')),
+                "loan": bool(data['ls'][0].get('a')),
+                "legal": bool(data['rd'])
+            }
+        }
+
+        path = os.path.join(self.cases_dir, self.active_case_id, "session.json")
+        with open(path, "w") as f:
+            json.dump(session, f)
+
+        self.status_var.set("Case Saved Successfully")
+
+    def load_case(self, case_id):
+        path = os.path.join(self.cases_dir, case_id, "session.json")
+        if not os.path.exists(path): return
+
+        with open(path, "r") as f:
+            session = json.load(f)
+
+        self.active_case_id = session['id']
+        self.files = session.get('files', [])
+        self.watch_folder = session.get("watch_folder")
+        if self.watch_folder: self.watch_lbl.config(text="Watching: " + os.path.basename(self.watch_folder))
+        self.extracted_data = session.get('data', {})
+        self.verified_fields = set(session.get('verified_fields', []))
+
+        self.setup_ui()
+        self.bank_var.set(session.get('bank', 'ICICI'))
+        self.display_data()
+
+    def delete_case(self, case_id):
+        if messagebox.askyesno("Delete Case", "Are you sure you want to permanently delete this case and all its files?"):
+            shutil.rmtree(os.path.join(self.cases_dir, case_id))
+            self.show_dashboard()
+
+    def get_context_from_ui(self):
+        """Extract data from UI fields (ents)."""
+        try:
+            c = {
+                'rd': self.get_val(self.ents['rd']),
+                'ad': self.get_val(self.ents['ad']),
+                'bs': [{k: self.get_val(v) for k, v in b.items()} for b in self.ents['bs']],
+                'ls': [{k: self.get_val(v) for k, v in l.items()} for l in self.ents['ls']],
+                'ps': [{k: self.get_val(v) for k, v in p.items()} for p in self.ents['ps']],
+                'ws': [{k: self.get_val(v) for k, v in w.items()} for w in self.ents['ws']],
+                'bsign': {k: self.get_val(v) for k, v in self.ents['bsign'].items()},
+                'ds': [{'t': x.strip()} for x in self.get_val(self.ents['ds']).split('\n') if x.strip()]
+            }
+            return self.enforce_context_counts(c)
+        except:
+            return {}
+
+
+    def set_watch_folder(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.watch_folder = path
+            self.watch_lbl.config(text="Watching: " + os.path.basename(path))
+            self.save_case()
+            if not getattr(self, "watcher_active", False):
+                self.watcher_active = True
+                self.run_watcher()
+
+    def run_watcher(self):
+        if not self.active_case_id or not self.watch_folder or not self.watch_var.get():
+            self.root.after(10000, self.run_watcher)
+            return
+        try:
+            new_files = []
+            for f in os.listdir(self.watch_folder):
+                if f.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
+                    full_path = os.path.join(self.watch_folder, f)
+                    if full_path not in self.files: new_files.append(full_path)
+            if new_files:
+                self.status_var.set("Detected " + str(len(new_files)) + " new files! Starting extraction...")
+                for nf in new_files:
+                    self.files.append(nf)
+                    self.file_list.insert(tk.END, "  📄 " + os.path.basename(nf))
+                self.start_process()
+        except: pass
+        self.root.after(10000, self.run_watcher)
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk() if TkinterDnD else tk.Tk()
