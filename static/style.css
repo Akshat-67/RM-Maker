@@ -1,0 +1,123 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    background-color: #0F172A !important;
+    color: white;
+}
+
+.section-title {
+    color: #1a73e8;
+    font-weight: bold;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.5rem;
+}
+
+.card-title {
+    color: #0F172A;
+}
+
+.btn-primary {
+    background-color: #1a73e8;
+    border-color: #1a73e8;
+}
+
+.btn-primary:hover {
+    background-color: #1557b0;
+    border-color: #1557b0;
+}
+
+.btn-outline-primary {
+    color: #1a73e8;
+    border-color: #1a73e8;
+}
+
+.btn-outline-primary:hover {
+    background-color: #1a73e8;
+    color: white;
+}
+
+.btn-success {
+    background-color: #10B981;
+    border-color: #10B981;
+}
+
+.btn-success:hover {
+    background-color: #0c8a66;
+    border-color: #0c8a66;
+}
+
+.btn-outline-danger {
+    color: #D93025;
+    border-color: #D93025;
+}
+
+.btn-outline-danger:hover {
+    background-color: #D93025;
+    color: white;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.25rem rgba(26, 115, 232, 0.25);
+}
+
+/* Custom styles for verification fields */
+.form-control[id^="field_"] {
+    background-color: #fdfae7; /* Light yellow for unverified */
+}
+
+.form-control[id^="field_"]:focus {
+    background-color: #fff;
+}
+
+/* Ensure headers for individual items are not too large */
+.card-body h6.text-muted {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    color: #6c757d !important;
+}
+
+/* Specific styling for labels within form groups */
+.card-body label.small {
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 0.2rem;
+    display: block;
+}
+
+/* Adjust textarea height to be responsive */
+textarea.form-control-sm {
+    min-height: 50px;
+}
+
+/* Ensure file list items have proper spacing */
+.list-group-item {
+    padding: 0.5rem 1rem;
+}
+
+/* Make section titles stand out more */
+h5.card-title.section-title,
+h6.section-title {
+    font-size: 1.1rem;
+    color: #1a73e8;
+    margin-top: 1rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.4rem;
+}
+
+/* Hide Bootstrap's default outlines on focus for select elements */
+.form-select:focus {
+    outline: none;
+}
+
+/* Small text for file list and status messages */
+.small {
+    font-size: 0.875em;
+}

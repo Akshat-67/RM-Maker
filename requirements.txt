@@ -3,4 +3,5 @@ num2words
 google-genai
 docxtpl
 Pillow
-tkinterdnd2
+flask
+flask-cors
