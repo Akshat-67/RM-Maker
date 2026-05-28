@@ -1,0 +1,46 @@
+=============================================================
+  RM-MAKER TEMPLATE NAMING CONVENTION
+=============================================================
+
+Template files MUST follow this format:
+
+    RM_{BANK}_{#B}B_{#L}L_[DESCRIPTION].docx
+
+EXAMPLES:
+---------
+  RM_ICICI_1B_2L_SHIV_RAJ.docx
+  RM_ICICI_2B_1L_MANJU_DEVI.docx
+  RM_HFFC_1B_1L_GAUTAM.docx
+  RM_PIRAMAL_2B_3L_RAVI_SHARMA.docx
+  RM_AXIS_1B_2L_TEMPLATE.docx
+
+BREAKDOWN:
+----------
+  RM_          →  Required prefix (all caps)
+  {BANK}       →  Bank name (uppercase, e.g., ICICI, HFFC, AXIS, PIRAMAL)
+  _{#B}B       →  Borrower count + "B" (e.g., 1B, 2B, 3B)
+  _{#L}L       →  Loan/Sanction count + "L" (e.g., 1L, 2L, 3L)
+  _[DESC]      →  Optional description/borrower name
+  .docx        →  File extension
+
+ORGANIZATION:
+------------
+  Each bank gets its own subfolder inside /templates.
+
+  templates/
+    ICICI/
+      RM_ICICI_1B_2L_SHIV_RAJ.docx
+      RM_ICICI_2B_2L_ANKIT_KUMAR.docx
+    HFFC/
+      RM_HFFC_1B_1L_GAUTAM.docx
+    PIRAMAL/
+      RM_PIRAMAL_2B_1L_MOHAMMED_AKIL.docx
+
+IMPORTANT RULES:
+---------------
+  1. Folders inside /templates = available bank options in the app.
+  2. Only .docx files matching the naming convention are auto-detected.
+  3. If a file doesn't match, it will NOT appear in the dropdown options.
+     Rename it or use "Custom Template" to load it manually.
+  4. Borrower count: 1B = Single borrower, 2B = Two borrowers, etc.
+  5. Loan count: 1L = 1 sanction letter, 2L = 2 sanction letters, etc.

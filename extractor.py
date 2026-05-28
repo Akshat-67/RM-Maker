@@ -13,51 +13,35 @@ class DataExtractor:
 
     def amount_to_words(self, amount_str):
         try:
-            # 1. Remove common currency prefixes that might contain dots (e.g., "Rs.", "R.S.")
             s = str(amount_str).upper()
             s = re.sub(r'RS\.', '', s)
             s = re.sub(r'RS', '', s)
-
-            # 2. Extract the numeric part (allowing for commas and one decimal point)
-            # Remove commas first
             s = s.replace(',', '')
-            # Find the first sequence of digits and dots
             match = re.search(r'(\d+\.?\d*)', s)
             if not match: return ""
 
             clean_str = match.group(1)
             amount = float(clean_str)
             main_val = int(amount)
-            # Use decimal for precision to avoid floating point issues
             fraction = int(round((amount - main_val) * 100))
 
             words = num2words(main_val, lang='en_IN')
-
-            # num2words with en_IN handles lakh/crore, but we want consistent Title Case
             result = f"Rupees {words}"
             if fraction > 0:
                 fraction_words = num2words(fraction, lang='en_IN')
                 result += f" and {fraction_words} Paise"
 
-            # Cleanup and ensure "Only" at the end
             final = f"{result} Only"
-            # Standardize capitalization for legal documents
             final = final.replace("  ", " ").strip().title()
-
-            # Post-processing: "Rupees" and "Paise" should be capitalized correctly if .title() messed them up
-            # (Though .title() usually works fine for these)
             return final
         except Exception as e:
             print(f"Error converting amount to words: {e}")
             return ""
 
     def get_available_models(self):
-        """Returns a list of models using the new genai client."""
         if not self.client: return []
         try:
-            # Listing models in the new SDK
             models = self.client.models.list()
-            # The new SDK uses 'supported_actions'
             return [m.name for m in models if 'generateContent' in m.supported_actions]
         except Exception:
             return []
@@ -65,7 +49,9 @@ class DataExtractor:
     def raw_generate(self, prompt, model_name):
         if not self.client: return None
         try:
-            response = self.client.models.generate_content(model=model_name, contents=prompt)
+            # Strip "models/" prefix if present (new SDK returns full names like "models/gemini-2.5-flash")
+            clean_name = model_name.replace("models/", "", 1) if model_name else model_name
+            response = self.client.models.generate_content(model=clean_name, contents=prompt)
             return response.text
         except Exception as e:
             print(f"Extraction Error: {e}")
@@ -142,7 +128,32 @@ class DataExtractor:
         self._normalize_list(data, "ls", ["n", "a", "w", "t"])
         self._normalize_list(data, "ps", ["adr", "n", "s", "e", "w"])
         self._normalize_list(data, "ws", ["n", "r", "rn", "adr"])
-        self._normalize_list(data, "ds", ["t"])
+        # ds_text: the complete title chain / first schedule as a single text block
+        # This replaces the old ds[] list to handle variable numbers of documents.
+        # If the AI returns ds as a list (backward compatible), join it into text.
+        # If it returns ds_text directly (new format), use that.
+        if "ds_text" in data:
+            raw_ds_text = data["ds_text"]
+            if isinstance(raw_ds_text, list):
+                data["ds_text"] = "\n".join([str(x.get("t","") if isinstance(x,dict) else x).strip() for x in raw_ds_text if x])
+            else:
+                data["ds_text"] = str(raw_ds_text).strip() if raw_ds_text else ""
+        else:
+            raw_ds = data.get("ds", None)
+            if isinstance(raw_ds, list):
+                lines = []
+                for item in raw_ds:
+                    t = item.get("t", "") if isinstance(item, dict) else str(item)
+                    if t.strip():
+                        lines.append(t.strip())
+                data["ds_text"] = "\n".join(lines)
+            elif isinstance(raw_ds, str) and raw_ds.strip():
+                data["ds_text"] = raw_ds.strip()
+            else:
+                data["ds_text"] = ""
+
+        # second_schedule: the complete "Documents to be collected" section from legal report
+        data["second_schedule"] = "" if data.get("second_schedule") is None else str(data.get("second_schedule", "")).strip()
 
         bsign = data.get("bsign", {})
         data["bsign"] = self._normalize_person(bsign, ["n", "r", "rn"])
@@ -245,51 +256,39 @@ class DataExtractor:
               "adr": "Witness Address"
             }
           ],
-          "ds": [
-            {
-              "t": "Detailed description of title deeds/documents from the List of Documents/Schedule"
-            }
-          ]
+          "ds_text": "COMPLETE FIRST SCHEDULE / TITLE CHAIN as a single text block. See rule 8 below.",
+          "second_schedule": "COMPLETE 'Documents to be collected' section from the legal scrutiny report. See rule 9 below."
         }
 
         STRICT EXTRACTION RULES:
         1. ZERO HALLUCINATION: If a field is not found, use "".
         2. COUNT CONTROL:
            - Return exactly the selected borrower count in "bs".
-           - Return exactly the selected loan account count in "ls". If 2 Loan Accounts is selected, return 2 loan objects from the two sanction/KFS/loan letters. If one is not found, include a blank object for review.
-           - Return exactly 2 witnesses in "ws". If one witness is not found, include a blank second witness object.
-           - If user-confirmed borrower/witness hints are provided, use those names over guesses from signatures.
+           - Return exactly the selected loan account count in "ls".
+           - Return exactly 2 witnesses in "ws".
         3. PROPERTY BOUNDARIES: Extract 'North', 'South', 'East', 'West' exactly from the property schedule.
-        4. DOCUMENT SCHEDULE (ds): This is crucial. Extract the full description of each document mentioned in the title deed list.
-        5. DATES: Extract dates exactly as they appear (e.g., "this 24th day of March 2024").
-        6. ROLE SEPARATION IS MANDATORY:
-           - "bs" is only for the borrower/mortgagor/property owner.
-           - The legal report is the highest priority source for borrower ownership.
-           - If sale deed is not executed, use the legal report's "proposed owner"/"proposed purchaser" as borrower.
-           - If sale deed/title is already done, use the latest title chain/current owner as borrower.
-           - Do not use random signature names, witnesses, identifiers, deed writers, advocates, neighbors, or bank staff as borrowers.
-           - "ws" is only for witnesses from witness/signature witness sections.
-           - "bsign" is only the bank/authorized officer/signatory.
-           - For "bsign.r" and "bsign.rn", extract the authorized signatory's relation marker and father/husband/relative name from text near the authorized signatory name (for example S/o, W/o, D/o and the name after it).
-           - Never copy a witness name into "bs". If a person appears near the word "Witness", put them only in "ws".
-           - Never copy the bank signatory into "bs" or "ws".
-        7. NAME ACCURACY: Extract the full person name exactly. Do not swap a relative's name or witness name into the borrower name field.
-        8. BORROWER SOURCE PRIORITY:
-           A. Legal report proposed owner/proposed purchaser/current owner/title holder.
-           B. Latest sale deed or title chain owner.
-           C. Loan/KFS applicant only if it agrees with the ownership documents or legal report.
-           D. Never choose witness/signatory names as fallback borrowers.
-        9. DOCUMENT SCHEDULE / TITLE CHAIN RULES:
-           - Look for legal scrutiny report headings like "Following documents needs to be submitted at the time of disbursement of the loan" and "Following documents are required post disbursal: (if any)".
-           - If selected bank is ICICI, use only the last title document chain from the legal scrutiny report. If the sale deed is still to be executed/submitted before the RM, leave ds blank rather than using a pending sale deed as a completed title document.
-           - If selected bank is not ICICI, copy the complete title chain under those legal scrutiny report headings exactly as written.
-           - Preserve title document wording as-is in ds[].t. Do not summarize.
+        4. DATES: Extract dates exactly as they appear (e.g., "this 24th day of March 2024").
+        5. ROLE SEPARATION IS MANDATORY: Borrowers in "bs", witnesses in "ws", bank signatory in "bsign".
+        6. NAME ACCURACY: Extract the full person name exactly.
+        7. BORROWER SOURCE PRIORITY: Legal report > sale deed > loan application.
+        8. FIRST SCHEDULE (ds_text): Extract ALL title deeds / documents from the FIRST SCHEDULE
+           as ONE SINGLE TEXT BLOCK into "ds_text". Join each document description with a newline.
+           Do NOT use ds[] list format. Just one string. This handles any number of documents.
+        9. SECOND SCHEDULE — CRITICAL: Look for these exact or similar headings in the legal scrutiny report:
+           - "Documents to be collected by {Bank Name} at the time of disbursement as per Annexure-II"
+           - "Following documents needs to be submitted at the time of disbursement"
+           - "Documents required post disbursal" (if any)
+           Under this section, find ALL bullet points / items that START WITH the word "Original"
+           (e.g. "Original Sale Deed", "Original Title Deed", "Original Allotment Letter", etc.).
+           COPY the ENTIRE block of "Original" items as a single continuous text into "second_schedule".
+           Preserve the exact wording, line breaks, and formatting as in the document.
+           DO NOT extract individual placeholders for each item — it is one single block.
+           If the bank is ICICI and the sale deed is pending/unexecuted, still extract the Original items
+           that are listed as required.
+           If "second_schedule" section is not found, return "".
         """
 
         try:
-            # New SDK generate_content syntax
-            # Note: contents and prompt are joined
-            # Ensuring prompt is the last Part for context
             final_contents = contents + [types.Part.from_text(text=prompt)]
 
             response = self.client.models.generate_content(
