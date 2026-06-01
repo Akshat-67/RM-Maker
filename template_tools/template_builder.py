@@ -13,7 +13,16 @@ from docx.text.paragraph import Paragraph
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from extractor import DataExtractor
 
-DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY") or "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
+DEFAULT_API_KEYS = [
+    os.getenv("GEMINI_API_KEY"),
+    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc",
+    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
+    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ",
+    "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
+]
+DEFAULT_API_KEYS = list(dict.fromkeys([k for k in DEFAULT_API_KEYS if k]))
+if not DEFAULT_API_KEYS:
+    DEFAULT_API_KEYS = ["AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"]
 
 class TemplateBuilder:
     def __init__(self, root):
@@ -28,6 +37,7 @@ class TemplateBuilder:
         self.all_tags = [
             ("RM Execution Date", "{{rd}}"),
             ("Loan Agreement Date", "{{ad}}"),
+            
             ("Borrower 1 - Salutation", "{{bs[0].s}}"),
             ("Borrower 1 - Name", "{{bs[0].n}}"),
             ("Borrower 1 - Age", "{{bs[0].a}}"),
@@ -35,50 +45,75 @@ class TemplateBuilder:
             ("Borrower 1 - Rel Name", "{{bs[0].rn}}"),
             ("Borrower 1 - Address", "{{bs[0].adr}}"),
             ("Borrower 1 - Aadhar/ID", "{{bs[0].id}}"),
+            ("Borrower 1 - PAN Card", "{{bs[0].pan}}"),
+            
+            ("Borrower 2 - Salutation", "{{bs[1].s}}"),
             ("Borrower 2 - Name", "{{bs[1].n}}"),
+            ("Borrower 2 - Age", "{{bs[1].a}}"),
             ("Borrower 2 - Relation", "{{bs[1].r}}"),
             ("Borrower 2 - Rel Name", "{{bs[1].rn}}"),
             ("Borrower 2 - Address", "{{bs[1].adr}}"),
             ("Borrower 2 - Aadhar/ID", "{{bs[1].id}}"),
+            ("Borrower 2 - PAN Card", "{{bs[1].pan}}"),
+            
+            ("Borrower 3 - Salutation", "{{bs[2].s}}"),
             ("Borrower 3 - Name", "{{bs[2].n}}"),
+            ("Borrower 3 - Age", "{{bs[2].a}}"),
             ("Borrower 3 - Relation", "{{bs[2].r}}"),
             ("Borrower 3 - Rel Name", "{{bs[2].rn}}"),
             ("Borrower 3 - Address", "{{bs[2].adr}}"),
             ("Borrower 3 - Aadhar/ID", "{{bs[2].id}}"),
+            ("Borrower 3 - PAN Card", "{{bs[2].pan}}"),
+            
             ("Loan 1 - LAN No", "{{ls[0].n}}"),
             ("Loan 1 - Amount (Figures)", "{{ls[0].a}}"),
             ("Loan 1 - Amount (Words)", "{{ls[0].w}}"),
             ("Loan 1 - Tenure", "{{ls[0].t}}"),
+            
             ("Loan 2 - LAN No", "{{ls[1].n}}"),
             ("Loan 2 - Amount (Figures)", "{{ls[1].a}}"),
             ("Loan 2 - Amount (Words)", "{{ls[1].w}}"),
             ("Loan 2 - Tenure", "{{ls[1].t}}"),
+            
             ("Loan 3 - LAN No", "{{ls[2].n}}"),
             ("Loan 3 - Amount (Figures)", "{{ls[2].a}}"),
             ("Loan 3 - Amount (Words)", "{{ls[2].w}}"),
             ("Loan 3 - Tenure", "{{ls[2].t}}"),
+            
             ("Property 1 - Address", "{{ps[0].adr}}"),
             ("Property 1 - North", "{{ps[0].n}}"),
             ("Property 1 - South", "{{ps[0].s}}"),
             ("Property 1 - East", "{{ps[0].e}}"),
             ("Property 1 - West", "{{ps[0].w}}"),
+            
             ("Property 2 - Address", "{{ps[1].adr}}"),
             ("Property 2 - North", "{{ps[1].n}}"),
             ("Property 2 - South", "{{ps[1].s}}"),
             ("Property 2 - East", "{{ps[1].e}}"),
             ("Property 2 - West", "{{ps[1].w}}"),
+            
             ("Bank Signatory - Name", "{{bsign.n}}"),
+            ("Bank Signatory - Age", "{{bsign.a}}"),
             ("Bank Signatory - Relation", "{{bsign.r}}"),
             ("Bank Signatory - Rel Name", "{{bsign.rn}}"),
+            ("Bank Signatory - PAN Card", "{{bsign.pan}}"),
+            ("Bank Signatory - Aadhar/ID", "{{bsign.id}}"),
+            
             ("Witness 1 - Name", "{{ws[0].n}}"),
             ("Witness 1 - Relation", "{{ws[0].r}}"),
             ("Witness 1 - Rel Name", "{{ws[0].rn}}"),
             ("Witness 1 - Address", "{{ws[0].adr}}"),
+            
             ("Witness 2 - Name", "{{ws[1].n}}"),
             ("Witness 2 - Relation", "{{ws[1].r}}"),
             ("Witness 2 - Rel Name", "{{ws[1].rn}}"),
             ("Witness 2 - Address", "{{ws[1].adr}}"),
+            
             ("Document Schedule / Title Chain (FIRST SCHEDULE)", "{{ds_text}}"),
+            ("Document Schedule 1 - Title Deed", "{{ds[0].t}}"),
+            ("Document Schedule 2 - Title Deed", "{{ds[1].t}}"),
+            ("Document Schedule 3 - Title Deed", "{{ds[2].t}}"),
+            ("Document Schedule 4 - Title Deed", "{{ds[3].t}}"),
             ("Second Schedule (Documents to be collected)", "{{second_schedule}}"),
         ]
 
@@ -92,7 +127,7 @@ class TemplateBuilder:
     def _auto_fetch_models(self):
         """Fetch available Gemini models on startup."""
         try:
-            extractor = DataExtractor(DEFAULT_API_KEY)
+            extractor = DataExtractor(api_keys=DEFAULT_API_KEYS)
             models = extractor.get_available_models()
             if models:
                 self.available_models = models
@@ -108,6 +143,30 @@ class TemplateBuilder:
             self.model_dropdown['values'] = self.available_models
             if self.model_var.get() not in self.available_models:
                 self.model_var.set(self.available_models[0] if self.available_models else "gemini-1.5-flash")
+
+    def rotate_api_key_click(self):
+        if not hasattr(self, 'current_key_idx'):
+            self.current_key_idx = 0
+        self.current_key_idx = (self.current_key_idx + 1) % len(DEFAULT_API_KEYS)
+        new_key = DEFAULT_API_KEYS[self.current_key_idx]
+        self.api_key_entry.delete(0, tk.END)
+        self.api_key_entry.insert(0, new_key)
+        # Fetch models with the new key in the background
+        threading.Thread(target=self._refresh_models_with_key, args=(new_key,), daemon=True).start()
+        messagebox.showinfo("API Key Switched", f"Switched to API Key #{self.current_key_idx + 1} (ends with ...{new_key[-4:]})")
+
+    def _refresh_models_with_key(self, api_key):
+        try:
+            extractor = DataExtractor(api_key)
+            models = extractor.get_available_models()
+            if models:
+                self.available_models = models
+                preferred = [m for m in models if "gemini-2.5-flash" in m.lower() or "gemini-2.0-flash" in m.lower()]
+                best = preferred[0] if preferred else models[0]
+                self.model_var.set(best)
+                self.root.after(0, lambda: self._update_model_dropdown())
+        except Exception:
+            pass
 
     def setup_ui(self):
         # Color Palette
@@ -146,10 +205,13 @@ class TemplateBuilder:
         group2 = tk.LabelFrame(left_panel, text=" 2. AI CONFIGURATION ", bg=self.c_panel, font=("Segoe UI", 10, "bold"), padx=15, pady=15, fg=self.c_blue)
         group2.pack(fill="x", pady=10)
 
-        tk.Label(group2, text="API Key (auto-filled):", bg=self.c_panel, font=("Segoe UI", 9)).pack(anchor="w")
+        tk.Label(group2, text="API Key:", bg=self.c_panel, font=("Segoe UI", 9)).pack(anchor="w")
         self.api_key_entry = tk.Entry(group2, show="*", bg="#F1F3F4", bd=0, font=("Consolas", 10))
-        self.api_key_entry.insert(0, DEFAULT_API_KEY)
+        self.api_key_entry.insert(0, DEFAULT_API_KEYS[0])
         self.api_key_entry.pack(fill="x", ipady=8, pady=5)
+
+        rotate_btn = tk.Button(group2, text="🔄 Rotate / Switch API Key", command=self.rotate_api_key_click, bg="#E8F0FE", fg=self.c_blue, bd=0, font=("Segoe UI", 8, "bold"), cursor="hand2")
+        rotate_btn.pack(fill="x", pady=2)
 
         tk.Label(group2, text="AI Model:", bg=self.c_panel, font=("Segoe UI", 9)).pack(anchor="w", pady=(5,0))
         model_values = self.available_models if self.available_models else ["gemini-1.5-flash"]
@@ -258,15 +320,15 @@ class TemplateBuilder:
             prompt = f"""
             CRITICAL MISSION: CONVERT COMPLETED DOCUMENT TO MASTER JINJA2 TEMPLATE.
             You are an expert legal document analyst. Your goal is 100% discovery of variable data.
-            Identify ALL case-specific variable fields in the text below and map them to our system tags.
+            Identify ALL case-specific variable fields in the text below and map them to our system.
 
             CORE TAG SCHEMA:
             - rd: RM Execution Date (e.g., '10th day of May 2024')
             - ad: Loan Agreement Date (e.g., '15.04.2024')
-            - bs[i]: Borrowers list. s=Salutation, n=Name, a=Age, r=Relation, rn=Rel Name, adr=Address, id=Aadhar/ID
+            - bs[i]: Borrowers list. s=Salutation, n=Name, a=Age, r=Relation, rn=Rel Name, adr=Address, id=Aadhar/ID, pan=PAN Card
             - ls[i]: Loans list. n=LAN No, a=Amount in Figures, w=Amount in Words, t=Tenure
             - ps[i]: Property schedules. adr=Address, n=North, s=South, e=East, w=West
-            - bsign: Bank Signatory. n=Name, r=Relation, rn=Relative Name
+            - bsign: Bank Signatory. n=Name, a=Age, r=Relation, rn=Relative Name, id=Aadhar/ID, pan=PAN Card
             - ws[i]: Witnesses list. n=Name, r=Relation, rn=Relative Name, adr=Address
             - ds[i]: Document Schedule. t=Title deed description text
 
@@ -286,10 +348,17 @@ class TemplateBuilder:
                - relations: S/o, W/o, D/o, Son of, Wife of, Daughter of
                - relative names following those relation markers
                - both witness names, relations, relative names, and full addresses
+               - bank signatory age: MUST extract this if present (e.g., 'Age 26 years', 'Age 26', '26 Years', 'aged 26 years' next to the signatory's details).
                - full property address/schedule and all boundaries
                - loan tenure such as 120 Months, 180 Months, 240 Months
+               - Aadhaar / UID numbers: Any 12-digit identification numbers next to borrower, mortgagor, or bank signatory details, whether formatted with hyphens (e.g. '5130-5171-6826', '7837-7620-4939'), spaces (e.g. '3793 2529 5076'), or raw digits (e.g. '379325295076'). You MUST map them exactly to the corresponding bs[i].id or bsign.id.
+               - PAN Card numbers: Any 10-character alphanumeric PAN strings (e.g. 'AAECM6252D', 'IHYPD3537A') next to borrower, mortgagor, or bank signatory details. You MUST map them exactly to the corresponding bs[i].pan or bsign.pan.
             6. If a line reads like "Mr. Ram Kumar S/o Shyam Lal R/o Jaipur", map it separately:
                {{"Mr. Ram Kumar": "{{{{bs[0].s}}}} {{{{bs[0].n}}}}", "S/o Shyam Lal": "{{{{bs[0].r}}}} {{{{bs[0].rn}}}}"}}
+            7. BANK SIGNATORY DETAILED MAPPING:
+               If a signatory line reads like "through its authorized person Mr. Nitin Jangid S/o Suresh Jangid, Age 26 years", map it separately:
+               {{"Mr. Nitin Jangid": "{{{{bsign.n}}}}", "S/o Suresh Jangid": "{{{{bsign.r}}}} {{{{bsign.rn}}}}", "Age 26 years": "Age {{{{bsign.a}}}} years"}}
+            8. DANGEROUS NAKED NUMBERS (CRITICAL): Never map a single naked number for Age (e.g., {{"26": "{{{{bsign.a}}}}"}}). Always include the surrounding context like "Age" and "years" to prevent corrupting dates or other numbers (e.g., {{"Age 26 years": "Age {{{{bsign.a}}}} years"}} or {{"Age 26": "Age {{{{bsign.a}}}}"}}). This applies to borrower/witness ages as well.
 
             Return ONLY a valid JSON dictionary. No preamble.
 
@@ -297,7 +366,10 @@ class TemplateBuilder:
             {content}
             """
 
-            extractor = DataExtractor(self.api_key_entry.get())
+            entered_key = self.api_key_entry.get().strip()
+            # Combine entered key with defaults to ensure failover works
+            keys = [entered_key] + [k for k in DEFAULT_API_KEYS if k != entered_key]
+            extractor = DataExtractor(api_keys=keys)
             raw = extractor.raw_generate(prompt, self.model_var.get())
             if not raw:
                 self.root.after(0, lambda: messagebox.showerror("AI Error", "AI returned an empty response."))
@@ -501,8 +573,26 @@ class TemplateBuilder:
                     paragraph.runs[i].text = ""
                 paragraph.runs[end_r].text = paragraph.runs[end_r].text[end_off:]
 
+    def normalize_char(self, char):
+        if char.isspace() or char == "\u00A0":
+            return " "
+        if char in ["\u2013", "\u2014", "\u2212", "–", "—", "−"]:
+            return "-"
+        if char in ["‘", "’", "`", "´"]:
+            return "'"
+        if char in ["“", "”", "„", "‟"]:
+            return '"'
+        return char
+
     def normalize_for_match(self, value):
-        return re.sub(r"[\s\u00A0]+", " ", value or "").strip().casefold()
+        if not value:
+            return ""
+        normalized_chars = [self.normalize_char(c) for c in value]
+        val = "".join(normalized_chars)
+        return re.sub(r"[\s\u00A0]+", " ", val).strip().casefold()
+
+    def is_ignored_compact_char(self, char):
+        return char.isspace() or char in ["-", "\u2013", "\u2014", "\u2212", "–", "—", "−"]
 
     def find_fuzzy_match(self, paragraph, needle):
         if not paragraph.runs:
@@ -512,7 +602,7 @@ class TemplateBuilder:
         positions = []
         for run_idx, run in enumerate(paragraph.runs):
             for char_idx, char in enumerate(run.text):
-                chars.append(" " if char.isspace() or char == "\u00A0" else char)
+                chars.append(self.normalize_char(char))
                 positions.append((run_idx, char_idx))
 
         haystack = "".join(chars)
@@ -532,11 +622,14 @@ class TemplateBuilder:
         compact_chars = []
         compact_positions = []
         for idx, char in enumerate(haystack):
-            if not char.isspace():
+            if not self.is_ignored_compact_char(char):
                 compact_chars.append(char)
                 compact_positions.append(idx)
 
-        compact_target = re.sub(r"[\s\u00A0]+", "", target)
+        compact_target = "".join([c for c in target if not self.is_ignored_compact_char(c)])
+        if not compact_target:
+            return None
+
         found_at = "".join(compact_chars).casefold().find(compact_target)
         if found_at == -1:
             return None
