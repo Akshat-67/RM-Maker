@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 python-docx
 num2words
 google-genai
@@ -5,4 +6,12 @@ docxtpl
 Pillow
 flask
 flask-cors
-openai
+openai
+=======
+python-docx
+num2words
+google-genai
+docxtpl
+Pillow
+tkinterdnd2
+>>>>>>> 3c8ef3700876862f09e11a95b6a2e9e767d3567e
