@@ -121,3 +121,142 @@ h6.section-title {
 .small {
     font-size: 0.875em;
 }
+
+/* --- Hindi Legacy Font & Hybrid UI Layout styling --- */
+
+@font-face {
+    font-family: 'DevLys 010';
+    src: local('DevLys 010'), local('DevLys-010');
+}
+
+@font-face {
+    font-family: 'DevLys 040';
+    src: local('DevLys 040'), local('DevLys-040');
+}
+
+@font-face {
+    font-family: 'Kruti Dev 010';
+    src: local('Kruti Dev 010'), local('KrutiDev-010'), local('Kruti Dev-010');
+}
+
+.hindi-legacy-input {
+    font-family: 'DevLys 010', 'DevLys 040', 'Kruti Dev 010', 'Courier New', monospace !important;
+    font-size: 1.2rem !important;
+    font-weight: 500 !important;
+    background-color: #fefcf0 !important; /* Extremely soft warm yellow for Hindi inputs */
+    direction: ltr;
+}
+
+.hindi-legacy-input:focus {
+    background-color: #ffffff !important;
+    border-color: #eab308; /* Soft amber border for active legacy fields */
+    box-shadow: 0 0 0 0.25rem rgba(234, 179, 8, 0.2);
+}
+
+/* Bilingual side-by-side field columns */
+.bilingual-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.bilingual-col-english {
+    flex: 1;
+}
+
+.bilingual-col-hindi {
+    flex: 1;
+}
+
+.transliterate-btn {
+    background: none;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    background-color: #f8fafc;
+    height: 31px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.transliterate-btn:hover {
+    background-color: #e2e8f0;
+    border-color: #94a3b8;
+    transform: scale(1.05);
+}
+
+.transliterate-btn:active {
+    transform: scale(0.95);
+}
+
+/* Styled grids for Payments and Title Chain */
+.grid-table {
+    width: 100%;
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.grid-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 12px;
+    border-bottom: 2px solid #e2e8f0;
+    text-align: left;
+}
+
+.grid-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+.grid-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.grid-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.grid-table .form-control-sm {
+    border-color: #e2e8f0;
+}
+
+.btn-icon-danger {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    line-height: 1;
+}
+
+.btn-icon-danger:hover {
+    background-color: #fee2e2;
+}
+
+/* Subtle highlights for verified fields in dynamic toggle layout */
+.verify-check {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+}
+

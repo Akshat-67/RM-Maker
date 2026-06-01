@@ -5,3 +5,4 @@ docxtpl
 Pillow
 flask
 flask-cors
+openai

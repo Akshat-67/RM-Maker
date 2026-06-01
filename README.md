@@ -17,12 +17,12 @@ The final RM keeps the static formatting from the selected Word template. Insert
 ## Folder Structure
 - `templates/`: Contains the Master .docx files with short-tags/placeholders.
 - `template_tools/`: Contains `template_builder.py` to create new Master Templates for other banks.
-- `app.py`: The main desktop application.
+- `app.py`: The main Flask web application.
 
 ## Installation
 1. Install Python 3.10+ (Check "Add to PATH").
 2. Run: `pip install -r requirements.txt`
-3. Run: `python app.py`
+3. Run: `python app.py` and open `http://127.0.0.1:5000` in your browser.
 
 ## Adding New Banks (e.g., Piramal)
 1. Run `python template_tools/template_builder.py`.
