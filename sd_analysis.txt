@@ -1,0 +1,93 @@
+# Sale Deed (SD) Automation Implementation Plan
+
+## Analysis of RM Pipeline vs SD Requirements
+
+**Reusable RM Components:**
+*   **File/Session Management:** The `load_case_session`, `save_case_session` (mostly), and file upload mechanisms in `app.py` are document-agnostic.
+*   **API Interactions:** The `DataExtractor` initialization, key rotation (`_rotate_key`), and raw API call logic (`raw_generate`, `extract_with_ai` base) are reusable.
+*   **Template Processor Engine:** The `TemplateProcessor` class in `processor.py` for injecting data and highlighting unverified fields is reusable.
+*   **Common Normalizations:** `normalize_relative_salutation`, `normalize_name_salutation`, and `clean_aadhar_address` can be reused for both entity types.
+
+**RM-specific Assumptions that Must Be Generalized:**
+*   **Entity Naming:** RM hardcodes `bs` (borrowers) and `ls` (loans). SD needs `sellers` and `buyers`. The UI and `smart_merge` currently assume these specific keys.
+*   **Template Discovery:** `discover_templates` assumes RM naming conventions (`RM_{BANK}_{#B}B_{#L}L.docx`). SD templates follow a different pattern (e.g., `SD_{scenario}_{#S}S_{#B}B.docx`).
+*   **Language Assumption:** RM assumes English output. SD explicitly requires Devanagari Hindi output for many fields.
+*   **Document Context:** RM extracts `ds` (Document Schedule). SD requires `chain` (Chain of Title) and different property boundary details.
+
+**Extraction Differences (RM vs SD):**
+*   **Entities:** RM extracts borrowers (`bs`), loans (`ls`), and a bank signatory (`bsign`). SD extracts sellers (`sellers`), buyers (`buyers`), and title chain (`chain`). Both extract witnesses (`ws`) and properties (`ps`), but SD requires different property fields (e.g., `flat_no`, `area`, `area_unit` vs RM's generic address).
+*   **Language:** SD prompts must explicitly demand Hindi transliteration for names, addresses, boundaries, and castes.
+*   **Prompts:** `_build_prompt` (RM) vs `_build_sd_prompt` (SD) in `extractor.py`.
+
+**Template Generation Differences:**
+*   **Resolution:** RM resolves templates based on Bank + Borrowers + Loans. SD resolves based on Scenario + Sellers + Buyers.
+*   **Padding:** `app.py` pads `bs`, `ls`, `ps`, `ws` to 10 elements. SD needs to pad `sellers`, `buyers`, `chain`, `ps`, and `ws`.
+
+**Normalization Differences:**
+*   **Currency:** RM uses `amount_to_words` (English). SD might not need this, or might need Hindi currency conversion if extracted.
+*   **Transliteration:** SD relies heavily on the `_google_input_tools_transliterate` endpoint to convert English inputs to Hindi if the AI fails. RM does not.
+
+**UI/State Management Changes Required:**
+*   The UI must conditionally render sections based on `doc_type` ("RM" or "SD"). If "SD", it should show "Sellers", "Buyers", and "Chain of Title" instead of "Borrowers", "Loans", and "Bank Signatory".
+*   Dropdowns for configuration (e.g., Bank vs Scenario, Loan count vs Seller count).
+
+**Missing SD-Specific Fields/Entities:**
+*   `sellers` list with `caste` field.
+*   `buyers` list with `caste` field.
+*   `chain` list with `seller`, `buyer`, `date`, `book`, `vol`, `page`, `kram`.
+*   SD specific property fields: `flat_no`, `floor`, `building`, `area`, `area_unit`, `parking`.
+
+**Changes needed in `smart_merge`:**
+*   `smart_merge` currently hardcodes the paths `["ls", "ps", "unassigned_aadhars"]` for unique-key merging.
+*   It needs to handle `sellers`, `buyers`, and `chain`. If `sellers` or `buyers` need unique merging based on name/ID, the list of paths must be expanded.
+
+**Changes needed in `processor.py`:**
+*   `_required_list_lengths` regex hardcodes `(bs|ls|ps|ws|ds)`. It must be updated to `(bs|ls|ps|ws|ds|sellers|buyers|chain)`.
+*   The default empty object dictionaries (`LIST_DEFAULTS`) must include keys and empty values for `sellers`, `buyers`, and `chain`.
+*   The `_normalize_context_salutations` function hardcodes `bs`, `ws`, `bsign`. It needs to also apply salutation normalizations to `sellers` and `buyers`.
+
+**Risks of Copying RM Logic Directly:**
+*   **Template Crashes:** Copying RM padding logic without updating `LIST_DEFAULTS` in `processor.py` will cause Jinja2 crashes when accessing `{{sellers[0].n}}` if the list is empty.
+*   **Language Corruption:** RM doesn't force legacy font encodings by default unless it detects Hindi characters. Copying RM directly might result in English text where Devanagari is expected.
+*   **Merge Data Loss:** If `smart_merge` isn't updated, sellers/buyers will be merged by index instead of unique keys, potentially overwriting data if the AI returns them in a different order on subsequent extractions.
+
+## Implementation Plan
+
+### 1. Exact Files that Must Change
+1.  `app.py`
+2.  `extractor.py`
+3.  `processor.py`
+
+### 2. Exact Functions that Must Change
+
+**In `app.py`:**
+*   `smart_merge`: Add `"sellers", "buyers", "chain", "data.sellers", "data.buyers", "data.chain"` to the list of paths that merge by unique key. Update `key_field` logic to handle `"n"` for sellers/buyers and perhaps `"date"` or `"kram"` for chain.
+*   `view_case`: Generalize the data padding logic. Add conditional padding for `sellers`, `buyers`, and `chain` when `doc_type == "SD"`.
+*   `generate_rm`: Update template resolution logic for SD (`SD_{scenario}_{#S}S_{#B}B.docx`). Ensure `sellers`, `buyers`, and `chain` are padded to 10 elements before passing to `processor.py`.
+*   `save_case`: Ensure `sellers_count`, `buyers_count`, and `chain_scenario` are properly read from the request and saved to the session.
+
+**In `extractor.py`:**
+*   `_normalize_response`: Enhance the SD block to properly clean `caste` strings and ensure `chain` objects are fully populated. Ensure `expected_sellers` and `expected_buyers` are respected in `_force_count`.
+*   `extract_with_ai`: Ensure `expected_sellers` and `expected_buyers` parameters are correctly passed to `_normalize_response` when `doc_type == "SD"`.
+
+**In `processor.py`:**
+*   Update `LIST_DEFAULTS` constant to include schemas for `"sellers"`, `"buyers"`, and `"chain"`.
+*   `_required_list_lengths`: Update the regex to find `sellers`, `buyers`, and `chain` tags.
+*   `_normalize_context_salutations`: Add processing loops for `ctx["sellers"]` and `ctx["buyers"]` to normalize salutations just like `bs`.
+
+### 3. Recommended Implementation Order
+1.  **Backend Models (`processor.py` & `extractor.py`):** Update `processor.py` (`LIST_DEFAULTS`, regex) and `extractor.py` (normalization) first. This ensures the backend can safely handle SD data without crashing, even if the data is manually injected.
+2.  **State Management (`app.py` - `smart_merge` & padding):** Update `smart_merge` and the padding logic in `generate_rm`. This ensures that when SD data *does* arrive, it is stored and merged correctly.
+3.  **Routing/Configuration (`app.py` - template resolution):** Update `generate_rm` to look in the `templates/SALE_DEED/` folder and resolve the correct filename based on sellers/buyers counts.
+4.  **UI Updates (Frontend - not modifying code here, but required):** Finally, update the UI to toggle the configuration and display fields based on the selected `doc_type`.
+
+### 4. Likely Bugs/Edge Cases
+*   **Key Field Mismatches in `smart_merge`:** If a seller's name changes slightly between extractions (e.g., "Ram Kumar" vs "Ram Kumar Sharma"), `smart_merge` might treat them as two different entities instead of updating the existing one.
+*   **Jinja2 Out of Bounds:** If `LIST_DEFAULTS` in `processor.py` doesn't perfectly match every field used in the SD templates (e.g., missing `area_unit`), rendering will crash when accessing an uninitialized key on a padded empty object.
+*   **Hindi Transliteration Failures:** The legacy font conversion (`Unicode_to_KrutiDev`) might mangle specific complex Hindi conjuncts if the AI returns unusual Unicode representations.
+
+### 5. Safest Incremental Rollout Strategy
+1.  **Phase 1: Silent Backend Support.** Deploy the updates to `processor.py`, `extractor.py`, and `smart_merge`. These changes are backward-compatible and won't affect RM processing.
+2.  **Phase 2: Template Stubs & Padding.** Add dummy SD templates to the `templates/` folder and implement the routing resolution in `generate_rm`. Test generating documents via direct API calls (bypassing the UI) using dummy JSON data.
+3.  **Phase 3: AI Extraction Testing.** Enable the SD prompts in `extractor.py` and run test documents through the AI pipeline, verifying the output shape and transliteration accuracy.
+4.  **Phase 4: UI Integration.** Once the backend is robustly handling SD data, update the UI to expose the SD options to users.

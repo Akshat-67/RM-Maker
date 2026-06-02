@@ -1,0 +1,35 @@
+1. Current DevLys/Unicode architecture
+The system stores data internally (in `session.json` and during Flask request lifecycles) as standard Unicode strings. The conversion to legacy Hindi font encoding (KrutiDev/DevLys) is handled entirely at the view/rendering layer just before document injection. Specifically, the conversion occurs *before* template injection, but *after* all data merging and state saving is complete.
+
+2. Exact files/functions involved
+*   `processor.py`:
+    *   `KrutiDev_to_Unicode(krutidev_substring)`: Legacy conversion logic (not used in the active pipeline, likely a utility).
+    *   `Unicode_to_KrutiDev(unicode_substring)`: The core conversion engine. It uses a massive array of character replacements (`array_one` and `array_two`) to map standard Unicode Devanagari characters to the ASCII mappings expected by KrutiDev/DevLys040 fonts. It handles complex matra shifting (like moving 'f' for short 'i' sound) and half-characters.
+    *   `TemplateProcessor._convert_context_to_legacy(self, data)`: Recursively scans the entire data dictionary/context. It checks every string: `if any(0x0900 <= ord(c) <= 0x097F for c in data):`. If a string contains *any* Devanagari character, it passes the *entire string* through `Unicode_to_KrutiDev`.
+    *   `TemplateProcessor.generate(...)`: Calls `_convert_context_to_legacy(context)` right before `self.doc.render(context)`.
+*   `app.py`:
+    *   `_google_input_tools_transliterate(text)`: Used in the `/transliterate` route. Hits a Google API to convert English phonetic text to standard Unicode Devanagari.
+*   `extractor.py`:
+    *   `_build_sd_prompt`: Explicitly instructs the AI: "You must extract and output all Name fields... in Devanagari Hindi characters... If the source document has these names or addresses in English, you MUST transliterate them to standard Devanagari Hindi script."
+
+3. Current behavior during RM generation
+During RM generation, the `generate` method in `processor.py` calls `_convert_context_to_legacy(context)`. Because RM templates generally expect English text, the context usually contains only English ASCII/Unicode strings. The `_convert_context_to_legacy` function safely skips these because they do not fall in the `0x0900 <= ord(c) <= 0x097F` range. However, if an RM user accidentally inputs Hindi text via the UI, it *will* be converted to KrutiDev/DevLys ASCII. If the RM template is formatted in Times New Roman, the resulting output will appear as absolute gibberish (e.g., "djukZ" instead of "करना").
+
+4. Risks for SD implementation
+*   **Matras & Conjuncts:** The `Unicode_to_KrutiDev` function relies on brittle string replacements and index shifting (e.g., finding the position of `f` and moving it). This works for 95% of standard Hindi words but is notoriously fragile for complex conjuncts (e.g., "क्ष", "त्र", "ज्ञ"), half-characters combined with 'R' (`j~`), and specific legal terminology. Data corruption (missing matras or broken conjuncts) is highly likely for edge cases.
+*   **Punctuation & English Mixed Text:** The `_convert_context_to_legacy` function converts the *entire string* if *any* Hindi character is detected. If a string contains "Plot No. 12, राम नगर", the conversion might mangle "Plot No. 12" because the KrutiDev mapping table reuses standard English ASCII slots (like `[`, `]`, `{`, `}`) for Hindi characters.
+*   **Highlighting Logic Corruption:** The `_apply_body_highlights` function searches for `HL_MARKER` (`~~HL~~`) inside document runs. Because highlighting happens *after* `docxtpl` rendering, and `docxtpl` rendering happens *after* `_convert_context_to_legacy`, the markers themselves might be caught in the legacy conversion if they are embedded within a Hindi string, rendering them undetectable. Even if they survive, manipulating run text in `python-docx` after legacy font injection can sometimes split runs awkwardly, breaking the visual flow of complex Hindi ligatures.
+
+5. Missing capabilities
+*   **Targeted/Field-level Conversion:** The system lacks the ability to define *which* specific fields should be converted. It relies on blanket Unicode detection. SD templates need English fields (like LAN numbers or dates) to remain untouched, and Hindi fields to be converted, even if they happen to contain mixed text.
+*   **Deterministic Font Verification:** The system has no way to guarantee that the converted string will render correctly in Word because it doesn't verify the font applied to the placeholder.
+
+6. Recommended safest implementation strategy
+Instead of relying on blanket dictionary traversal (`_convert_context_to_legacy`), move the legacy conversion logic into a custom Jinja2 filter within the `docxtpl` context.
+*   In `app.py`, register the filter: `processor.doc.get_jinja_env().filters['devlys'] = Unicode_to_KrutiDev`.
+*   Remove `_convert_context_to_legacy` entirely.
+*   In the SD templates, explicitly pipe the fields that require DevLys: `{{ sellers[0].n | devlys }}`.
+This ensures only the exact text meant for DevLys formatting is converted, preventing mixed-text corruption and preventing RM templates from accidentally rendering gibberish.
+
+7. Critical blockers (if any)
+*   **Mixed Text Mutilation:** The current logic (`if any(Devanagari) -> convert all`) is a critical blocker for SD templates. If a property address is "Flat No 402, शिव विहार", the English portion will be corrupted when rendered in a DevLys font in the Word document.
