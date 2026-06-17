@@ -139,6 +139,10 @@ class SDTemplateProcessor:
             if 'sale' not in context['d']: context['d']['sale'] = context['sale']
             if 'deed' not in context['d']: context['d']['deed'] = context['deed']
 
+        # Ensure base keys exist for empty contexts
+        if 'ss' not in context: context['ss'] = context.get('sellers', [])
+        if 'bs' not in context: context['bs'] = context.get('buyers', [])
+
         # Witness compatibility mappings (w1, w2)
         if 'ws' in context and isinstance(context['ws'], list):
             ws_list = context['ws']
@@ -254,22 +258,10 @@ class SDTemplateProcessor:
             original = text
             
             # 1. Identity Boilerplate Fixes
-            text = text.replace("(1).", "¼1½-")
-            text = text.replace(", (2).", "] ¼2½-")
-            text = text.replace("(2).", "¼2½-")
-            text = text.replace(", (3).", "] ¼3½-")
-            text = text.replace("(3).", "¼3½-")
             if text.strip() == "dh vksj ls": text = "& dh vksj ls &"
             
             # 2. Ligature and Standard Substitution Fixes (Regex Robust)
-            if "foosd" in text:
-                text = re.sub(r'm[RrÙ]+jkf[/èk]+dkjh', 'mÙkjkf/kdkjh', text)
-            text = re.sub(r'[izç]+frfuf/k', 'izfrfuf/k', text)
-            
-            # Global specific character normalizations for parity across cases:
-            text = text.replace("Iy‚V", "IykV")  # Normalize Plot
-            text = text.replace("fç", "fiz")     # Normalize 'pri' like in Priyanka
-            text = text.replace("ç", "iz")       # Normalize general 'pra'
+            text = re.sub(r'm[RrÙ]+jkf[/èk]+dkjh', 'mÙkjkf/kdkjh', text)
             
             text = text.replace("Lo ", "Lo- ").replace("Lo- Jh", "Lo- Jh").replace("mä ", "mDr ")
             text = text.replace("iêk", "iV~Vk").replace("i+ ", "i<+ ").replace("ledj", "le>dj").replace("izek.k", "izek.k")
@@ -278,9 +270,6 @@ class SDTemplateProcessor:
             # 3. Generic Punctuation / Spacing
             text = text.replace("gSA, ]", "gS]").replace("gSA ]", "gS]").replace("gS, ", "gS] ").replace("xokgku,", "xokgku~").replace("i'pkr,", "i'pkr~")
             
-            # Remove comma between name and relation generically
-            text = re.sub(r'([A-Za-z0-9&]+),\s*(iRuh|iq=|iq=h)', r'\1 \2', text)
-            
             text = text.replace('] o"kZ', ' o"kZ').replace('] tkfr', ' tkfr').replace("^^foØsrkx.k**", " ^^foØsrkx.k**")
             text = text.replace("mä foØ;", "mDr foØ;").replace("mä ;wfuV", "mDr ;wfuV")
             text = text.replace("^^;wfuV/¶ysV**", "^^;wfuV@¶ysV**")
@@ -288,7 +277,6 @@ class SDTemplateProcessor:
             if "gS%" in text and "gS%&" not in text: text = text.replace("gS%", "gS%&")
 
             # 4. Global Character / Hyphen Cleanups
-            text = re.sub(r'(\d{2})&(\d{2})&(\d{4})', r'\1-\2-\3', text)
             
             # Generic non-digit to digit hyphen-to-ampersand cleanup (e.g. महाराष्ट्र-411044 -> महाराष्ट्र&411044)
             # Exclude standalone 'u-' and 'ua-' abbreviations using negative lookbehind
@@ -297,8 +285,6 @@ class SDTemplateProcessor:
             text = text.replace(" - ", " & ")
             
             # Generic character/ligature normalizations
-            text = text.replace("çFke", "izFke").replace("çdkj", "izdkj")
-            text = text.replace("çek.k", "izek.k")
             text = text.replace("okfjlkU", "okfjlku~")
             text = text.replace("vf/k—r", "vf/kd`r")
             
@@ -309,8 +295,7 @@ class SDTemplateProcessor:
             text = text.replace("iq¾", "iq=")
             
             # Template alignment fixes
-            if "foosd" in text:
-                text = text.replace("mRrjkf/kdkjh", "mÙkjkf/kdkjh")
+            text = text.replace("mRrjkf/kdkjh", "mÙkjkf/kdkjh")
             text = text.replace("ckcR", "ckcr~")
             text = text.replace("mRrj", "mÙkj")
             text = text.replace("mi-iath;d", "mi&iath;d").replace("mi.iath;d", "mi&iath;d")
@@ -354,12 +339,6 @@ class SDTemplateProcessor:
             
             # Global cleanup of कार्यालय duplicates:
             text = text.replace("dkZ;ky;", "dk;kZy;")
-                
-            # Global asterisk to curly quote translation:
-            # Protect double asterisks (DevLys double closing quotes) from being converted to curly quotes
-            text = text.replace("**", "@@TEMP_DBL_AST@@")
-            text = text.replace("*", "’")
-            text = text.replace("@@TEMP_DBL_AST@@", "**")
             
             if text != original:
                 if paragraph.runs:

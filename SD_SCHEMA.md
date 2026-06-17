@@ -67,15 +67,25 @@ This document defines the definitive JSON schema for Sale Deed document processi
   ],
   "title_chain": [
     {
-      "owner": "Previous Owner Name",
-      "deed_type": "Patta / Sale Deed",
+      "event_type": "SALE_DEED",
+      "document_name": "विक्रय पत्र",
       "date": "10.01.2015",
-      "book": "1",
-      "vol": "100",
-      "page": "50",
+      "executant_name": "Seller Name",
+      "claimant_name": "Buyer Name",
+      "is_registered": "true",
+      "reg_office": "Jaipur VII",
+      "reg_date": "10.01.2015",
+      "reg_book": "1",
+      "reg_vol": "100",
+      "reg_page": "50",
       "reg_no": "2015010101",
-      "add_book": "1"
+      "reg_add_book": "1",
+      "reg_add_vol": "200",
+      "reg_add_page": "1-10"
     }
+  ],
+  "chain": [
+    "NOTE: 'chain' is an alias for 'title_chain' used in some templates."
   ],
   "reg": {
     "office": "Jaipur VII",
@@ -97,8 +107,10 @@ This document defines the definitive JSON schema for Sale Deed document processi
 | `ps[i].const_area`| Cons. Area | Numeric | Area of the built structure (if any). |
 | `ps[i].unit` | Area Unit | Unicode Hindi | e.g. oxZxt (Sq. Yards) or oxZQhV (Sq. Ft). |
 | `ps[i].tehsil` | Tehsil | Unicode Hindi | Required for administrative tracking. |
+| `ss[i].adr` / `bs[i].adr` | Address | Unicode Hindi | Alias for full address string. |
+| `ss[i].relation_text` | Relation Phrase | Unicode Hindi | Full relative phrase (e.g., 'पुत्र श्री'). Used as an alias/composition of `r` + `rn`. |
 | `hypothecation` | Bank Name | Unicode Hindi | Records if the property is currently under mortgage. |
-| `title_chain[i]` | Chain Event | Object | Full registration metadata for every ownership transfer. |
+| `title_chain[i]` | Chain Event | Object | Full registration metadata for every ownership transfer (can also use `chain` alias). |
 
 ## 4. Normalization Rules
 1.  **Relation (`r`)**: Extract exact Hindi term (पुत्र, पुत्री, पत्नी) from the document.
