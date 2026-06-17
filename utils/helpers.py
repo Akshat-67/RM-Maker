@@ -10,7 +10,6 @@ def Unicode_to_KrutiDev(unicode_str):
     # 2. Pre-mapping
     s = re.sub(r'([\u0900-\u097F])्िा', r'\1ि', s)
     s = s.replace("निमर्ित", "निर्मित")
-    s = s.replace("गणतिपुरा", "गणपतपुरा")
     s = re.sub(r'(\d)\.(\d)', r'\1-\2', s)
     s = s.replace("/-", "@&")
     s = s.replace("एवज में", "एवज में")
