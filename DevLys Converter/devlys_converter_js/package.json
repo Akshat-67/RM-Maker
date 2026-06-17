@@ -1,0 +1,23 @@
+{
+  "name": "devlys_converter_js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "converter.js",
+  "bin": "converter.js",
+  "scripts": {
+    "start": "node converter.js",
+    "build:win": "pkg . --targets node18-win-x64 --output dist/devlys-clipboard-converter.exe"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "targets": [
+      "node18-win-x64"
+    ]
+  }
+}

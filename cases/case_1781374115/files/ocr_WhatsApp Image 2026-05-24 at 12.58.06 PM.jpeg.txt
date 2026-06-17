@@ -1,0 +1,47 @@
+Here is the complete OCR output for the image:
+
+**Document 1: Aadhaar Card (Vivek Saxena)**
+भारत सरकार
+Government of India
+Vivek Saxena
+DOB: 30/06/1967
+Male
+5564 0963 9476
+मेरा आधार, मेरी पहचान
+
+**Document 2: PAN Card (Vivek Saxena)**
+स्थाई लेखा संख्या / PERMANENT ACCOUNT NUMBER
+AKHPS7097L
+नाम / NAME
+VIVEK SAXENA
+पिता का नाम / FATHER'S NAME
+JISHENDRA BAHADUR SAXENA
+जन्म तिथि / DATE OF BIRTH
+30-06-1967
+हस्ताक्षर / SIGNATURE
+V Saxena (signature, partially visible)
+आयकर आयुक्त, जयपुर
+COMMISSIONER OF INCOME-TAX, JAIPUR
+
+**Document 3: Aadhaar Card (Sunita Saxena)**
+भारत सरकार
+GOVERNMENT OF INDIA
+सुनीता सक्सेना
+Sunita Saxena
+जन्म वर्ष / Year of Birth : 1968
+स्त्री / Female
+6267 4409 8295
+आधार – सामान्य माणसाचा अधिकार
+
+**Document 4: PAN Card (Sunita Saxena)**
+आयकर विभाग
+INCOME TAX DEPARTMENT
+भारत सरकार
+GOVT. OF INDIA
+SUNITA SAXENA
+PREM SHANKER SRIVASTAVA
+13/06/1968
+Permanent Account Number
+BSOPS8468K
+Sunita (signature)
+Signature

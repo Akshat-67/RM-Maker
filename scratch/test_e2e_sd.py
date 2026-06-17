@@ -3,10 +3,10 @@ import os
 
 # Add root directory to path to import processor
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from processor import TemplateProcessor
+from modules.sd.processor import SDTemplateProcessor as TemplateProcessor
 
 # Define the template path and the output path
-template_path = "templates/SALE_DEED/SD_JDA_2SD_Flat_2S_1B.docx"
+template_path = "templates/SALE_DEED/SD-Vivek Saxena,  Sunita Saxena - Vijay Laxmi - JDA+2SD+Flat_unicode (1)_devlys.docx"
 output_path = "cases/test_sd_output.docx"
 os.makedirs("cases", exist_ok=True)
 
@@ -15,7 +15,7 @@ context = {
     "rd": "25-05-2026", # Execution date
     
     # 2 Sellers
-    "sellers": [
+    "ss": [
         {
             "n": "विवेक सक्सेना", # Mr. Vivek Saxena
             "n_en": "Vivek Saxena",
@@ -43,7 +43,7 @@ context = {
     ],
     
     # 1 Buyer
-    "buyers": [
+    "bs": [
         {
             "n": "विजय लक्ष्मी", # Mrs. Vijay Laxmi
             "n_en": "Vijay Laxmi",
@@ -135,7 +135,11 @@ context = {
 # Provide 'd' alias for the entire context data structure without circular references
 data = context
 context = data.copy()
-context['d'] = data
+context["w1"] = data["ws"][0]
+context["w2"] = data["ws"][1]
+from modules.sd.narrative import generate_chain_narrative
+context["chain_text"] = generate_chain_narrative(context.get("title_chain", []))
+context['d'] = context.copy()
 
 print("--- EXECUTING E2E SALE DEED DOCUMENT GENERATION ---")
 try:
