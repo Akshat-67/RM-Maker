@@ -24,3 +24,14 @@ venv/
 
 # Project specific
 scratch/
+
+# Generated output artifacts
+diff*.txt
+out.txt
+parity_diff*.txt
+validation_output.txt
+test_out.docx
+debug_output.docx
+debug_highlight_output.docx
+ReEval_AI.docx
+Validated_AI.docx
