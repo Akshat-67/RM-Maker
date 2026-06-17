@@ -533,6 +533,16 @@ class SDDataExtractor:
         self._normalize_list(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
         self._normalize_list(data, "ps", ["adr", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
         self._normalize_list(data, "ws", ["n", "relation_text", "adr"])
+
+        # Move extraction-compensation upstream (cleaning OCR commas between names and relations)
+        for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
+            for person in data.get(key, []):
+                if person.get("n"):
+                    # Remove trailing comma from name if AI hallucinates it before a relation
+                    person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
+                if person.get("relation_text"):
+                    person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
+
         self._normalize_list(data, "title_chain", [
             "event_type", "document_name", "document_number", "date", "consideration_amount", 
             "executant_name", "claimant_name", "reg_office", "reg_date", 
@@ -542,11 +552,6 @@ class SDDataExtractor:
         ])
         
         self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "relation_text", "adr", "id"])
-
-        for key in ["ss", "bs", "ws"]:
-            for person in data.get(key, []):
-                if person.get("relation_text"):
-                    person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
         
         witness_names = set()
         for w in data.get("ws", []):

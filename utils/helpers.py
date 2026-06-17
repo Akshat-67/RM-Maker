@@ -8,6 +8,12 @@ def Unicode_to_KrutiDev(unicode_str):
     s = re.sub(r'(\d{1,2})-(\d{1,2})-(\d{4})', r'\1@@@DASH@@@\2@@@DASH@@@\3', s)
     
     # 2. Pre-mapping
+
+    # Global Asterisk to curly quote translation (before DevLys mapping)
+    s = s.replace("**", "@@TEMP_DBL_AST@@")
+    s = s.replace("*", "’")
+    s = s.replace("@@TEMP_DBL_AST@@", "**")
+
     s = re.sub(r'([\u0900-\u097F])्िा', r'\1ि', s)
     s = s.replace("निमर्ित", "निर्मित")
     s = re.sub(r'(\d)\.(\d)', r'\1-\2', s)
@@ -26,6 +32,16 @@ def Unicode_to_KrutiDev(unicode_str):
     s = s.replace("‘", "^").replace("’", "*")
     s = s.replace("‘‘", "“").replace("’’", "”")
     
+    # Identity Boilerplate & Specific Normalizations (Before full mapping)
+    s = s.replace("(1).", "¼1½-")
+    s = s.replace(", (2).", "] ¼2½-")
+    s = s.replace("(2).", "¼2½-")
+    s = s.replace(", (3).", "] ¼3½-")
+    s = s.replace("(3).", "¼3½-")
+
+    s = s.replace("प्रFke", "izFke").replace("प्रdkj", "izdkj")
+    s = s.replace("प्रek.k", "izek.k")
+
     # Standard KrutiDev mapping pairs
     mapping = [
         ("‘", "^"), ("’", "*"), ("“", "Þ"), ("”", "ß"), ("(", "¼"), (")", "½"), ("{", "¿"), ("}", "À"), ("=", "¾"), ("।", "A"), ("?", "\\"), ("µ", "&"), ("॰", "Œ"), (",", "]"), 
@@ -104,6 +120,12 @@ def Unicode_to_KrutiDev(unicode_str):
     res = res.replace("LoxhZ;", "Lo-").replace("LoxZh;", "Lo-")
     res = res.replace("Rr", "Ùk").replace("è", "/k")
     res = res.replace("d‚eu", "dkWeu").replace("ikfZdax", "ikfdZax").replace("ikfdaZx", "ikfdZax")
+    res = res.replace("Iy‚V", "IykV")  # Normalize Plot
+    res = res.replace("fç", "fiz")     # Normalize 'pri' like in Priyanka
+    res = res.replace("ç", "iz")       # Normalize general 'pra'
+    res = re.sub(r'[izç]+frfuf/k', 'izfrfuf/k', res)
+    res = res.replace("çFke", "izFke").replace("çdkj", "izdkj").replace("çek.k", "izek.k")
+    res = re.sub(r'(\d{2})&(\d{2})&(\d{4})', r'\1-\2-\3', res) # Protect global date hyphens mapped into & back to -
     
     return res
 
