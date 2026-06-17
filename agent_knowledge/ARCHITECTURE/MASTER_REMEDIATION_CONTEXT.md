@@ -73,15 +73,11 @@ All existing and future string replacements and normalizations must be evaluated
 
 ## 6. Canonical Field Strategy
 
-The project adopts full, readable words over terse aliases while preserving established logical groupings. A mass migration is currently on hold, but this serves as the target standard:
+The project acknowledges the existence of legacy aliases (e.g., `chain` vs `title_chain`, `adr` vs `address`) but does *not* authorize a mass renaming or migration project at this time. The strategy is focused on strict documentation and alignment:
 
-*   **Parties:** `address` (not `adr`), `aadhaar` (not `id`), `age` (not `a`), `caste` (not `c`), `name` (not `n`).
-*   **Party Groups:** `sellers` / `buyers` (SD), `borrowers` (RM), `witnesses` (not `ws`).
-*   **Property:** `properties` (not `ps`), `land_area`, `const_area`, `area_unit` (not `unit`).
-*   **Title Chain:** `title_chain` (not `chain`), `executant_name` (not `executant.name`), `reg_book` (not `book_no`), `reg_vol` (not `volume_no`), `reg_page` (not `page_no`).
-*   **Financial/Deed (Nested):** `sale.amount` (not `amount`), `sale.amount_words`, `sale.payment_details`, `deed.execution_date` (not `rd`).
-
-**Migration Guidance:** When implemented, this requires updates to prompts, a backward-compatibility layer in `load_case_session`, processor refactoring, and comprehensive template updates.
+*   **Canonical Names vs Aliases:** The current active names in code/templates are the de facto standard.
+*   **Schema Alignment:** The immediate goal is to ensure `CHAIN_SCHEMA.md` and `SD_SCHEMA.md` exactly match the implemented code, clearly documenting which short-hand keys are in use.
+*   **Migration Guidance:** Any future transition to full-word canonical names is strictly on hold. Nested structures (like `sale.amount`) are explicitly preserved and must not be flattened for the sake of consistency.
 
 ---
 
@@ -123,19 +119,19 @@ Debt should be addressed in the following order:
 ### PHASE 1 (Immediate Execution)
 **Scope:** Low risk, high confidence, already approved cleanup.
 
-*   **Remove Confirmed Overfitting** (Delete `heal_session_*.py`, `reorder_chain.py`, case-specific processor logic)
+*   **Remove Confirmed Overfitting** (Review/archive/remove `heal_session_*.py`, `reorder_chain.py`, and case-specific processor logic as appropriate)
     *   *Source Audit:* Technical Debt Audit
     *   *Source Decision:* `TECHNICAL_DEBT_DECISIONS.md`, `HARDCODE_DECISIONS.md`
     *   *Risk:* Low
     *   *Impact:* High (Removes brittle overfit logic)
     *   *Dependencies:* None
-*   **Repository Cleanup** (Delete diffs and generated DOCX outputs from root; update `.gitignore`)
+*   **Repository Cleanup** (Review/archive/remove diffs and generated DOCX outputs from root as appropriate; update `.gitignore`)
     *   *Source Audit:* Technical Debt Audit
     *   *Source Decision:* `TECHNICAL_DEBT_DECISIONS.md`
     *   *Risk:* Low
     *   *Impact:* Medium (Improves repository legibility)
     *   *Dependencies:* None
-*   **Knowledge Organization** (Move valuable infrastructure to `tools/` and `tests/`, archive debug scripts)
+*   **Knowledge Organization** (Move valuable infrastructure to `tools/` and `tests/`, review/archive/remove debug scripts as appropriate)
     *   *Source Audit:* Technical Debt Audit
     *   *Source Decision:* `TECHNICAL_DEBT_DECISIONS.md`
     *   *Risk:* Low
@@ -157,12 +153,12 @@ Debt should be addressed in the following order:
     *   *Risk:* Medium
     *   *Impact:* High (Cleans up rendering logic)
     *   *Dependencies:* Schema updates, Multi-case validation
-*   **Field Naming Preparation** (Implement `load_case_session` compatibility layer, update prompts to canonical keys)
+*   **Field Naming Preparation** (Document and align field definitions without initiating a mass renaming migration)
     *   *Source Audit:* Field Naming Audit
     *   *Source Decision:* `FIELD_NAMING_DECISIONS.md`
-    *   *Risk:* Medium
-    *   *Impact:* High (Long-term code readability)
-    *   *Dependencies:* Widespread template string updates
+    *   *Risk:* Low
+    *   *Impact:* Medium (Creates standard documentation for future work)
+    *   *Dependencies:* None
 *   **Template Compensation Review** (Update Word templates and remove corresponding python string fixes safely)
     *   *Source Audit:* Template Architecture Audit, Hardcode Review Phase 2
     *   *Source Decision:* `HARDCODE_DECISIONS.md`
