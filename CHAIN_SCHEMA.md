@@ -13,30 +13,32 @@ The title chain is stored as an array of `title_events`, ordered chronologically
       "event_id": "uuid-or-index",
       "event_type": "SALE_DEED",
       "date": "17.04.2018",
-      "executant": {
-        "name": "महेश चंद तोदवाल",
-        "relation": "पुत्र श्री",
-        "relative_name": "रामलाल तोदवाल"
-      },
-      "claimant": {
-        "name": "राजबाला",
-        "relation": "पत्नी श्री",
-        "relative_name": "महेश चंद तोदवाल"
-      },
-      "registration": {
-        "is_registered": true,
-        "office": "जयपुर सप्तम",
-        "date": "19.04.2018",
-        "book": "1",
-        "vol": "464",
-        "page": "98",
-        "reg_no": "201803021103534",
-        "add_book": "1",
-        "add_vol": "1855",
-        "add_page": "1026"
-      },
+      "executant_name": "महेश चंद तोदवाल",
+      "claimant_name": "राजबाला",
+      "is_registered": "true",
+      "reg_office": "जयपुर सप्तम",
+      "reg_date": "19.04.2018",
+      "reg_book": "1",
+      "reg_vol": "464",
+      "reg_page": "98",
+      "reg_no": "201803021103534",
+      "reg_add_book": "1",
+      "reg_add_vol": "1855",
+      "reg_add_page": "1026",
+      "book_no": "1",
+      "volume_no": "464",
+      "page_no": "98",
+      "additional_book_no": "1",
+      "additional_volume_no": "1855",
+      "additional_page_range": "1026",
       "consideration_amount": "500000",
-      "document_name": "विक्रय पत्र"
+      "document_name": "विक्रय पत्र",
+      "document_number": "डी-2341",
+      "project_name": "रॉयल एन्क्लेव",
+      "unit_number": "एस-1",
+      "confidence": "High",
+      "source_text": "...",
+      "event_property_type": "PLOT"
     }
   ]
 }
@@ -61,23 +63,31 @@ Based on sample analysis, the system standardizes title events into the followin
 - `event_type` (String): Standardized enum value.
 - `document_name` (String): The exact Hindi term used in the generated deed (e.g., "पट्टा विलेख").
 - `date` (String): Execution date of the document (`DD.MM.YYYY`).
-- `claimant.name` (String): The party receiving the right/title.
+- `claimant_name` (String): The party receiving the right/title.
 
 ### Registration Fields (Mapping to DevLys Document Terms)
-If `registration.is_registered == true`:
-- `registration.office` (String): Sub-Registrar Office (उप-पंजीयक).
-- `registration.date` (String): Date of registration.
-- `registration.book` (String): Book number (पुस्तक संख्या).
-- `registration.vol` (String): Volume number (जिल्द संख्या).
-- `registration.page` (String): Page number (पृष्ठ संख्या).
-- `registration.reg_no` (String): Registration/Serial number (क्रम संख्या).
-- `registration.add_book`: Additional Book (अतिरिक्त पुस्तक संख्या).
-- `registration.add_vol`: Additional Volume (अतिरिक्त जिल्द संख्या).
-- `registration.add_page`: Additional Page (अतिरिक्त पृष्ठ संख्या).
+If `is_registered == "true"`:
+- `reg_office` (String): Sub-Registrar Office (उप-पंजीयक).
+- `reg_date` (String): Date of registration.
+- `reg_no` (String): Registration/Serial number (क्रम संख्या).
+- `reg_book` / `book_no` (String): Book number (पुस्तक संख्या).
+- `reg_vol` / `volume_no` (String): Volume number (जिल्द संख्या).
+- `reg_page` / `page_no` (String): Page number (पृष्ठ संख्या).
+- `reg_add_book` / `additional_book_no`: Additional Book (अतिरिक्त पुस्तक संख्या).
+- `reg_add_vol` / `additional_volume_no`: Additional Volume (अतिरिक्त जिल्द संख्या).
+- `reg_add_page` / `additional_page_range`: Additional Page (अतिरिक्त पृष्ठ संख्या).
 
 ### Optional / Contextual Fields
-- `executant` (Object): The party transferring the right. (Often omitted in JDA/Society allotments if the authority name is hardcoded).
+- `executant_name` (String): The name of the party transferring the right.
+- `claimant_name` (String): The name of the party receiving the right.
 - `consideration_amount` (String): Required for Sale Deeds and ATS.
+- `document_number` (String): Document number (often for Allotment/Patta).
+- `project_name` (String): Used primarily for CONSTRUCTION events.
+- `unit_number` (String): Flat/Unit number.
+- `event_property_type` (String): Type of property (e.g., PLOT, FLAT).
+- `confidence` (String): Extractor confidence score.
+- `source_text` (String): Text snippet extracted by LLM to prove origin.
+- `field_sources` (Object): Field-level source references.
 
 ## 4. Normalization Rules
 - **Ordering**: Events MUST be sorted chronologically by `date`.
