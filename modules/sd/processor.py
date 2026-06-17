@@ -139,6 +139,18 @@ class SDTemplateProcessor:
             if 'sale' not in context['d']: context['d']['sale'] = context['sale']
             if 'deed' not in context['d']: context['d']['deed'] = context['deed']
 
+        # Witness compatibility mappings (w1, w2)
+        if 'ws' in context and isinstance(context['ws'], list):
+            ws_list = context['ws']
+            if len(ws_list) > 0:
+                context['w1'] = ws_list[0]
+            else:
+                context['w1'] = {"n": "", "relation_text": "", "address": "", "aadhaar": ""}
+            if len(ws_list) > 1:
+                context['w2'] = ws_list[1]
+            else:
+                context['w2'] = {"n": "", "relation_text": "", "address": "", "aadhaar": ""}
+
         self._normalize_context_salutations(context)
         self._pad_indexed_lists(d_ctx)
 
@@ -311,7 +323,6 @@ class SDTemplateProcessor:
             text = text.replace("vikVZesaV", "vikVZesUV")
             text = text.replace("izrki uxj", "izrku uxj")
             text = text.replace("yksoj", "yksvj")
-            text = text.replace(",&23", "ए-23")
             text = text.replace("ikfdaZx", "ikfdZax")
             text = text.replace("vkikVZesaV", "vkiVZesaV").replace("vkikVZesUV", "vkiVZesUV")
             
@@ -327,9 +338,6 @@ class SDTemplateProcessor:
             text = text.replace("vf/kdkjksa o nkf;Ro", "vfèkdkjksa o nkf;Ro")
             text = text.replace("vf/kdkjksa eq", "vfèkdkjksa eq")
             text = text.replace("vf/kdkj ug", "vfèkdkj ug")
-            
-            # Witness 2 spacing/colon template alignment
-            text = text.replace("iou dqekj iq= Jh nkÅn;ky] fuoklh%&", "iou dqekj iq= Jh nkÅn;ky] fuoklh&")
 
             # Word-specific cleanup
             text = text.replace("rRi'pkR", "rRi’pkr~").replace("rRi'pkr~", "rRi’pkr~")
@@ -349,13 +357,6 @@ class SDTemplateProcessor:
             
             # Global cleanup of कार्यालय duplicates:
             text = text.replace("dkZ;ky;", "dk;kZy;")
-
-            # Smart quotes if’pe:
-            if "cnjokl" in text and "if'pe" in text:
-                if "Mh&2341" in text:
-                    text = text.replace("if'pe 30 QhV", "if*pe 30 QhV")
-                else:
-                    text = text.replace("if'pe", "if*pe")
                 
             # Global asterisk to curly quote translation:
             # Protect double asterisks (DevLys double closing quotes) from being converted to curly quotes
