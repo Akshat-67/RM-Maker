@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Template Builder | LegalDoc Automator Pro</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    .builder-container { height: calc(100vh - 150px); }
+    .panel { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; height: 100%; overflow-y: auto; padding: 1rem; }
+    .field-list { list-style: none; padding: 0; }
+    .field-item { padding: 0.5rem; border-bottom: 1px solid #F1F5F9; cursor: pointer; transition: background 0.2s; border-radius: 4px; }
+    .field-item:hover { background: #F8FAFC; border-color: #E2E8F0; }
+    .mapping-table th { font-size: 0.75rem; text-transform: uppercase; color: #64748B; font-weight: 600; }
+    .tag-badge { font-family: 'Consolas', monospace; font-size: 0.85rem; background: #E0E7FF; color: #4338CA; padding: 0.1rem 0.4rem; border-radius: 4px; }
+    .section-header { font-size: 0.9rem; color: #1E293B; font-weight: 700; margin-top: 1rem; margin-bottom: 0.75rem; padding-bottom: 0.25rem; border-bottom: 2px solid #3B82F6; display: inline-block; }
+  </style>
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid px-4">
+      <a class="navbar-brand h1 mb-0" href="{{ url_for('dashboard') }}">LegalDoc Automator Pro</a>
+      <div class="d-flex gap-2 align-items-center">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="toolsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            🛠 Tools
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="toolsDropdown">
+            <li><a class="dropdown-item" href="{{ url_for('devlys_to_unicode_route') }}">🔠 Convert DevLys DOCX to Unicode</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('template_builder') }}">🛠 Template Builder</a></li>
+          </ul>
+        </div>
+        <button id="uploadBtn" class="btn btn-primary btn-sm px-3">Upload DOCX</button>
+        <button id="saveBtn" class="btn btn-success btn-sm px-3" disabled>Generate Master</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid px-4">
+    <div class="row g-3 builder-container">
+      <!-- Left Panel: Mode & Fields -->
+      <div class="col-md-3">
+        <div class="panel shadow-sm">
+          <h6 class="fw-bold mb-3">1. Setup Mode</h6>
+          <div class="mb-3">
+            <label class="form-label small text-muted">Template Type</label>
+            <select id="modeSelect" class="form-select form-select-sm">
+              <option value="RM">Mortgage (RM)</option>
+              <option value="SD">Sale Deed (SD)</option>
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label small text-muted">AI Model</label>
+            <select id="modelSelect" class="form-select form-select-sm">
+              {% for m in models %}
+                <option value="{{ m }}" {% if m == 'NVIDIA Nemotron-3 550B' %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div id="fileInfo" class="alert alert-info py-2 small d-none">
+             <i class="bi bi-file-earmark-word"></i> <span id="fileNameDisplay"></span>
+          </div>
+
+          <div class="mt-4">
+            <h6 class="section-header">Field Catalog</h6>
+            <div id="fieldCatalog" class="field-list">
+               <!-- Dynamically filled -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Panel: Mapping & Workspace -->
+      <div class="col-md-9">
+        <div class="panel shadow-sm">
+           <div class="d-flex justify-content-between align-items-center mb-4">
+              <h6 class="fw-bold mb-0">2. Mapping Workspace</h6>
+              <div class="d-flex gap-2">
+                <div class="btn-group btn-group-sm me-2" role="group">
+                  <input type="radio" class="btn-check" name="previewToggle" id="previewRaw" autocomplete="off" checked onclick="setPreviewMode('raw')">
+                  <label class="btn btn-outline-secondary" for="previewRaw">Raw ASCII</label>
+                  <input type="radio" class="btn-check" name="previewToggle" id="previewHindi" autocomplete="off" onclick="setPreviewMode('hindi')">
+                  <label class="btn btn-outline-secondary" for="previewHindi">Hindi Preview</label>
+                </div>
+                <button id="discoverBtn" class="btn btn-outline-primary btn-sm" disabled>🔍 Run AI Discovery</button>
+                <button id="clearBtn" class="btn btn-outline-secondary btn-sm">Clear Workspace</button>
+              </div>
+           </div>
+           
+           <div class="bg-light p-3 rounded mb-4 border">
+              <label class="form-label small fw-bold">Manual Add</label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <input type="text" id="manualKey" class="form-control form-control-sm" placeholder="Copy-paste EXACT text from document...">
+                </div>
+                <div class="col-md-4">
+                  <select id="manualTag" class="form-select form-select-sm">
+                     <option value="">Choose tag...</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button id="addMappingBtn" class="btn btn-primary btn-sm w-100">Add Mapping</button>
+                </div>
+              </div>
+           </div>
+
+           <div class="table-responsive">
+             <div class="mb-3 d-flex gap-2">
+                <input type="text" id="mappingSearch" class="form-control form-control-sm" placeholder="Search mapped fields (e.g. seller, buyer)..." oninput="renderMapping()">
+                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="toggleUnmappedReport()">Show Unmapped Text</button>
+             </div>
+             
+             <div id="unmappedReport" class="alert alert-light border d-none mb-4" style="max-height: 200px; overflow-y: auto;">
+                <h6 class="fw-bold small">Potential Unmapped Strings</h6>
+                <div id="unmappedList" class="small text-muted"></div>
+             </div>
+
+             <table class="table table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th>Confidence</th>
+                    <th>Document String</th>
+                    <th>Jinja2 Placeholder (Quick Reassign)</th>
+                    <th class="text-end">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="mappingTbody">
+                  <tr>
+                    <td colspan="4" class="text-center py-5 text-muted small">No mappings yet. Start by uploading a document or running AI discovery.</td>
+                  </tr>
+                </tbody>
+             </table>
+           </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Context Modal -->
+  <div class="modal fade" id="contextModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Document Context</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="contextContent" class="p-3 bg-light border rounded font-monospace" style="white-space: pre-wrap; line-height: 1.6;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden File Input -->
+  <input type="file" id="fileInput" accept=".docx" style="display:none">
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='devlys_to_unicode.js') }}"></script>
+  <script>
+    const RM_FIELDS = {{ rm_fields|tojson }};
+    const SD_FIELDS = {{ sd_fields|tojson }};
+    const SD_GENERATED_FIELDS = {{ sd_generated_fields|tojson if sd_generated_fields else '[]' }};
+    
+    let currentFilepath = null;
+    let currentMapping = {};
+    let fullDocText = "";
+    let previewMode = 'raw'; // 'raw' or 'hindi'
+
+    const modeSelect = document.getElementById('modeSelect');
+    const modelSelect = document.getElementById('modelSelect');
+    const fieldCatalog = document.getElementById('fieldCatalog');
+    const manualTag = document.getElementById('manualTag');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const fileInfo = document.getElementById('fileInfo');
+    const discoverBtn = document.getElementById('discoverBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const mappingTbody = document.getElementById('mappingTbody');
+    const addMappingBtn = document.getElementById('addMappingBtn');
+    const manualKey = document.getElementById('manualKey');
+    const mappingSearch = document.getElementById('mappingSearch');
+    const unmappedReport = document.getElementById('unmappedReport');
+    const unmappedList = document.getElementById('unmappedList');
+
+    function updateCatalog() {
+      const mode = modeSelect.value;
+      const fields = mode === 'SD' ? SD_FIELDS : RM_FIELDS;
+      
+      fieldCatalog.innerHTML = '';
+      manualTag.innerHTML = '<option value="">Choose tag...</option>';
+
+
+      
+      fields.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'field-item small mb-1';
+        div.innerHTML = `<strong>${f[0]}</strong> <br><span class="text-muted" style="font-size:0.75rem">${f[1]}</span>`;
+        div.onclick = () => {
+          manualTag.value = f[1];
+          manualKey.focus();
+        };
+        fieldCatalog.appendChild(div);
+
+        const opt = document.createElement('option');
+        opt.value = f[1];
+        opt.textContent = `${f[1]} - ${f[0]}`;
+        manualTag.appendChild(opt);
+      });
+      renderMapping(); // Refresh reassign dropdowns if mode changed
+    }
+
+    modeSelect.onchange = updateCatalog;
+    updateCatalog();
+
+    uploadBtn.onclick = () => fileInput.click();
+    fileInput.onchange = async (e) => {
+      if (!e.target.files.length) return;
+      const formData = new FormData();
+      formData.append('file', e.target.files[0]);
+      
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading...';
+      
+      try {
+        const resp = await fetch('/api/builder/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (data.success) {
+          currentFilepath = data.filepath;
+          fileNameDisplay.textContent = data.filename;
+          fileInfo.classList.remove('d-none');
+          discoverBtn.disabled = false;
+          saveBtn.disabled = false;
+        } else {
+          alert("Upload failed: " + data.error);
+        }
+      } catch (err) {
+        alert("Error uploading: " + err);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload DOCX';
+      }
+    };
+
+    function getConfidence(key, tag) {
+      if (key.length < 3) return { label: 'Low', color: 'danger', icon: '🔴' };
+      if (key.length > 150) return { label: 'Low', color: 'danger', icon: '🔴' };
+      if (/^[0-9\.,/ ]+$/.test(key)) return { label: 'High', color: 'success', icon: '🟢' };
+      return { label: 'Med', color: 'warning', icon: '🟡' };
+    }
+
+    function renderMapping() {
+      const searchTerm = mappingSearch.value.toLowerCase();
+      const keys = Object.keys(currentMapping).sort((a,b) => b.length - a.length);
+      const filteredKeys = keys.filter(k => 
+        k.toLowerCase().includes(searchTerm) || 
+        currentMapping[k].toLowerCase().includes(searchTerm)
+      );
+
+      if (keys.length === 0) {
+        mappingTbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted small">No mappings yet. Start by uploading a document or running AI discovery.</td></tr>';
+        return;
+      }
+
+      mappingTbody.innerHTML = '';
+      
+      filteredKeys.forEach(k => {
+        const tag = currentMapping[k];
+        const conf = getConfidence(k, tag);
+        const displayText = previewMode === 'hindi' ? devlysToUnicode(k) : k;
+        
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.onclick = (e) => {
+            if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON') {
+                showContext(k);
+            }
+        };
+
+        const mode = modeSelect.value;
+        const allFields = mode === 'SD' ? SD_FIELDS : RM_FIELDS;
+        let selectHtml = `<select class="form-select form-select-sm" onchange="reassignTag('${k.replace(/'/g, "\\'")}', this.value)">`;
+        allFields.forEach(f => {
+            selectHtml += `<option value="${f[1]}" ${f[1] === tag ? 'selected' : ''}>${f[1]} - ${f[0]}</option>`;
+        });
+        selectHtml += `</select>`;
+
+        tr.innerHTML = `
+          <td><span class="badge bg-${conf.color} small" title="Confidence: ${conf.label}">${conf.icon} ${conf.label}</span></td>
+          <td class="small">
+            <span class="fw-bold">${displayText}</span>
+            ${previewMode === 'hindi' ? `<br><span class="text-muted" style="font-size:0.7rem">Raw: ${k}</span>` : ''}
+          </td>
+          <td>${selectHtml}</td>
+          <td class="text-end">
+            <button class="btn btn-sm text-danger" onclick="removeMapping(\`${k.replace(/`/g, '\\`')}\`)">Remove</button>
+          </td>
+        `;
+        mappingTbody.appendChild(tr);
+      });
+    }
+
+    window.reassignTag = (oldKey, newTag) => {
+        currentMapping[oldKey] = newTag;
+    };
+
+    window.showContext = (key) => {
+        if (!fullDocText) return;
+        const idx = fullDocText.indexOf(key);
+        if (idx === -1) {
+            alert("String not found in current document text.");
+            return;
+        }
+        
+        const start = Math.max(0, idx - 150);
+        const end = Math.min(fullDocText.length, idx + key.length + 150);
+        
+        let before = fullDocText.substring(start, idx);
+        let match = fullDocText.substring(idx, idx + key.length);
+        let after = fullDocText.substring(idx + key.length, end);
+        
+        if (previewMode === 'hindi') {
+            before = devlysToUnicode(before);
+            match = devlysToUnicode(match);
+            after = devlysToUnicode(after);
+        }
+        
+        document.getElementById('contextContent').innerHTML = 
+            `...${before}<mark class="bg-warning px-1 rounded">${match}</mark>${after}...`;
+        
+        const modal = new bootstrap.Modal(document.getElementById('contextModal'));
+        modal.show();
+    };
+
+    window.toggleUnmappedReport = () => {
+        if (!fullDocText) { alert("No document text available. Run AI Discovery first."); return; }
+        
+        if (!unmappedReport.classList.contains('d-none')) {
+            unmappedReport.classList.add('d-none');
+            return;
+        }
+
+        let tempText = fullDocText;
+        Object.keys(currentMapping).forEach(k => {
+            tempText = tempText.split(k).join(" [MAPPED] ");
+        });
+
+        const chunks = tempText.split("\n").filter(c => c.trim().length > 10 && !c.includes("[MAPPED]"));
+        unmappedList.innerHTML = chunks.map(c => {
+            const display = previewMode === 'hindi' ? devlysToUnicode(c) : c;
+            return `<div class="mb-2 border-bottom pb-1">${display}</div>`;
+        }).join('') || "No significant unmapped chunks found.";
+        
+        unmappedReport.classList.remove('d-none');
+    };
+
+    window.setPreviewMode = (mode) => {
+      previewMode = mode;
+      renderMapping();
+    };
+
+    window.removeMapping = (key) => {
+      delete currentMapping[key];
+      renderMapping();
+    };
+
+    clearBtn.onclick = () => {
+      if (confirm("Clear all mappings?")) {
+        currentMapping = {};
+        renderMapping();
+      }
+    };
+
+    addMappingBtn.onclick = () => {
+      const k = manualKey.value.trim();
+      const v = manualTag.value.trim();
+      if (k && v) {
+        currentMapping[k] = v;
+        manualKey.value = '';
+        renderMapping();
+      } else {
+        alert("Please provide both document text and a tag.");
+      }
+    };
+
+    discoverBtn.onclick = async () => {
+      if (!currentFilepath) return;
+      discoverBtn.disabled = true;
+      discoverBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Scanning...';
+      
+      try {
+        const resp = await fetch('/api/builder/discover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filepath: currentFilepath,
+            mode: modeSelect.value,
+            model: modelSelect.value
+          })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          currentMapping = { ...currentMapping, ...data.mapping };
+          fullDocText = data.doc_text || "";
+          renderMapping();
+        } else {
+          alert("AI Discovery failed: " + data.error);
+        }
+      } catch (err) {
+        alert("Discovery error: " + err);
+      } finally {
+        discoverBtn.disabled = false;
+        discoverBtn.innerHTML = '🔍 Run AI Discovery';
+      }
+    };
+
+    saveBtn.onclick = async () => {
+      if (!currentFilepath || !Object.keys(currentMapping).length) {
+        alert("Provide document and at least one mapping!");
+        return;
+      }
+      
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Processing...';
+      
+      try {
+        const resp = await fetch('/api/builder/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filepath: currentFilepath,
+            mapping: currentMapping,
+            mode: modeSelect.value
+          })
+        });
+        
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'MASTER_TEMPLATE_READY.docx';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else {
+          const data = await resp.json();
+          alert("Generation failed: " + data.error);
+        }
+      } catch (err) {
+        alert("Save error: " + err);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Generate Master';
+      }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Convert DevLys to Unicode | LegalDoc Automator Pro</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    body {
+      background-color: #f1f5f9;
+    }
+    .converter-card {
+      border: none;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+      background: #ffffff;
+      overflow: hidden;
+      margin-top: 2rem;
+    }
+    .converter-header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .converter-body {
+      padding: 3rem 2.5rem;
+    }
+    .upload-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      background-color: #f8fafc;
+      padding: 3.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: #2563eb;
+      background-color: #eff6ff;
+    }
+    .upload-icon {
+      font-size: 3.5rem;
+      color: #64748b;
+      margin-bottom: 1rem;
+      transition: transform 0.2s ease;
+    }
+    .upload-zone:hover .upload-icon {
+      transform: translateY(-5px);
+      color: #2563eb;
+    }
+    .upload-text {
+      color: #334155;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .upload-hint {
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+    .file-details {
+      display: none;
+      background-color: #f1f5f9;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+    }
+    .file-icon {
+      font-size: 2rem;
+      color: #10b981;
+    }
+    .file-name {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 0.95rem;
+      max-width: 320px;
+      overflow: hidden;
+      text-truncate: ellipsis;
+    }
+    .file-size {
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+    .btn-convert {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: white;
+      border: none;
+      font-weight: 600;
+      padding: 0.75rem 2.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+      transition: all 0.2s ease;
+    }
+    .btn-convert:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+      background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    }
+    .btn-convert:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .btn-convert:disabled {
+      background: #cbd5e1;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+    /* Loading Spinner */
+    .spinner-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      padding: 2rem 0;
+    }
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background-color: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 1.5rem;
+      display: none;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background-color: #2563eb;
+      transition: width 0.4s ease;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-dark">
+    <div class="container px-4">
+      <a class="navbar-brand h1 mb-0" href="{{ url_for('dashboard') }}">LegalDoc Automator Pro</a>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
+        <div class="dropdown">
+          <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="toolsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            🛠 Tools
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="toolsDropdown">
+            <li><a class="dropdown-item active" href="{{ url_for('devlys_to_unicode_route') }}">🔠 Convert DevLys DOCX to Unicode</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('template_builder') }}">🛠 Template Builder</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card converter-card">
+          <div class="converter-header">
+            <h3 class="mb-2 fw-bold">DevLys ↔ Unicode Converter</h3>
+            <p class="mb-0 text-white-50 small">Professional two-way conversion for legacy DevLys 040 documents. Preserve formatting, styles, and tables with full Word document support.</p>
+          </div>
+          <div class="converter-body">
+            
+            <form id="convertForm" enctype="multipart/form-data">
+              <!-- Direction Selector -->
+              <div class="row mb-4">
+                <div class="col-12">
+                  <label class="form-label fw-bold text-secondary small">Conversion Direction</label>
+                  <div class="d-flex gap-2">
+                    <input type="radio" class="btn-check" name="direction" id="dir_to_uni" value="dev_to_uni" checked onchange="updateOptions()">
+                    <label class="btn btn-outline-primary flex-grow-1" for="dir_to_uni">🔠 DevLys → Unicode</label>
+
+                    <input type="radio" class="btn-check" name="direction" id="dir_to_dev" value="uni_to_dev" onchange="updateOptions()">
+                    <label class="btn btn-outline-primary flex-grow-1" for="dir_to_dev">🔡 Unicode → DevLys</label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Drag and drop zone -->
+              <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text" id="uploadText">Drag & Drop DevLys DOCX Here</div>
+                <div class="upload-hint">or click to browse your computer</div>
+                <input type="file" id="fileInput" name="file" accept=".docx" style="display: none;" />
+              </div>
+
+              <!-- Selected File Details -->
+              <div class="file-details" id="fileDetails">
+                <div class="file-info">
+                  <div class="file-icon">📝</div>
+                  <div>
+                    <div class="file-name" id="fileName">document.docx</div>
+                    <div class="file-size" id="fileSize">0 KB</div>
+                  </div>
+                </div>
+                <button type="button" class="btn-close" id="removeFileBtn" aria-label="Remove"></button>
+              </div>
+
+              <!-- Font & Options Panel -->
+              <div class="mt-4 pt-2 border-top">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="fontSelect" class="form-label fw-bold text-secondary small" id="fontLabel">Target Unicode Font</label>
+                    <select class="form-select form-select-sm" id="fontSelect" name="font_name">
+                      <option value="Mangal" selected>Mangal (Recommended for Windows)</option>
+                      <option value="Noto Sans Devanagari">Noto Sans Devanagari (Cross-platform)</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 d-flex align-items-end justify-content-end">
+                    <button type="submit" class="btn btn-convert w-100" id="convertBtn" disabled>
+                      Convert Document
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <!-- Loading progress panel -->
+            <div class="spinner-container" id="spinnerContainer">
+              <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <div class="fw-semibold text-secondary" id="spinnerText">Converting text elements...</div>
+              <div class="progress-bar-container" id="progressBarContainer">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+              </div>
+            </div>
+
+            <!-- Error and Success Alerts -->
+            <div id="alertContainer" class="mt-4"></div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function updateOptions() {
+      const dir = document.querySelector('input[name="direction"]:checked').value;
+      const fontLabel = document.getElementById('fontLabel');
+      const fontSelect = document.getElementById('fontSelect');
+      const uploadText = document.getElementById('uploadText');
+
+      if (dir === 'dev_to_uni') {
+        fontLabel.textContent = 'Target Unicode Font';
+        uploadText.textContent = 'Drag & Drop DevLys DOCX Here';
+        fontSelect.innerHTML = `
+          <option value="Mangal" selected>Mangal (Recommended for Windows)</option>
+          <option value="Noto Sans Devanagari">Noto Sans Devanagari (Cross-platform)</option>
+        `;
+      } else {
+        fontLabel.textContent = 'Target Legacy Font';
+        uploadText.textContent = 'Drag & Drop Unicode DOCX Here';
+        fontSelect.innerHTML = `
+          <option value="DevLys 040" selected>DevLys 040 (Standard)</option>
+          <option value="Kruti Dev 010">Kruti Dev 010 (Alternate)</option>
+        `;
+      }
+    }
+
+    (function() {
+      const uploadZone = document.getElementById('uploadZone');
+      const fileInput = document.getElementById('fileInput');
+      const fileDetails = document.getElementById('fileDetails');
+      const fileName = document.getElementById('fileName');
+      const fileSize = document.getElementById('fileSize');
+      const removeFileBtn = document.getElementById('removeFileBtn');
+      const convertBtn = document.getElementById('convertBtn');
+      const convertForm = document.getElementById('convertForm');
+      const spinnerContainer = document.getElementById('spinnerContainer');
+      const spinnerText = document.getElementById('spinnerText');
+      const alertContainer = document.getElementById('alertContainer');
+      const progressBarContainer = document.getElementById('progressBarContainer');
+      const progressBarFill = document.getElementById('progressBarFill');
+
+      let selectedFile = null;
+
+      // Click zone trigger file input
+      uploadZone.addEventListener('click', () => fileInput.click());
+
+      // Drag over effect
+      ['dragenter', 'dragover'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          uploadZone.classList.add('dragover');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          uploadZone.classList.remove('dragover');
+        }, false);
+      });
+
+      // Handle drop
+      uploadZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0 && files[0].name.endsWith('.docx')) {
+          handleFile(files[0]);
+        } else {
+          showAlert('danger', 'Please upload a valid Microsoft Word (.docx) document.');
+        }
+      });
+
+      // Handle browse selection
+      fileInput.addEventListener('change', (e) => {
+        if (fileInput.files.length > 0) {
+          handleFile(fileInput.files[0]);
+        }
+      });
+
+      function handleFile(file) {
+        selectedFile = file;
+        fileName.textContent = file.name;
+        
+        // Format size
+        const sizeKB = (file.size / 1024).toFixed(1);
+        fileSize.textContent = `${sizeKB} KB`;
+        
+        // Toggle view
+        uploadZone.style.display = 'none';
+        fileDetails.style.display = 'flex';
+        convertBtn.disabled = false;
+        clearAlert();
+      }
+
+      // Remove file
+      removeFileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedFile = null;
+        fileInput.value = '';
+        uploadZone.style.display = 'block';
+        fileDetails.style.display = 'none';
+        convertBtn.disabled = true;
+        clearAlert();
+      });
+
+      function showAlert(type, message) {
+        alertContainer.innerHTML = `
+          <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <strong>${type === 'success' ? 'Success!' : 'Error!'}</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        `;
+      }
+
+      function clearAlert() {
+        alertContainer.innerHTML = '';
+      }
+
+      // Form Submit
+      convertForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!selectedFile) return;
+
+        // Hide form inputs and show loading state
+        convertForm.style.display = 'none';
+        spinnerContainer.style.display = 'flex';
+        progressBarContainer.style.display = 'block';
+        spinnerText.textContent = 'Uploading document...';
+        progressBarFill.style.width = '20%';
+        clearAlert();
+
+        const direction = document.querySelector('input[name="direction"]:checked').value;
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('font_name', document.getElementById('fontSelect').value);
+        formData.append('direction', direction);
+
+        try {
+          // Simulate progress
+          setTimeout(() => {
+            spinnerText.textContent = 'Parsing elements and merging fragmented runs...';
+            progressBarFill.style.width = '45%';
+          }, 800);
+
+          setTimeout(() => {
+            spinnerText.textContent = 'Applying character mappings...';
+            progressBarFill.style.width = '70%';
+          }, 1800);
+
+          setTimeout(() => {
+            spinnerText.textContent = 'Adjusting XML font family bindings and saving...';
+            progressBarFill.style.width = '90%';
+          }, 2800);
+
+          const response = await fetch('/api/devlys-to-unicode/convert', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Failed to convert document.');
+          }
+
+          // Complete progress bar
+          progressBarFill.style.width = '100%';
+          spinnerText.textContent = 'Conversion complete! Downloading converted file...';
+
+          // Download file
+          const blob = await response.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          
+          // Generate output filename
+          const nameWithoutExt = selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) || selectedFile.name;
+          const suffix = direction === 'dev_to_uni' ? '_unicode' : '_devlys';
+          link.download = `${nameWithoutExt}${suffix}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(downloadUrl);
+
+          setTimeout(() => {
+            // Restore form state
+            spinnerContainer.style.display = 'none';
+            convertForm.style.display = 'block';
+            showAlert('success', 'Your document has been successfully converted and downloaded.');
+          }, 1500);
+
+        } catch (error) {
+          console.error(error);
+          spinnerContainer.style.display = 'none';
+          convertForm.style.display = 'block';
+          showAlert('danger', error.message || 'An error occurred during conversion.');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
