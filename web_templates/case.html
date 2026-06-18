@@ -136,7 +136,7 @@
                             <select class="form-select" id="modelSelect">
                                 <option value="gemini-1.5-flash">gemini-1.5-flash</option>
                             </select>
-                            <button class="btn btn-outline-secondary" type="button" onclick="loadModels()">🔄</button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="loadModels()" aria-label="Refresh AI models" title="Refresh AI models">🔄</button>
                         </div>
 
                         <button class="btn btn-primary w-100 mt-2 fw-bold shadow-sm" id="startAiBtn" onclick="startAI()">🤖 Start AI Automation</button>
@@ -276,7 +276,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_n_en" value="{{ s.get('n_en','') }}" placeholder="English Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_sellers_{{ loop.index0 }}_n_en', 'field_sellers_{{ loop.index0 }}_n')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_sellers_{{ loop.index0 }}_n_en', 'field_sellers_{{ loop.index0 }}_n')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_sellers_{{ loop.index0 }}_n" value="{{ s.get('n','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -300,7 +300,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_rn_en" value="{{ s.get('rn_en','') }}" placeholder="English Relative Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_sellers_{{ loop.index0 }}_rn_en', 'field_sellers_{{ loop.index0 }}_rn')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_sellers_{{ loop.index0 }}_rn_en', 'field_sellers_{{ loop.index0 }}_rn')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_sellers_{{ loop.index0 }}_rn" value="{{ s.get('rn','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -316,7 +316,7 @@
                                                 <div class="bilingual-col-english">
                                                     <textarea class="form-control form-control-sm" rows="2" id="field_sellers_{{ loop.index0 }}_adr_en" placeholder="English Address">{{ s.get('adr_en','') }}</textarea>
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_sellers_{{ loop.index0 }}_adr_en', 'field_sellers_{{ loop.index0 }}_adr')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_sellers_{{ loop.index0 }}_adr_en', 'field_sellers_{{ loop.index0 }}_adr')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_sellers_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ s.get('adr','') }}</textarea>
                                                 </div>
@@ -352,7 +352,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_n_en" value="{{ b.get('n_en','') }}" placeholder="English Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_buyers_{{ loop.index0 }}_n_en', 'field_buyers_{{ loop.index0 }}_n')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_buyers_{{ loop.index0 }}_n_en', 'field_buyers_{{ loop.index0 }}_n')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_buyers_{{ loop.index0 }}_n" value="{{ b.get('n','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -376,7 +376,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_rn_en" value="{{ b.get('rn_en','') }}" placeholder="English Relative Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_buyers_{{ loop.index0 }}_rn_en', 'field_buyers_{{ loop.index0 }}_rn')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_buyers_{{ loop.index0 }}_rn_en', 'field_buyers_{{ loop.index0 }}_rn')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_buyers_{{ loop.index0 }}_rn" value="{{ b.get('rn','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -392,7 +392,7 @@
                                                 <div class="bilingual-col-english">
                                                     <textarea class="form-control form-control-sm" rows="2" id="field_buyers_{{ loop.index0 }}_adr_en" placeholder="English Address">{{ b.get('adr_en','') }}</textarea>
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_buyers_{{ loop.index0 }}_adr_en', 'field_buyers_{{ loop.index0 }}_adr')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_buyers_{{ loop.index0 }}_adr_en', 'field_buyers_{{ loop.index0 }}_adr')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_buyers_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ b.get('adr','') }}</textarea>
                                                 </div>
@@ -428,7 +428,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_n_en" value="{{ w.get('n_en','') }}" placeholder="English Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_ws_{{ loop.index0 }}_n_en', 'field_ws_{{ loop.index0 }}_n')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_ws_{{ loop.index0 }}_n_en', 'field_ws_{{ loop.index0 }}_n')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_ws_{{ loop.index0 }}_n" value="{{ w.get('n','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -448,7 +448,7 @@
                                                 <div class="bilingual-col-english">
                                                     <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_rn_en" value="{{ w.get('rn_en','') }}" placeholder="English Rel Name">
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_ws_{{ loop.index0 }}_rn_en', 'field_ws_{{ loop.index0 }}_rn')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_ws_{{ loop.index0 }}_rn_en', 'field_ws_{{ loop.index0 }}_rn')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <input class="form-control form-control-sm hindi-legacy-input" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}" placeholder="Hindi / DevLys">
                                                 </div>
@@ -468,7 +468,7 @@
                                                 <div class="bilingual-col-english">
                                                     <textarea class="form-control form-control-sm" rows="2" id="field_ws_{{ loop.index0 }}_adr_en" placeholder="English Address">{{ w.get('adr_en','') }}</textarea>
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_ws_{{ loop.index0 }}_adr_en', 'field_ws_{{ loop.index0 }}_adr')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_ws_{{ loop.index0 }}_adr_en', 'field_ws_{{ loop.index0 }}_adr')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_ws_{{ loop.index0 }}_adr" placeholder="Hindi Address">{{ w.get('adr','') }}</textarea>
                                                 </div>
@@ -495,7 +495,7 @@
                                                 <div class="bilingual-col-english">
                                                     <textarea class="form-control form-control-sm" rows="2" id="field_ps_{{ loop.index0 }}_adr_en" placeholder="English Property Address">{{ p.get('adr_en','') }}</textarea>
                                                 </div>
-                                                <button type="button" class="transliterate-btn" onclick="transliterateField('field_ps_{{ loop.index0 }}_adr_en', 'field_ps_{{ loop.index0 }}_adr')">✨</button>
+                                                <button type="button" class="transliterate-btn" aria-label="Transliterate to Hindi" title="Transliterate to Hindi" onclick="transliterateField('field_ps_{{ loop.index0 }}_adr_en', 'field_ps_{{ loop.index0 }}_adr')">✨</button>
                                                 <div class="bilingual-col-hindi">
                                                     <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_ps_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ p.get('adr','') }}</textarea>
                                                 </div>
@@ -562,7 +562,7 @@
                                                     <td><input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_v_no" value="{{ c.get('v_no','') }}" placeholder="544"></td>
                                                     <td><input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_p_no" value="{{ c.get('p_no','') }}" placeholder="140"></td>
                                                     <td><input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_r_no" value="{{ c.get('r_no','') }}" placeholder="Registry No"></td>
-                                                    <td class="text-center"><button class="btn-icon-danger" onclick="removeChainRow({{ loop.index0 }})">✖</button></td>
+                                                    <td class="text-center"><button type="button" class="btn-icon-danger" onclick="removeChainRow({{ loop.index0 }})" aria-label="Remove chain row" title="Remove chain row">✖</button></td>
                                                 </tr>
                                                 {% endfor %}
                                             </tbody>
@@ -596,7 +596,7 @@
                                                     <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_d" value="{{ p.get('d','') }}" placeholder="e.g. 20.05.2026"></td>
                                                     <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_n" value="{{ p.get('n','') }}" placeholder="Cheque / IMPS / UTR No."></td>
                                                     <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_b" value="{{ p.get('b','') }}" placeholder="Issuing Bank"></td>
-                                                    <td class="text-center"><button class="btn-icon-danger" onclick="removePaymentRow({{ loop.index0 }})">✖</button></td>
+                                                    <td class="text-center"><button type="button" class="btn-icon-danger" onclick="removePaymentRow({{ loop.index0 }})" aria-label="Remove payment row" title="Remove payment row">✖</button></td>
                                                 </tr>
                                                 {% endfor %}
                                             </tbody>
@@ -1015,7 +1015,7 @@
             <td><input class="form-control form-control-sm" id="field_payments_${idx}_d" placeholder="e.g. 20.05.2026"></td>
             <td><input class="form-control form-control-sm" id="field_payments_${idx}_n" placeholder="Cheque / IMPS / UTR"></td>
             <td><input class="form-control form-control-sm" id="field_payments_${idx}_b" placeholder="Issuing Bank"></td>
-            <td class="text-center"><button class="btn-icon-danger" onclick="removePaymentRow(${idx})">✖</button></td>
+            <td class="text-center"><button type="button" class="btn-icon-danger" onclick="removePaymentRow(${idx})" aria-label="Remove payment row" title="Remove payment row">✖</button></td>
         `;
         tbody.appendChild(tr);
     }
@@ -1039,7 +1039,7 @@
             <td><input class="form-control form-control-sm" id="field_chain_${idx}_v_no" placeholder="e.g. 544"></td>
             <td><input class="form-control form-control-sm" id="field_chain_${idx}_p_no" placeholder="e.g. 140"></td>
             <td><input class="form-control form-control-sm" id="field_chain_${idx}_r_no" placeholder="Registry No"></td>
-            <td class="text-center"><button class="btn-icon-danger" onclick="removeChainRow(${idx})">✖</button></td>
+            <td class="text-center"><button type="button" class="btn-icon-danger" onclick="removeChainRow(${idx})" aria-label="Remove chain row" title="Remove chain row">✖</button></td>
         `;
         tbody.appendChild(tr);
     }
