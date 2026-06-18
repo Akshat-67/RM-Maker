@@ -7,3 +7,4 @@ flask
 flask-cors
 openai
 tkinterdnd2
+pytest
