@@ -35,3 +35,10 @@ debug_output.docx
 debug_highlight_output.docx
 ReEval_AI.docx
 Validated_AI.docx
+.pytest_cache
+__pycache__
+*.pyc
+*.doc
+*.docx
+!templates/**/*.docx
+!validation_cases/**/*.docx
