@@ -112,10 +112,9 @@ def list_cases():
     if not os.path.exists(CASES_DIR): return []
     for d in os.listdir(CASES_DIR):
         path = os.path.join(CASES_DIR, d, "session.json")
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f: cases.append(json.load(f))
-            except: pass
+        try:
+            with open(path, "r") as f: cases.append(json.load(f))
+        except: pass
     return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
 
 def load_case_session(case_id):

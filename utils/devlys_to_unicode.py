@@ -243,6 +243,8 @@ MAPPING_PAIRS.sort(key=lambda x: len(x[0]), reverse=True)
 
 
 class DevLysToUnicodeConverter:
+    _devanagari_regex = re.compile(r'[ऀ-ॿ]')
+
     @staticmethod
     def is_likely_english(text):
         if not text or not text.strip():
@@ -251,7 +253,7 @@ class DevLysToUnicodeConverter:
         stripped = text.strip()
         
         # If it contains any Devanagari character, it's definitely not English
-        if any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in stripped):
+        if DevLysToUnicodeConverter._devanagari_regex.search(stripped):
             return False
 
         # If it doesn't match standard English/numeric/punctuation characters, it's not English
@@ -313,7 +315,7 @@ class DevLysToUnicodeConverter:
             return ""
         
         # Skip if already Unicode Devanagari
-        if any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text):
+        if DevLysToUnicodeConverter._devanagari_regex.search(text):
             return text
 
         if DevLysToUnicodeConverter.is_likely_english(text):
