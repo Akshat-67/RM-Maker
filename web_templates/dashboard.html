@@ -85,13 +85,11 @@
           <input id="searchInput" type="search" class="form-control" placeholder="Search case id, borrower, bank..." autofocus />
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small text-muted mb-1">Bank</label>
+          <label for="bankFilter" class="form-label small text-muted mb-1">Bank</label>
           <select id="bankFilter" class="form-select">
             <option value="">All banks</option>
-            {% for bank in cases|map(attribute='bank')|unique|sort %}
-              {% if bank %}
+            {% for bank in cases|selectattr('bank')|map(attribute='bank')|unique|sort %}
               <option value="{{ bank }}">{{ bank }}</option>
-              {% endif %}
             {% endfor %}
           </select>
         </div>
@@ -175,6 +173,7 @@
       <div id="noResults" class="empty-state d-none">
         <div class="empty-icon">🔍</div>
         <p class="text-muted mb-0">No cases match your filters.</p>
+        <button class="btn btn-outline-secondary btn-sm mt-2" onclick="document.getElementById('resetFilters').click()">Clear filters</button>
       </div>
     </div>
   </main>
