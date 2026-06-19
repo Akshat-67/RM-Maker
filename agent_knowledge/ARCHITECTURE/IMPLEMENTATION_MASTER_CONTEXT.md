@@ -83,12 +83,17 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 
 ---
 
-## 6. Extraction Rules
+## 6. Extraction Rules & Reliability Findings
 
 *   **Payload Optimization (Minimum Document Set):** To prevent Gemini API timeouts, never send redundant documents. Filter duplicate WhatsApp images and exclude target output drafts (`.doc` / `.docx`) from the extraction prompt.
 *   **Upstream Compensation:** Clean up OCR/AI weaknesses (e.g., stripping trailing commas, standardizing relations like `स्वर्गीय`) as early as possible—inside the extractor or schema validation layer, *not* in the rendering processor.
 *   **Field Preservation:** Ensure prompts extract real event types (`WILL`, `GIFT_DEED`) and capture relational metadata (`consideration_type`, `receipt_number`).
 *   **Graceful Degradation:** If Gemini API fails during automated tests, gracefully log the failure or use mocked schemas rather than crashing the pipeline.
+*   **Reliability Bottlenecks (SD Extraction):**
+    *   **`smart_merge` Risks:** The central `app.py` state management mechanism uses hardcoded keys (e.g., `adr` for properties, `n` for people). Modifying UI structures without updating this merge logic can cause silent data loss or array duplication.
+    *   **Alias Confusion (`ss`/`bs`):** Extraction prompts occasionally mix up Sellers (`ss`) and Buyers (`bs`), or fail to align them with the correct property indices.
+    *   **Property (`ps`) Merge Risks:** Complex multi-property extraction logic often truncates bounding dimensions during JSON serialization if the AI formats lists inconsistently.
+    *   **Silent Data Loss:** Title chains with non-linear ownership (e.g., fractional inheritance) are silently collapsed into single flat string events by the current extraction parsing layer, causing historical facts to be lost before rendering.
 
 ---
 
@@ -109,10 +114,11 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 
 ---
 
-## 9. Security Rules
+## 9. Security Rules (Target State)
 
-*   **Credential Loading:** Strict reliance on `.env` loaded via standard mechanisms. No hardcoded credentials in the repository.
-*   **Multi-Key Gemini System:** The extractor handles Gemini API rate limits. Fallback mechanisms may involve hardcoded key rotation logic inside the extractor class to maintain availability during heavy validation runs.
+*   **Credential Management:** No credentials or API keys may ever be stored in the repository.
+*   **Multi-Key Gemini System:** To handle heavy extraction workloads (e.g., batch processing large PDFs), the system requires an environment-variable-backed multi-key rotation system. *Note: Hardcoding keys as a fallback inside the codebase is explicitly forbidden.*
+*   **Environment Variables:** All integrations must be loaded securely via `.env` files using standard OS loading mechanisms.
 *   **Local Storage:** The system uses a local, temporary JSON file-based storage mechanism in `cases/`. There is no built-in authentication or authorization for these temporary files.
 *   **Git Security:** Use targeted `.gitignore` patterns (e.g., `diff*.txt`, `test_out.docx`) to exclude sensitive generated case data, while preserving legitimate template `.docx` files.
 
@@ -138,9 +144,11 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 
 ## 11. Implementation Priorities
 
-1.  **Highest Value / Highest Impact:** Gemini API Payload Optimization. Resolving API `ServerError` timeouts by filtering duplicate images and large irrelevant PDFs from the extraction context.
-2.  **Lowest Risk:** Context Generation Relocation. Moving array padding, fallback values, and aliasing logic out of the monolithic `app.py` into dedicated `context.py` files within `modules/rm` and `modules/sd`.
-3.  **Medium Priority:** Title Chain Structuring. Formally extract `allotment_letter_no`, `allotment_date`, `receipt_number`, and `issuing_authority` for Allotment/Patta events, preventing them from being handled as generic "Sales".
+Implementation agents must rank work by: 1. Highest business value, 2. Lowest risk, 3. Greatest impact.
+
+1.  **Highest Value / Current Bottleneck:** **Extraction Reliability & Payload Optimization.** The primary blocker is Gemini API `ServerError` timeouts when processing 15–20 large source documents. Fixing the prompt chunking, filtering duplicate images, and hardening the JSON parsing layer is the top priority.
+2.  **Lowest Risk / High Impact:** **Context Generation Relocation.** Safely moving array padding, fallback values, and aliasing logic out of the monolithic `app.py` into dedicated `context.py` files within `modules/rm` and `modules/sd` without altering output logic.
+3.  **Medium Priority:** **Title Chain Structuring.** Updating the extraction schema to formally capture `allotment_letter_no`, `allotment_date`, `receipt_number`, and `issuing_authority` for Allotment/Patta events, stopping the system from blindly treating them as generic "Sales".
 
 ---
 
@@ -151,6 +159,10 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 3.  **Respect Canonical Mappings:** Operate using the legacy aliases (`bs`, `ss`, `chain`) currently in place. Do not initiate a mass field-renaming migration.
 4.  **Preserve Legal Events:** Extract exact event types (`GIFT_DEED`, `WILL`, `PATTA`). Do not aggressively collapse title chains into generic `TRANSFER` strings.
 5.  **Fix Order of Operations:** Always attempt to fix data issues upstream: 1. Extraction -> 2. Schema Validation -> 3. Context Generation -> 4. Python Render Engine. Post-processing string replacement is a last resort.
-6.  **Validate Changes:** Run existing tools (`tools/validate_cases.py` or `tests/test_e2e_sd.py`) against at least 3 historical cases to ensure any logic changes do not break backward compatibility.
+6.  **Validation Guidance:**
+    *   The primary source of truth for verification is generating real firm drafts.
+    *   Use `validation_cases/` to test against complete, multi-file real-world payloads.
+    *   Use `knowledge_corpus/` to reference correct legal wording and historical precedents.
+    *   Run existing tools (e.g., `test_e2e_sd.py`) against at least 3 historical cases to ensure codebase changes do not break backwards compatibility.
 7.  **Maintain Strict Isolation:** Shared code belongs in `utils/` or `core/`. Do not cross-import business logic between `modules/rm/` and `modules/sd/`.
 8.  **Knowledge Preservation:** Store any new significant findings or audits in `agent_knowledge/`. Do not leave status documents in the repository root.
