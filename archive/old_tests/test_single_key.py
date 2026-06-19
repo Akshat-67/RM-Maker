@@ -7,7 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from template_tools.builder_core import get_discovery_prompt, DocManipulator
 
 TEST_DOC_PATH = "templates/SALE_DEED/manoj kumar & Monu kumari MW +EAST PART OF BALAJI NAGAR+SO PATTA+3REC+SD.docx"
-KEY = "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ"
+KEY = os.getenv("GEMINI_API_KEY_3")
 
 def main():
     doc = Document(TEST_DOC_PATH)

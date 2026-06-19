@@ -10,19 +10,12 @@ from modules.sd.extractor import SDDataExtractor
 from modules.rm.processor import RMTemplateProcessor
 from modules.sd.processor import SDTemplateProcessor
 from modules.sd.narrative import generate_chain_narrative
+from utils.config import DEFAULT_GEMINI_API_KEYS
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
 CASES_DIR = "cases"
 TEMPLATES_DIR = "templates"
-DEFAULT_GEMINI_API_KEYS = [
 
-    os.getenv("GEMINI_API_KEY"),
-    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc",
-    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
-    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ",
-    "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
-]
-DEFAULT_GEMINI_API_KEYS = list(dict.fromkeys([k for k in DEFAULT_GEMINI_API_KEYS if k]))
 os.makedirs(CASES_DIR, exist_ok=True)
 # --- MODERN DESIGN CONSTANTS ---
 BG_MAIN = "#F8FAFC"
