@@ -16,16 +16,7 @@ from copy import deepcopy
 # Add root directory to path so extractor can be found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-DEFAULT_API_KEYS = [
-    os.getenv("GEMINI_API_KEY"),
-    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc",
-    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
-    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ",
-    "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
-]
-DEFAULT_API_KEYS = list(dict.fromkeys([k for k in DEFAULT_API_KEYS if k]))
-if not DEFAULT_API_KEYS:
-    DEFAULT_API_KEYS = ["AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"]
+from utils.config import DEFAULT_GEMINI_API_KEYS as DEFAULT_API_KEYS
 
 class TemplateBuilder:
     def __init__(self, root):

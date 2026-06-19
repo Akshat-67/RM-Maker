@@ -14,10 +14,10 @@ TEST_DOC_PATH = "templates/SALE_DEED/manoj kumar & Monu kumari MW +EAST PART OF 
 
 API_KEYS = [
     os.getenv("GEMINI_API_KEY"),
-    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc",
-    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
-    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ",
-    "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
+    os.getenv("GEMINI_API_KEY_1"),
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"),
+    os.getenv("GEMINI_API_KEY_4")
 ]
 API_KEYS = list(dict.fromkeys([k for k in API_KEYS if k]))
 

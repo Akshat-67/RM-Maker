@@ -11,7 +11,7 @@ from extractor import DataExtractor
 from template_tools.builder_core import DocManipulator, clean_mapping
 
 TEST_DOC_PATH = "templates/SALE_DEED/manoj kumar & Monu kumari MW +EAST PART OF BALAJI NAGAR+SO PATTA+3REC+SD.docx"
-WORKING_KEY = "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ"
+WORKING_KEY = os.getenv("GEMINI_API_KEY_3")
 
 def get_doc_text_clean(doc):
     chunks = []

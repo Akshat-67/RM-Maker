@@ -2,7 +2,7 @@ import os
 import time
 from google import genai
 
-key = "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc"
+key = os.getenv("GEMINI_API_KEY_1")
 client = genai.Client(api_key=key)
 
 print("Attempting to connect to gemini-flash-latest with retries...")
