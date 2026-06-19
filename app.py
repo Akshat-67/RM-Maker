@@ -220,10 +220,13 @@ def smart_merge(old, new, verified_fields, path=""):
             
             # Map existing entities by their unique normalized key
             existing_by_key = {}
-            for item in existing_entities:
+            empty_existing_indices = []
+            for i, item in enumerate(existing_entities):
                 val = str(item.get(key_field, "")).strip().casefold()
                 if val:
-                    existing_by_key[val] = item
+                    existing_by_key[val] = i
+                else:
+                    empty_existing_indices.append(i)
                     
             for idx, new_item in enumerate(new):
                 if not isinstance(new_item, dict) or not any(new_item.values()):
@@ -232,20 +235,26 @@ def smart_merge(old, new, verified_fields, path=""):
                 
                 if new_val and new_val in existing_by_key:
                     # Key match found: merge recursively
-                    merged_item = smart_merge(existing_by_key[new_val], new_item, verified_fields, f"{path}.MATCH")
-                    idx_match = existing_entities.index(existing_by_key[new_val])
-                    existing_entities[idx_match] = merged_item
-                elif not new_val and len(existing_entities) > idx and "ps" in path:
-                    # For properties without full adr, merge by index to avoid duplicating
-                    merged_item = smart_merge(existing_entities[idx], new_item, verified_fields, f"{path}.{idx}")
-                    existing_entities[idx] = merged_item
-                elif not new_val and len(existing_entities) > idx and ("ss" in path or "bs" in path or "ws" in path):
-                    # Same index fallback for names if name is missing but we're updating the same position
+                    match_idx = existing_by_key[new_val]
+                    merged_item = smart_merge(existing_entities[match_idx], new_item, verified_fields, f"{path}.MATCH")
+                    existing_entities[match_idx] = merged_item
+                elif new_val and empty_existing_indices:
+                    # Merge extracted item into an empty UI slot
+                    empty_idx = empty_existing_indices.pop(0)
+                    merged_item = smart_merge(existing_entities[empty_idx], new_item, verified_fields, f"{path}.{empty_idx}")
+                    existing_entities[empty_idx] = merged_item
+                    existing_by_key[new_val] = empty_idx
+                elif not new_val and len(existing_entities) > idx and ("ps" in path or "ss" in path or "bs" in path or "ws" in path):
+                    # Same index fallback for items if key is missing but we're updating the same position
                     merged_item = smart_merge(existing_entities[idx], new_item, verified_fields, f"{path}.{idx}")
                     existing_entities[idx] = merged_item
                 else:
                     # New unique key or safely appending
                     existing_entities.append(new_item)
+                    if new_val:
+                        existing_by_key[new_val] = len(existing_entities) - 1
+                    else:
+                        empty_existing_indices.append(len(existing_entities) - 1)
                     
             return existing_entities
             
@@ -328,6 +337,7 @@ def view_case(case_id):
         data["ss"] = data["ss"][:s_num]
         while len(data["ss"]) < s_num:
             data["ss"].append({})
+        data["sellers"] = data["ss"]
 
         if "bs" not in data or not isinstance(data["bs"], list):
             data["bs"] = []
@@ -336,6 +346,7 @@ def view_case(case_id):
         data["bs"] = data["bs"][:by_num]
         while len(data["bs"]) < by_num:
             data["bs"].append({})
+        data["buyers"] = data["bs"]
 
         if "ps" not in data or not isinstance(data["ps"], list):
             data["ps"] = []
@@ -351,6 +362,7 @@ def view_case(case_id):
 
         if "title_chain" not in data or not isinstance(data["title_chain"], list):
             data["title_chain"] = []
+        data["chain"] = data["title_chain"]
 
         sd_dir = os.path.join(TEMPLATES_DIR, "SALE_DEED")
         templates_list = []
@@ -491,7 +503,10 @@ def save_case(case_id):
     if "unassigned_aadhars" in current_extracted_data:
         merged_data["unassigned_aadhars"] = current_extracted_data["unassigned_aadhars"]
 
-    for key in ["ss", "bs", "ws", "ps"]:
+    # Prune and synchronize frontend/backend aliases to prevent data loss
+    merged_data = prune_case_data(merged_data, doc_type)
+
+    for key in ["ss", "bs", "ws", "ps", "sellers", "buyers", "title_chain", "chain"]:
         if key in current_extracted_data and key in merged_data:
             ui_arr = merged_data[key]
             # If the UI sent an array where ALL items are completely empty, but we already have valid data, keep ours

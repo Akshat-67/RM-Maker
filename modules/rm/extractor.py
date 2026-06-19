@@ -53,7 +53,14 @@ class RMDataExtractor:
             return ["gemini-2.5-flash"]
         try:
             models_list = self.client.models.list()
-            return [m.name for m in models_list if "generateContent" in m.supported_developer_methods]
+            valid_models = []
+            for m in models_list:
+                try:
+                    if m.name:
+                        valid_models.append(m.name)
+                except Exception:
+                    pass
+            return valid_models if valid_models else ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
         except Exception as e:
             print(f"[Extractor Warning] Failed to query Gemini models list: {e}")
             return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
