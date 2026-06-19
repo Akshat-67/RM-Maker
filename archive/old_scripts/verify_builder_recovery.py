@@ -13,8 +13,8 @@ from extractor import DataExtractor
 
 TEST_DOC_PATH = "templates/SALE_DEED/manoj kumar & Monu kumari MW +EAST PART OF BALAJI NAGAR+SO PATTA+3REC+SD.docx"
 WORKING_KEYS = [
-    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
-    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ"
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3")
 ]
 OUTPUT_PATH = "temp_builder/MASTER_TEMPLATE_RECOVERED.docx"
 
