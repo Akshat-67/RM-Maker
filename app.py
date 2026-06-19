@@ -1216,7 +1216,30 @@ def template_builder():
         models = extractor.get_available_models()
     except Exception:
         models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash-lite"]
-    return render_template("template_builder.html", models=models)
+    rm_fields = []
+    sd_fields = []
+    sd_generated_fields = []
+    try:
+        with open("CHAIN_SCHEMA.md", "r") as f:
+            for line in f:
+                if line.startswith("- `") and "`:" in line:
+                    parts = line.split("`:")
+                    key = parts[0].replace("- `", "").strip()
+                    desc = parts[1].strip()
+                    rm_fields.append((desc, key))
+    except Exception:
+        pass
+    try:
+        with open("SD_SCHEMA.md", "r") as f:
+            for line in f:
+                if line.startswith("- `") and "`:" in line:
+                    parts = line.split("`:")
+                    key = parts[0].replace("- `", "").strip()
+                    desc = parts[1].strip()
+                    sd_fields.append((desc, key))
+    except Exception:
+        pass
+    return render_template("template_builder.html", models=models, rm_fields=rm_fields, sd_fields=sd_fields, sd_generated_fields=sd_generated_fields)
 
 @app.route("/api/builder/upload", methods=["POST"])
 def builder_upload():
