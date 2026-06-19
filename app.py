@@ -212,13 +212,13 @@ def smart_merge(old, new, verified_fields, path=""):
     elif isinstance(new, list):
         merged = list(old) if isinstance(old, list) else []
         
-        # If it is one of our entity lists: 'ls', 'ps', 'unassigned_aadhars', 'sellers', 'buyers', 'title_chain'
+        # If it is one of our entity lists: 'ls', 'ps', 'unassigned_aadhars', 'sellers', 'buyers', 'ss', 'bs', 'ws', 'title_chain'
         # We merge them by unique keys rather than index to prevent overwriting during incremental scans
-        if path in ["ls", "ps", "unassigned_aadhars", "sellers", "buyers", "title_chain",
-                    "data.ls", "data.ps", "data.unassigned_aadhars", "data.sellers", "data.buyers", "data.title_chain"]:
+        if path in ["ls", "ps", "unassigned_aadhars", "sellers", "buyers", "ss", "bs", "ws", "title_chain",
+                    "data.ls", "data.ps", "data.unassigned_aadhars", "data.sellers", "data.buyers", "data.ss", "data.bs", "data.ws", "data.title_chain"]:
             if "ls" in path: key_field = "n"
             elif "unassigned" in path: key_field = "id"
-            elif "sellers" in path or "buyers" in path: key_field = "n"
+            elif "sellers" in path or "buyers" in path or "ss" in path or "bs" in path or "ws" in path: key_field = "n"
             elif "title_chain" in path: key_field = "date"
             else: key_field = "adr"
             
@@ -232,7 +232,7 @@ def smart_merge(old, new, verified_fields, path=""):
                 if val:
                     existing_by_key[val] = item
                     
-            for new_item in new:
+            for idx, new_item in enumerate(new):
                 if not isinstance(new_item, dict) or not any(new_item.values()):
                     continue
                 new_val = str(new_item.get(key_field, "")).strip().casefold()
@@ -240,10 +240,18 @@ def smart_merge(old, new, verified_fields, path=""):
                 if new_val and new_val in existing_by_key:
                     # Key match found: merge recursively
                     merged_item = smart_merge(existing_by_key[new_val], new_item, verified_fields, f"{path}.MATCH")
-                    idx = existing_entities.index(existing_by_key[new_val])
+                    idx_match = existing_entities.index(existing_by_key[new_val])
+                    existing_entities[idx_match] = merged_item
+                elif not new_val and len(existing_entities) > idx and "ps" in path:
+                    # For properties without full adr, merge by index to avoid duplicating
+                    merged_item = smart_merge(existing_entities[idx], new_item, verified_fields, f"{path}.{idx}")
+                    existing_entities[idx] = merged_item
+                elif not new_val and len(existing_entities) > idx and ("ss" in path or "bs" in path or "ws" in path):
+                    # Same index fallback for names if name is missing but we're updating the same position
+                    merged_item = smart_merge(existing_entities[idx], new_item, verified_fields, f"{path}.{idx}")
                     existing_entities[idx] = merged_item
                 else:
-                    # New unique key: append to active entities list
+                    # New unique key or safely appending
                     existing_entities.append(new_item)
                     
             return existing_entities
@@ -489,6 +497,18 @@ def save_case(case_id):
     merged_data = ui_data.copy()
     if "unassigned_aadhars" in current_extracted_data:
         merged_data["unassigned_aadhars"] = current_extracted_data["unassigned_aadhars"]
+
+    for key in ["ss", "bs", "ws", "ps"]:
+        if key in current_extracted_data and key in merged_data:
+            ui_arr = merged_data[key]
+            # If the UI sent an array where ALL items are completely empty, but we already have valid data, keep ours
+            all_empty = True
+            for item in ui_arr:
+                if isinstance(item, dict) and any(str(v).strip() for v in item.values()):
+                    all_empty = False
+                    break
+            if all_empty and current_extracted_data[key]:
+                merged_data[key] = current_extracted_data[key]
 
     if "ps" in merged_data and isinstance(merged_data["ps"], list):
         if doc_type == "SD":
