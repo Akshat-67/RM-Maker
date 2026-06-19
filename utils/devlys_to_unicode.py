@@ -525,8 +525,10 @@ class DevLysToUnicodeConverter:
                 
                 # Fallback to structural heuristic check
                 if not is_devlys:
-                    # If it doesn't contain Unicode Hindi and is not likely English
-                    if not any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text):
+                    # Performance optimization: Replace `any(ord(c)...)` loop with
+                    # compiled regex `search` for checking Devanagari characters.
+                    # This avoids Python iteration overhead and leverages C-level regex engine.
+                    if not cls._devanagari_regex.search(text):
                         if not cls.is_likely_english(text):
                             is_devlys = True
 
