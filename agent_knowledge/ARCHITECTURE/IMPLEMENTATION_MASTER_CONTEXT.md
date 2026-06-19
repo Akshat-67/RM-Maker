@@ -89,11 +89,11 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 *   **Upstream Compensation:** Clean up OCR/AI weaknesses (e.g., stripping trailing commas, standardizing relations like `स्वर्गीय`) as early as possible—inside the extractor or schema validation layer, *not* in the rendering processor.
 *   **Field Preservation:** Ensure prompts extract real event types (`WILL`, `GIFT_DEED`) and capture relational metadata (`consideration_type`, `receipt_number`).
 *   **Graceful Degradation:** If Gemini API fails during automated tests, gracefully log the failure or use mocked schemas rather than crashing the pipeline.
-*   **Reliability Bottlenecks (SD Extraction):**
-    *   **`smart_merge` Risks:** The central `app.py` state management mechanism uses hardcoded keys (e.g., `adr` for properties, `n` for people). Modifying UI structures without updating this merge logic can cause silent data loss or array duplication.
-    *   **Alias Confusion (`ss`/`bs`):** Extraction prompts occasionally mix up Sellers (`ss`) and Buyers (`bs`), or fail to align them with the correct property indices.
-    *   **Property (`ps`) Merge Risks:** Complex multi-property extraction logic often truncates bounding dimensions during JSON serialization if the AI formats lists inconsistently.
-    *   **Silent Data Loss:** Title chains with non-linear ownership (e.g., fractional inheritance) are silently collapsed into single flat string events by the current extraction parsing layer, causing historical facts to be lost before rendering.
+*   **Reliability Bottlenecks (SD Extraction Data Integrity):** Note that extraction failures are rarely just "bad AI output"; they usually stem from brittle downstream parsing:
+    *   **`smart_merge` Risks:** The central `app.py` state management mechanism relies strictly on hardcoded, unique legacy keys (e.g., `adr`, `n`). Disconnecting extraction schemas from these exact UI/merge keys causes silent data dropping during the save cycle.
+    *   **Alias Confusion (`ss`/`bs`):** Extraction layers occasionally mix up Sellers (`ss`) and Buyers (`bs`), or normalization layers fail to bind them to the correct properties (`ps`), leading to misassigned parties in the final render.
+    *   **Property (`ps`) Merge Risks:** Complex multi-property extraction logic often truncates bounding dimensions during JSON serialization or `smart_merge` processing if lists are misaligned.
+    *   **Silent Data Loss:** Upstream parsing logic currently forcibly flattens complex title chains (e.g., fractional inheritances, multi-party partitions) into single strings. This destroys historical facts *before* they even reach the templates.
 
 ---
 
@@ -146,7 +146,7 @@ The codebase currently uses legacy shorthand aliases that are tightly coupled to
 
 Implementation agents must rank work by: 1. Highest business value, 2. Lowest risk, 3. Greatest impact.
 
-1.  **Highest Value / Current Bottleneck:** **Extraction Reliability & Payload Optimization.** The primary blocker is Gemini API `ServerError` timeouts when processing 15–20 large source documents. Fixing the prompt chunking, filtering duplicate images, and hardening the JSON parsing layer is the top priority.
+1.  **Highest Value / Current Bottleneck:** **Data Integrity & Extraction Reliability.** A timeout is visible; silent data corruption is worse. The absolute highest priority is preserving extracted facts. This requires hardening `smart_merge` reliability, preserving legacy aliases (`ss`, `bs`, `ws`, `ps`) strictly through the pipeline, maintaining schema consistency, and hardening the JSON parsing layer against silent data-loss. *Payload optimization (resolving Gemini API `ServerError` timeouts via chunking and filtering)* remains highly critical but must serve the primary goal of data integrity.
 2.  **Lowest Risk / High Impact:** **Context Generation Relocation.** Safely moving array padding, fallback values, and aliasing logic out of the monolithic `app.py` into dedicated `context.py` files within `modules/rm` and `modules/sd` without altering output logic.
 3.  **Medium Priority:** **Title Chain Structuring.** Updating the extraction schema to formally capture `allotment_letter_no`, `allotment_date`, `receipt_number`, and `issuing_authority` for Allotment/Patta events, stopping the system from blindly treating them as generic "Sales".
 
