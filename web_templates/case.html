@@ -6,7 +6,12 @@
     <title>LegalDoc Automator Pro - Case Workspace</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@indic-transliteration/sanscript@1.1.0/sanscript.min.js"></script>
     <style>
+        .hindi-mode {
+            border-left: 4px solid #f1c40f !important;
+            background-color: #fffde7 !important;
+        }
         .drop-zone {
             border: 2px dashed #ccc;
             border-radius: 8px;
@@ -116,7 +121,7 @@
                         <!-- SD Template Block -->
                         <div id="sdTemplateBlock" {% if doc_type == 'RM' %}style="display:none;"{% endif %}>
                             <h5 class="card-title section-title mt-4">2. SD Template</h5>
-                            <div class="text-success small fw-bold mb-2">✓ Active Template: SD_JDA_2SD_Flat_2S_1B.docx</div>
+                            <div id="sdTemplateDisplay" class="text-success small fw-bold mb-2">✓ Active Template: SD_JDA_2SD_Flat_2S_1B.docx</div>
                         </div>
 
                         <h5 class="card-title section-title mt-4">3. Upload KYC Documents</h5>
@@ -152,8 +157,18 @@
                     <div class="card-body">
                         <h4 class="mb-3 d-flex justify-content-between align-items-center">
                             <span>Case Verification & Workspace Editor</span>
-                            <span class="badge bg-secondary fs-6">{{ doc_type }} Case Mode</span>
+                            <div>
+                                <span class="badge bg-info text-dark" id="devlysBadge" style="display: none; margin-right: 5px;">DEVLYS MODE ON</span>
+                                <span class="badge bg-warning text-dark" id="transliterationBadge" style="display: none; margin-right: 5px;">ITRANS HINDI ON</span>
+                                <span class="badge bg-secondary fs-6">{{ doc_type }} Case Mode</span>
+                            </div>
                         </h4>
+
+                        <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+                            <button id="btnToggleItrans" class="btn btn-outline-warning btn-sm text-dark fw-bold" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                            <button id="btnToggleDevLys" class="btn btn-outline-info btn-sm text-dark fw-bold" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                            <button class="btn btn-outline-secondary btn-sm fw-bold ms-auto" onclick="verifyAllFields()">Verify All Fields</button>
+                        </div>
 
                         <div id="verificationContent">
                             {% if data %}
@@ -829,13 +844,253 @@
 
     <script>
     const CASE_ID = '{{ case_id }}';
+    const DOC_TYPE = '{{ doc_type }}';
+    let transliterationEnabled = false;
+    let devlysEnabled = false;
+    let devlysMapFrom = [];
+    let devlysMapTo = [];
+    let devlysAsciiWord = "";
+    let devlysWordStart = -1;
+    let devlysCurrentUnicodeLen = 0;
+
+    // Fetch the DevLys 040 to Unicode conversion map from the server
+    fetch('/devlys_keymap').then(r => r.json()).then(data => {
+        if (data.success) {
+            devlysMapFrom = data.map_from;
+            devlysMapTo = data.map_to;
+        }
+    });
+
+    function verifyAllFields() {
+        const checks = document.querySelectorAll('.verify-check');
+        const allChecked = Array.from(checks).every(c => c.checked);
+        checks.forEach(c => c.checked = !allChecked);
+    }
+
+    function toggleItransMode() {
+        transliterationEnabled = !transliterationEnabled;
+        if (transliterationEnabled) {
+            devlysEnabled = false;
+            document.getElementById('btnToggleDevLys').classList.replace('btn-info', 'btn-outline-info');
+            document.getElementById('btnToggleDevLys').innerHTML = '⌨️ DevLys (Off)';
+            document.getElementById('devlysBadge').style.display = 'none';
+        }
+        
+        const btn = document.getElementById('btnToggleItrans');
+        if (transliterationEnabled) {
+            btn.classList.replace('btn-outline-warning', 'btn-warning');
+            btn.innerHTML = 'A→अ ITRANS (ON)';
+        } else {
+            btn.classList.replace('btn-warning', 'btn-outline-warning');
+            btn.innerHTML = 'A→अ ITRANS (Off)';
+        }
+        document.getElementById('transliterationBadge').style.display = transliterationEnabled ? 'inline-block' : 'none';
+        updateActiveModeIndicator();
+    }
+
+    function toggleDevLysMode() {
+        devlysEnabled = !devlysEnabled;
+        if (devlysEnabled) {
+            transliterationEnabled = false;
+            document.getElementById('btnToggleItrans').classList.replace('btn-warning', 'btn-outline-warning');
+            document.getElementById('btnToggleItrans').innerHTML = 'A→अ ITRANS (Off)';
+            document.getElementById('transliterationBadge').style.display = 'none';
+        }
+        
+        const btn = document.getElementById('btnToggleDevLys');
+        if (devlysEnabled) {
+            btn.classList.replace('btn-outline-info', 'btn-info');
+            btn.innerHTML = '⌨️ DevLys (ON)';
+        } else {
+            btn.classList.replace('btn-info', 'btn-outline-info');
+            btn.innerHTML = '⌨️ DevLys (Off)';
+        }
+        document.getElementById('devlysBadge').style.display = devlysEnabled ? 'inline-block' : 'none';
+        updateActiveModeIndicator();
+    }
+
+    function updateActiveModeIndicator() {
+        const inputs = document.querySelectorAll('input, textarea');
+        inputs.forEach(el => {
+            if (shouldTransliterate(el)) {
+                if (transliterationEnabled || devlysEnabled) {
+                    el.classList.add('hindi-mode');
+                } else {
+                    el.classList.remove('hindi-mode');
+                }
+            }
+        });
+    }
+
+    function shouldTransliterate(el) {
+        if (!el || !el.id) return false;
+        const id = el.id.toLowerCase();
+        if (id.endsWith('_en')) return false;
+        if (id.includes('_id') || id.includes('_pan') || id.includes('_reg_no')) return false;
+        
+        const label = el.closest('.col-md-6, .col-12, .col-md-9, .col-md-4, .col-8, .col-4')?.querySelector('label')?.textContent || "";
+        const isHindiField = label.includes('(Hindi)') || label.includes('Address') || label.includes('Owner') || label.includes('Deed Type') || label.includes('Words') || label.includes('Relation') || label.includes('Name') || label.includes('Title');
+        return isHindiField;
+    }
+
+    function convertDevlysToUnicode(word) {
+        let hindi = "  " + word + "  ";
+        let posF = hindi.indexOf("f");
+        while (posF !== -1 && posF < hindi.length - 1) {
+            hindi = hindi.substring(0, posF) + hindi.charAt(posF+1) + hindi.charAt(posF) + hindi.substring(posF+2);
+            posF = hindi.indexOf("f", posF + 2);
+        }
+        hindi = hindi.trim();
+
+        hindi = "  " + hindi + "  ";
+        let posZ = hindi.indexOf("Z");
+        const matras = ["‚", "ks", "kS", "k", "h", "q", "w", "`", "s", "S", "a", "¡", "%", "W", "·", "~ ", "~"];
+        while (posZ !== -1) {
+            hindi = hindi.replace("Z", "");
+            if (matras.includes(hindi.charAt(posZ - 1))) {
+                hindi = hindi.substring(0, posZ - 2) + "j~" + hindi.substring(posZ - 2);
+            } else {
+                hindi = hindi.substring(0, posZ - 1) + "j~" + hindi.substring(posZ - 1);
+            }
+            posZ = hindi.indexOf("Z");
+        }
+        hindi = hindi.trim();
+
+        for (let i = 0; i < devlysMapFrom.length; i++) {
+            hindi = hindi.split(devlysMapFrom[i]).join(devlysMapTo[i]);
+        }
+        return hindi;
+    }
+
+    // Set up global hotkeys and delegates for dynamically added inputs
+    document.addEventListener('keydown', (e) => {
+        // Ctrl + G: Toggle ITRANS
+        if (e.ctrlKey && e.key.toLowerCase() === 'g') {
+            e.preventDefault();
+            toggleItransMode();
+        }
+        // Ctrl + D: Toggle DevLys
+        if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+            e.preventDefault();
+            toggleDevLysMode();
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
         loadModels();
-        {% if doc_type != 'SD' %}
         updateTemplateDisplay();
-        {% endif %}
         setupDropZone();
+
+        const workspace = document.getElementById('verificationContent');
+        if (workspace) {
+            // Handle keydown for ITRANS translation (Space/Enter) and DevLys Backspace
+            workspace.addEventListener('keydown', (e) => {
+                const el = e.target;
+                if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+                if (!shouldTransliterate(el)) return;
+
+                if (transliterationEnabled) {
+                    if (e.keyCode === 32 || e.keyCode === 13) {
+                        const val = el.value;
+                        const pos = el.selectionStart;
+                        const before = val.substring(0, pos);
+                        const after = val.substring(pos);
+                        const lastWordMatch = before.match(/([a-zA-Z\.]+)\s*$/);
+                        if (lastWordMatch) {
+                            e.preventDefault();
+                            const word = lastWordMatch[1];
+                            const hindi = Sanscript.t(word, 'itrans', 'devanagari', { syncope: true });
+                            const newVal = before.substring(0, before.length - word.length) + hindi + (e.keyCode === 32 ? ' ' : '') + after;
+                            el.value = newVal;
+                            const newPos = pos - word.length + hindi.length + (e.keyCode === 32 ? 1 : 0);
+                            el.setSelectionRange(newPos, newPos);
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }
+                }
+
+                if (devlysEnabled) {
+                    if (e.key === 'Backspace' && devlysAsciiWord.length > 0 && el.selectionStart === devlysWordStart + devlysCurrentUnicodeLen && el.selectionStart === el.selectionEnd) {
+                        e.preventDefault();
+                        devlysAsciiWord = devlysAsciiWord.substring(0, devlysAsciiWord.length - 1);
+                        
+                        const val = el.value;
+                        const before = val.substring(0, devlysWordStart);
+                        const after = val.substring(devlysWordStart + devlysCurrentUnicodeLen);
+                        
+                        if (devlysAsciiWord.length === 0) {
+                            el.value = before + after;
+                            devlysCurrentUnicodeLen = 0;
+                            el.setSelectionRange(devlysWordStart, devlysWordStart);
+                            devlysWordStart = -1;
+                        } else {
+                            const hindi = convertDevlysToUnicode(devlysAsciiWord);
+                            el.value = before + hindi + after;
+                            devlysCurrentUnicodeLen = hindi.length;
+                            el.setSelectionRange(devlysWordStart + devlysCurrentUnicodeLen, devlysWordStart + devlysCurrentUnicodeLen);
+                        }
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                    } else if (e.key !== 'Shift' && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta' && !e.ctrlKey && !e.altKey) {
+                        if (el.selectionStart !== devlysWordStart + devlysCurrentUnicodeLen) {
+                            devlysWordStart = -1;
+                            devlysAsciiWord = "";
+                            devlysCurrentUnicodeLen = 0;
+                        }
+                    }
+                }
+            });
+
+            // Handle beforeinput for real-time DevLys mapping
+            workspace.addEventListener('beforeinput', (e) => {
+                if (!devlysEnabled) return;
+                const el = e.target;
+                if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+                if (!shouldTransliterate(el)) return;
+
+                if (e.inputType === 'insertText' && e.data) {
+                    if (e.data === ' ') {
+                        devlysWordStart = -1;
+                        devlysAsciiWord = "";
+                        devlysCurrentUnicodeLen = 0;
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    
+                    const val = el.value;
+                    const pos = el.selectionStart;
+                    
+                    if (devlysWordStart === -1 || pos !== devlysWordStart + devlysCurrentUnicodeLen) {
+                        devlysWordStart = pos;
+                        devlysAsciiWord = "";
+                        devlysCurrentUnicodeLen = 0;
+                    }
+                    
+                    devlysAsciiWord += e.data;
+                    const hindi = convertDevlysToUnicode(devlysAsciiWord);
+                    
+                    const before = val.substring(0, devlysWordStart);
+                    const after = val.substring(pos);
+                    
+                    el.value = before + hindi + after;
+                    devlysCurrentUnicodeLen = hindi.length;
+                    el.setSelectionRange(devlysWordStart + devlysCurrentUnicodeLen, devlysWordStart + devlysCurrentUnicodeLen);
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+            
+            // Add focus listener to inputs to add hindi-mode highlighting
+            workspace.addEventListener('focusin', (e) => {
+                const el = e.target;
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                    if (shouldTransliterate(el)) {
+                        if (transliterationEnabled || devlysEnabled) {
+                            el.classList.add('hindi-mode');
+                        }
+                    }
+                }
+            });
+        }
     });
 
     function setupDropZone() {
@@ -970,27 +1225,48 @@
     }
 
     function updateTemplateDisplay() {
-        const bank = document.getElementById('bankSelect').value;
-        const borrowers = document.getElementById('borrowerSelect').value;
-        const loans = document.getElementById('loanSelect').value;
-        const properties = document.getElementById('propertiesSelect').value;
-        const display = document.getElementById('templateDisplay');
+        const docType = document.getElementById('docTypeSelect')?.value || 'RM';
+        if (docType === 'SD') {
+            const sellers = document.getElementById('sellersSelect')?.value || '1';
+            const buyers = document.getElementById('buyersSelect')?.value || '1';
+            const display = document.getElementById('sdTemplateDisplay');
+            if (!display) return;
+            fetch(`/get_template_info?doc_type=SD&sellers=${sellers}&buyers=${buyers}`)
+                .then(r => r.json())
+                .then(resp => {
+                    if (resp.success) {
+                        display.textContent = `✓ Active Template: ${resp.filename}`;
+                        display.classList.remove('text-danger');
+                        display.classList.add('text-success');
+                    } else {
+                        display.textContent = `No template found for SD (${sellers}S/${buyers}B)`;
+                        display.classList.remove('text-success');
+                        display.classList.add('text-danger');
+                    }
+                });
+        } else {
+            const bank = document.getElementById('bankSelect').value;
+            const borrowers = document.getElementById('borrowerSelect').value;
+            const loans = document.getElementById('loanSelect').value;
+            const properties = document.getElementById('propertiesSelect').value;
+            const display = document.getElementById('templateDisplay');
 
-        if (!bank || !display) return;
+            if (!bank || !display) return;
 
-        fetch(`/get_template_info?bank=${bank}&borrowers=${borrowers}&loans=${loans}&properties=${properties}`)
-            .then(r => r.json())
-            .then(resp => {
-                if (resp.success) {
-                    display.textContent = `Active Template: ${resp.filename}`;
-                    display.classList.remove('text-danger');
-                    display.classList.add('text-success');
-                } else {
-                    display.textContent = `No template found for ${bank} (${borrowers}B/${loans}L/${properties}P)`;
-                    display.classList.remove('text-success');
-                    display.classList.add('text-danger');
-                }
-            });
+            fetch(`/get_template_info?bank=${bank}&borrowers=${borrowers}&loans=${loans}&properties=${properties}`)
+                .then(r => r.json())
+                .then(resp => {
+                    if (resp.success) {
+                        display.textContent = `Active Template: ${resp.filename}`;
+                        display.classList.remove('text-danger');
+                        display.classList.add('text-success');
+                    } else {
+                        display.textContent = `No template found for ${bank} (${borrowers}B/${loans}L/${properties}P)`;
+                        display.classList.remove('text-success');
+                        display.classList.add('text-danger');
+                    }
+                });
+        }
     }
 
     function clearTemplate() {
