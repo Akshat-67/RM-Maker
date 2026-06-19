@@ -110,9 +110,8 @@ def run_case(case_dir, case_id):
 
     print(f"  [Extract] Running live extraction via SDDataExtractor...")
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    api_keys = [api_key] if api_key else []
-    extractor = SDDataExtractor(api_keys=api_keys, provider="gemini")
+    from utils.config import DEFAULT_GEMINI_API_KEYS
+    extractor = SDDataExtractor(api_keys=DEFAULT_GEMINI_API_KEYS, provider="gemini")
 
     try:
         # Use extract_with_ai instead of extract
@@ -170,8 +169,9 @@ def run_case(case_dir, case_id):
         return False
 
 def main():
-    if not os.environ.get("GEMINI_API_KEY"):
-         print("Warning: GEMINI_API_KEY environment variable is not set. Extraction will fail.")
+    from utils.config import DEFAULT_GEMINI_API_KEYS
+    if not DEFAULT_GEMINI_API_KEYS:
+         print("Warning: No Gemini API keys found in environment. Extraction will fail.")
 
     validation_dir = 'validation_cases'
     if not os.path.exists(validation_dir):

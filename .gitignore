@@ -19,8 +19,12 @@ Thumbs.db
 
 # Environment
 .env
+.env.*
+!.env.example
 venv/
 .venv/
+credentials.json
+secret*.json
 
 # Project specific
 scratch/

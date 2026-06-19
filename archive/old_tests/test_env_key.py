@@ -9,10 +9,10 @@ if env_key:
     API_KEYS.append(env_key)
 
 API_KEYS.extend([
-    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc",
-    "AIzaSyAXF1GYok40JQPkzg3rv2b_CGVJjDsaze8",
-    "AQ.Ab8RN6LT45vwhXCygf42E1_cCExGjyFvD95qNo1vQ37hC3ZnBQ",
-    "AIzaSyDs32YIJx35FDhb9qOa3vTcWDtU-RpL5_w"
+    os.getenv("GEMINI_API_KEY_1"),
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"),
+    os.getenv("GEMINI_API_KEY_4")
 ])
 
 for i, key in enumerate(API_KEYS):

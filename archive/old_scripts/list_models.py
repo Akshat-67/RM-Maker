@@ -3,7 +3,7 @@ sys.path.insert(0, '.')
 from extractor import DataExtractor
 
 e = DataExtractor(api_keys=[
-    "AIzaSyBKkvXn_tTX2YVK_YzQPkm7FUDtYju43hc"
+    os.getenv("GEMINI_API_KEY_1")
 ])
 
 print("Available models:")
