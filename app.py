@@ -406,6 +406,7 @@ def view_case(case_id):
             templates_list = sorted([f for f in os.listdir(bank_dir) if f.lower().endswith(".docx")])
 
     return render_template("case.html",
+                           buckets=session.get("buckets", {}),
                            case_id=case_id,
                            doc_type=doc_type,
                            selected_sellers=selected_sellers,
@@ -608,6 +609,57 @@ def upload_files(case_id):
 
     return jsonify({"success": True, "new_files": [os.path.basename(f) for f in new_file_paths]})
 
+
+@app.route("/case/<case_id>/upload_bucket/<bucket_name>", methods=["POST"])
+def upload_bucket(case_id, bucket_name):
+    import os
+    from werkzeug.utils import secure_filename
+    session = load_case_session(case_id)
+    if not session:
+        session = {
+            "data": {}, "files": [], "verified_fields": [], "doc_type": "SD",
+            "sellers_count": "1", "buyers_count": "1", "properties_count": "1"
+        }
+
+    uploaded_files = request.files.getlist("files")
+    case_bucket_dir = os.path.join(CASES_DIR, case_id, "buckets", bucket_name)
+    os.makedirs(case_bucket_dir, exist_ok=True)
+
+    buckets = session.get("buckets", {})
+    current_files = buckets.get(bucket_name, [])
+    new_file_paths = []
+
+    for file in uploaded_files:
+        if file.filename:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(case_bucket_dir, filename)
+            file.save(filepath)
+            if filepath not in current_files:
+                current_files.append(filepath)
+                new_file_paths.append(filepath)
+
+    buckets[bucket_name] = current_files
+
+    save_case_session(case_id,
+                      session.get("data", {}),
+                      session.get("files", []),
+                      set(session.get("verified_fields", [])),
+                      session.get("bank"),
+                      session.get("borrower_count"),
+                      session.get("loan_count"),
+                      session.get("properties_count", "1"),
+                      session.get("processed_files", []),
+                      doc_type=session.get("doc_type", "SD"),
+                      sellers_count=session.get("sellers_count", "1"),
+                      buyers_count=session.get("buyers_count", "1"),
+                      chain_scenario=session.get("chain_scenario", ""),
+                      selected_template=session.get("selected_template", ""),
+                      property_type=session.get("property_type", "Plot"),
+                      legal_report_files=session.get("legal_report_files", []),
+                      buckets=buckets)
+
+    return jsonify({"success": True, "new_files": [os.path.basename(f) for f in new_file_paths]})
+
 @app.route("/case/<case_id>/upload_legal_report", methods=["POST"])
 def upload_legal_report(case_id):
     session = load_case_session(case_id)
@@ -672,7 +724,10 @@ def run_ai(case_id):
     processed_files = session.get("processed_files", [])
     files_to_process = [f for f in all_files if f not in processed_files]
 
-    if not files_to_process:
+    buckets = session.get("buckets", {})
+    has_bucket_files = any(len(b) > 0 for b in buckets.values())
+
+    if not files_to_process and not has_bucket_files:
         if all_files:
             files_to_process = all_files
         else:
@@ -683,6 +738,9 @@ def run_ai(case_id):
         verified_fields = set(session.get("verified_fields", []))
 
         if doc_type == "SD":
+            buckets = session.get("buckets", {})
+            has_bucket_files = any(len(b) > 0 for b in buckets.values())
+
             extractor = SDDataExtractor(
                 api_keys=DEFAULT_GEMINI_API_KEYS,
                 provider="gemini"
@@ -691,26 +749,20 @@ def run_ai(case_id):
             buyer_hints = ", ".join([b.get("n", "") for b in current_data.get("bs", []) if b.get("n")])
             witness_hints = ", ".join([w.get("n", "") for w in current_data.get("ws", []) if w.get("n")])
             
-            extracted_data = extractor.extract_with_ai(
-                files_to_process, model,
-                expected_sellers=sellers_count, expected_buyers=buyers_count,
-                expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
-                witness_hints=witness_hints, current_data=current_data
-            )
-        else:
-            extractor = RMDataExtractor(
-                api_keys=DEFAULT_GEMINI_API_KEYS,
-                provider="gemini"
-            )
-            borrower_hints = ", ".join([b.get("n", "") for b in current_data.get("bs", []) if b.get("n")])
-            witness_hints = ", ".join([w.get("n", "") for w in current_data.get("ws", []) if w.get("n")])
-            
-            extracted_data = extractor.extract_with_ai(
-                files_to_process, model, bank_name=bank,
-                expected_borrowers=borrowers, expected_loans=loans,
-                borrower_hints=borrower_hints, witness_hints=witness_hints,
-                current_data=current_data
-            )
+            if has_bucket_files:
+                extracted_data = extractor.extract_buckets_with_ai(
+                    buckets, model,
+                    expected_sellers=sellers_count, expected_buyers=buyers_count,
+                    expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
+                    witness_hints=witness_hints, current_data=current_data
+                )
+            else:
+                extracted_data = extractor.extract_with_ai(
+                    files_to_process, model,
+                    expected_sellers=sellers_count, expected_buyers=buyers_count,
+                    expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
+                    witness_hints=witness_hints, current_data=current_data
+                )
 
         if extracted_data.get("error"):
             return jsonify({"success": False, "error": extracted_data["error"]}), 400
