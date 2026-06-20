@@ -1,0 +1,3 @@
+## 2026-06-20 - Missing Async Feedback on Critical Actions
+**Learning:** Found a pattern where long-running async actions (like generating a document or saving a workspace) do not show immediate loading states or disable the trigger button, which can lead to users clicking multiple times or thinking the app is frozen. The only exception was the AI Automation button which already implemented this correctly.
+**Action:** Consistently apply disabled states and visual loading indicators (like `⏳` or spinners) to all primary action buttons (`generateRM`, `saveCase`) before initiating `fetch` requests, restoring them in the `.finally()` or `.then()` blocks.

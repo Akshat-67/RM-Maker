@@ -63,7 +63,7 @@
         <span class="navbar-brand mb-0 h1">LegalDoc Automator Pro</span>
         <div class="d-flex">
             <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
-            <button class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
+            <button id="saveWorkspaceBtn" class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
         </div>
     </nav>
 
@@ -939,7 +939,7 @@
                             {% endif %}
 
                             <!-- Verification Trigger Button -->
-                            <button class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
+                            <button id="generateBtn" class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
                                 ✅ Verified: Generate Final {% if doc_type == 'SD' %}Hindi Sale Deed{% else %}RM{% endif %} Document
                             </button>
                             {% else %}
@@ -1682,6 +1682,11 @@
     }
 
     function saveCase(callback) {
+        const btn = document.getElementById('saveWorkspaceBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1704,15 +1709,23 @@
         })
         .then(r => r.json())
         .then(resp => {
-            if (callback) callback(resp);
-            else {
-                const btn = document.querySelector('button[onclick="saveCase()"]');
-                const oldText = btn.textContent;
-                btn.textContent = '✅ Saved!';
-                setTimeout(() => btn.textContent = oldText, 1500);
+            if (callback) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                callback(resp);
+            } else {
+                btn.innerHTML = '✅ Saved!';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 1500);
             }
         })
-        .catch(e => alert('Save failed: ' + e));
+        .catch(e => {
+            alert('Save failed: ' + e);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
     }
 
     function startAI() {
@@ -1963,6 +1976,11 @@
     }
 
     function generateRM() {
+        const btn = document.getElementById('generateBtn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> ⏳ Generating Document...';
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1996,7 +2014,11 @@
             a.click();
             window.URL.revokeObjectURL(url);
         })
-        .catch(e => alert('Generation failed: ' + e.message));
+        .catch(e => alert('Generation failed: ' + e.message))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
     }
     </script>
 
