@@ -359,6 +359,336 @@ class SDDataExtractor:
 
         return {"error": f"AI Extraction Failed after {max_attempts} attempts. Last error: {last_error}"}
 
+
+    def extract_buckets_with_ai(self, buckets, selected_model, expected_sellers=None, expected_buyers=None,
+                                expected_witnesses=2, seller_hints="", buyer_hints="", witness_hints="",
+                                current_data=None, **kwargs):
+        """
+        Process each SD document bucket independently according to its primary objective,
+        and then merge the extracted results using the Source Priority Matrix.
+        """
+        if not self.api_keys:
+            return {"error": "Gemini API Keys Missing"}
+
+        merged_data = current_data or {}
+
+        # 1. KYC - Extract Identity only
+        if buckets.get("kyc"):
+            kyc_prompt = self._build_kyc_prompt(expected_sellers, expected_buyers, expected_witnesses)
+            kyc_res = self._run_gemini_extraction(buckets["kyc"], selected_model, kyc_prompt)
+            if kyc_res and not kyc_res.get("error"):
+                merged_data = self._merge_kyc_results(merged_data, kyc_res)
+
+        # 2. Legal - Extract Property and Chain only (Primary Source)
+        if buckets.get("legal"):
+            legal_prompt = self._build_legal_prompt()
+            legal_res = self._run_gemini_extraction(buckets["legal"], selected_model, legal_prompt)
+            if legal_res and not legal_res.get("error"):
+                merged_data = self._merge_legal_results(merged_data, legal_res)
+
+        # 3. ATS - Extract Consideration and Transaction only
+        if buckets.get("ats"):
+            ats_prompt = self._build_ats_prompt()
+            ats_res = self._run_gemini_extraction(buckets["ats"], selected_model, ats_prompt)
+            if ats_res and not ats_res.get("error"):
+                merged_data = self._merge_ats_results(merged_data, ats_res)
+
+        # 4. Title Chain - Extract Site Plan Dimensions and verify
+        if buckets.get("title_chain"):
+            title_prompt = self._build_title_prompt()
+            title_res = self._run_gemini_extraction(buckets["title_chain"], selected_model, title_prompt)
+            if title_res and not title_res.get("error"):
+                merged_data = self._merge_title_results(merged_data, title_res)
+
+        return self._normalize_final_data(merged_data, expected_sellers, expected_buyers, expected_witnesses)
+
+    def _run_gemini_extraction(self, file_paths, selected_model, prompt):
+        contents = []
+        txt_files = [p for p in file_paths if p.lower().endswith('.txt')]
+        effective_paths = txt_files if txt_files else file_paths
+        import mimetypes
+        import os
+        from google.genai import types
+        for path in effective_paths:
+            ext = os.path.splitext(path)[1].lower()
+            mime_type, _ = mimetypes.guess_type(path)
+            if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+                with open(path, 'rb') as f:
+                    raw = f.read()
+                contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+            elif ext == '.txt':
+                with open(path, 'r', encoding='utf-8') as f:
+                    contents.append(types.Part.from_text(text=f.read()))
+            elif ext == '.docx':
+                try:
+                    import docx
+                    doc = docx.Document(path)
+                    text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                    contents.append(types.Part.from_text(text=text))
+                except Exception as e:
+                    print(f"Error reading docx {path}: {e}")
+                    pass
+
+        return self._call_gemini(selected_model, contents, prompt)
+
+    def _call_gemini(self, selected_model, contents, prompt):
+        from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+        from google.genai.errors import APIError
+        import json
+        import re
+
+        attempts = 0
+        max_attempts = len(self.api_keys)
+        last_error = "Unknown Error"
+
+        while attempts < max_attempts:
+            if not self.client:
+                self._init_client()
+            if not self.client:
+                return {"error": "Gemini API Client Initialization Failed"}
+
+            @retry(
+                wait=wait_exponential(multiplier=1, min=4, max=10),
+                stop=stop_after_attempt(3),
+                retry=retry_if_exception_type(APIError)
+            )
+            def _api_call(client, model, contents):
+                return client.models.generate_content(model=model, contents=contents)
+
+            try:
+                full_contents = contents + [prompt]
+                response = _api_call(self.client, selected_model, full_contents)
+                raw_text = response.text
+
+                # Cleanup markdown and parse JSON
+                json_str = raw_text.replace('```json', '').replace('```', '').strip()
+                if not json_str: return {"error": "Empty JSON"}
+
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    # Attempt dirty fix
+                    try:
+                        dirty_str = re.sub(r',\s*}', '}', json_str)
+                        dirty_str = re.sub(r',\s*\]', ']', dirty_str)
+                        return json.loads(dirty_str)
+                    except:
+                        return {"error": f"JSON Parse Failed: {str(e)}"}
+            except APIError as e:
+                last_error = str(e)
+                if e.code == 429:
+                    if not self._rotate_key():
+                        break
+                attempts += 1
+            except Exception as e:
+                last_error = str(e)
+                break
+
+        return {"error": f"Extraction Failed: {last_error}"}
+
+    def _is_meaningful(self, val):
+        if not val: return False
+        val_str = str(val).strip().lower()
+        if val_str in ["", "null", "none", "n/a", "unknown", "not available", "-"]: return False
+        return True
+
+    def _merge_kyc_results(self, current, kyc):
+        # KYC is #1 for Seller/Buyer Name and Address
+        for key in ["ss", "bs"]:
+            current_list = current.get(key, [])
+            kyc_list = kyc.get(key, [])
+            max_len = max(len(current_list), len(kyc_list))
+            for i in range(max_len):
+                if i >= len(current_list): current_list.append({})
+                if i < len(kyc_list):
+                    k_item = kyc_list[i]
+                    c_item = current_list[i]
+                    if self._is_meaningful(k_item.get("n")): c_item["n"] = k_item["n"]
+                    if self._is_meaningful(k_item.get("adr")): c_item["adr"] = k_item["adr"]
+                    if self._is_meaningful(k_item.get("a")): c_item["a"] = k_item["a"]
+                    if self._is_meaningful(k_item.get("id")): c_item["id"] = k_item["id"]
+                    if self._is_meaningful(k_item.get("pan")): c_item["pan"] = k_item["pan"]
+                    if self._is_meaningful(k_item.get("relation_text")): c_item["relation_text"] = k_item["relation_text"]
+            current[key] = current_list
+        return current
+
+    def _merge_legal_results(self, current, legal):
+        # Legal is #1 for Property Address, Area, Boundaries, Title Chain
+        # It is #2 for Seller/Buyer Address
+        current_ps = current.get("ps", [{}])
+        legal_ps = legal.get("ps", [{}])
+        if legal_ps:
+            c_p = current_ps[0]
+            l_p = legal_ps[0]
+            for f in ["adr", "land_area", "const_area", "unit", "const_unit", "plot_no", "floor", "building_name", "n", "s", "e", "w"]:
+                if self._is_meaningful(l_p.get(f)): c_p[f] = l_p[f]
+        current["ps"] = current_ps
+
+        if legal.get("title_chain") and len(legal["title_chain"]) > 0:
+            current["title_chain"] = legal["title_chain"]
+
+        for key in ["ss", "bs"]:
+            current_list = current.get(key, [])
+            legal_list = legal.get(key, [])
+            for i in range(min(len(current_list), len(legal_list))):
+                if not self._is_meaningful(current_list[i].get("adr")) and self._is_meaningful(legal_list[i].get("adr")):
+                    current_list[i]["adr"] = legal_list[i]["adr"]
+        return current
+
+    def _merge_ats_results(self, current, ats):
+        # ATS is #1 for Sale Amount, #2 for Seller Name, #3 for Property Address / Seller Address
+        if self._is_meaningful(ats.get("amount")): current["amount"] = ats["amount"]
+        if self._is_meaningful(ats.get("amount_words")): current["amount_words"] = ats["amount_words"]
+        if self._is_meaningful(ats.get("consideration")): current["consideration"] = ats["consideration"]
+
+        for key in ["ss", "bs"]:
+            current_list = current.get(key, [])
+            ats_list = ats.get(key, [])
+            for i in range(min(len(current_list), len(ats_list))):
+                if not self._is_meaningful(current_list[i].get("n")) and self._is_meaningful(ats_list[i].get("n")):
+                    current_list[i]["n"] = ats_list[i]["n"]
+                if not self._is_meaningful(current_list[i].get("adr")) and self._is_meaningful(ats_list[i].get("adr")):
+                    current_list[i]["adr"] = ats_list[i]["adr"]
+
+        current_ps = current.get("ps", [{}])
+        ats_ps = ats.get("ps", [{}])
+        if ats_ps:
+            c_p = current_ps[0]
+            a_p = ats_ps[0]
+            if not self._is_meaningful(c_p.get("adr")) and self._is_meaningful(a_p.get("adr")): c_p["adr"] = a_p["adr"]
+        current["ps"] = current_ps
+        return current
+
+    def _merge_title_results(self, current, title):
+        # Title is #1 for Site Plan Dimensions, #2 for Property Address/Area/Boundaries
+        current_ps = current.get("ps", [{}])
+        title_ps = title.get("ps", [{}])
+        if title_ps:
+            c_p = current_ps[0]
+            t_p = title_ps[0]
+
+            if self._is_meaningful(t_p.get("east_west_dim")): c_p["east_west_dim"] = t_p["east_west_dim"]
+            if self._is_meaningful(t_p.get("north_south_dim")): c_p["north_south_dim"] = t_p["north_south_dim"]
+
+            for f in ["adr", "land_area", "n", "s", "e", "w", "length_ew", "length_ns"]:
+                if not self._is_meaningful(c_p.get(f)) and self._is_meaningful(t_p.get(f)):
+                    c_p[f] = t_p[f]
+        current["ps"] = current_ps
+        return current
+
+    def _build_kyc_prompt(self, expected_sellers, expected_buyers, expected_witnesses):
+        return f"""
+        Extract identity data from these KYC/ID documents (Aadhaar, PAN). Return ONLY a JSON object.
+        IMPORTANT: Extract descriptive text in UNICODE HINDI. English names/addresses must be transliterated.
+
+        JSON STRUCTURE:
+        {{
+          "ss": [{{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase (e.g. 'पुत्र श्री भीवा राम')", "adr":"Address", "id":"Aadhar", "pan":"PAN"}}],
+          "bs": [{{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase", "adr":"Address", "id":"Aadhar", "pan":"PAN"}}]
+        }}
+        Expected Sellers: {expected_sellers}, Expected Buyers: {expected_buyers}
+        """
+
+    def _build_legal_prompt(self):
+        return """
+        Extract Property details and Title Chain from this Legal/Technical Report. Return ONLY a JSON object.
+        IMPORTANT: Extract descriptive text in UNICODE HINDI.
+
+        JSON STRUCTURE:
+        {
+          "ps": [{
+            "adr": "Full address (Unicode Hindi)",
+            "plot_no": "Plot/Flat/Unit number",
+            "floor": "Floor description",
+            "building_name": "Building/Society name (Unicode Hindi)",
+            "land_area": "Area of ORIGINAL PLOT with unit",
+            "const_area": "Super Built-up/Construction area",
+            "unit": "Unit for land_area",
+            "n": "North boundary",
+            "s": "South boundary",
+            "e": "East boundary",
+            "w": "West boundary"
+          }],
+          "title_chain": [{"event_type": "SALE_DEED", "document_name": "विक्रय पत्र", "date": "10.05.2010", "executant_name": "Seller Name", "claimant_name": "Buyer Name"}]
+        }
+        """
+
+    def _build_ats_prompt(self):
+        return """
+        Extract Consideration and Transaction details from this Agreement to Sell (ATS). Return ONLY a JSON object.
+        IMPORTANT: Extract descriptive text in UNICODE HINDI.
+
+        JSON STRUCTURE:
+        {
+          "amount": "Consideration Amount (digits only)",
+          "amount_words": "Amount in Words (Unicode Hindi)",
+          "consideration": "Consideration details/value (Unicode Hindi)",
+          "ss": [{"n":"Name", "adr":"Address"}],
+          "bs": [{"n":"Name", "adr":"Address"}],
+          "ps": [{"adr": "Property Address (Unicode Hindi)"}]
+        }
+        """
+
+    def _build_title_prompt(self):
+        return """
+        Extract Site Plan dimensions and property verification details from this Title Document/Site Plan. Return ONLY a JSON object.
+        IMPORTANT: Extract descriptive text in UNICODE HINDI.
+
+        JSON STRUCTURE:
+        {
+          "ps": [{
+            "east_west_dim": "East-to-West dimensions specifically from Site Plan (e.g. 'पूर्व से पश्चिम : 30 ft')",
+            "north_south_dim": "North-to-South dimensions specifically from Site Plan (e.g. 'उत्तर से दक्षिण : 50 ft')",
+            "length_ew": "East-West dimension of the ORIGINAL PLOT (e.g. '30 फ़ीट')",
+            "length_ns": "North-South dimension of the ORIGINAL PLOT (e.g. '55 फ़ीट')",
+            "adr": "Full property address",
+            "land_area": "Area of ORIGINAL PLOT",
+            "n": "North boundary",
+            "s": "South boundary",
+            "e": "East boundary",
+            "w": "West boundary"
+          }]
+        }
+        """
+
+    def _normalize_final_data(self, data, expected_sellers, expected_buyers, expected_witnesses):
+        # Apply the same normalization as the legacy method
+        self._normalize_list(data, "ss", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
+        self._normalize_list(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
+        self._normalize_list(data, "ps", ["adr", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "east_west_dim", "north_south_dim", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
+        self._normalize_list(data, "ws", ["n", "relation_text", "adr"])
+
+        import re
+        for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
+            for person in data.get(key, []):
+                if person.get("n"):
+                    person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
+                if person.get("relation_text"):
+                    from utils.text_utils import normalize_relation_prefix
+                    person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
+
+        self._normalize_list(data, "title_chain", [
+            "event_type", "document_name", "document_number", "date", "consideration_amount",
+            "executant_name", "claimant_name", "reg_office", "reg_date",
+            "reg_book", "reg_vol", "reg_page", "reg_no", "reg_add_book", "reg_add_vol", "reg_add_page",
+            "book_no", "volume_no", "page_no", "additional_book_no", "additional_volume_no", "additional_page_range",
+            "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type"
+        ])
+
+        for p in data.get("ps", []):
+            p["full_address"] = self.generate_full_property_address(p, "SD")
+            p["dimension_text"] = self.generate_dimension_text(p)
+            p["boundary_text"] = self.generate_boundary_text(p)
+
+        self._force_count(data, "ss", ["n", "a", "c", "relation_text", "adr", "id", "pan"], expected_sellers)
+        self._force_count(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"], expected_buyers)
+        self._force_count(data, "ws", ["n", "relation_text", "adr"], expected_witnesses)
+
+        if not data.get("title_chain"):
+            data["title_chain"] = [{"event_type": "SALE_DEED", "document_name": "", "date": "", "consideration_amount": "", "executant_name": "", "claimant_name": "", "is_registered": "true", "reg_office": "", "reg_date": "", "reg_book": "", "reg_vol": "", "reg_page": "", "reg_no": "", "reg_add_book": "", "reg_add_vol": "", "reg_add_page": "", "confidence": "", "source_text": ""}]
+
+        return data
+
     def extract_with_ai(self, file_paths, selected_model, expected_sellers=None, expected_buyers=None,
                         expected_witnesses=2, seller_hints="", buyer_hints="", witness_hints="",
                         current_data=None, **kwargs):
