@@ -63,7 +63,7 @@
         <span class="navbar-brand mb-0 h1">LegalDoc Automator Pro</span>
         <div class="d-flex">
             <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
-            <button class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
+            <button id="btnSave" class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
         </div>
     </nav>
 
@@ -939,7 +939,7 @@
                             {% endif %}
 
                             <!-- Verification Trigger Button -->
-                            <button class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
+                            <button id="btnGenerate" class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
                                 ✅ Verified: Generate Final {% if doc_type == 'SD' %}Hindi Sale Deed{% else %}RM{% endif %} Document
                             </button>
                             {% else %}
@@ -1682,6 +1682,14 @@
     }
 
     function saveCase(callback) {
+        const btn = document.getElementById('btnSave');
+        let originalText = "";
+        if (btn) {
+            originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+        }
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1704,24 +1712,42 @@
         })
         .then(r => r.json())
         .then(resp => {
-            if (callback) callback(resp);
-            else {
-                const btn = document.querySelector('button[onclick="saveCase()"]');
-                const oldText = btn.textContent;
-                btn.textContent = '✅ Saved!';
-                setTimeout(() => btn.textContent = oldText, 1500);
+            if (btn) {
+                btn.innerHTML = '✅ Saved!';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 1500);
+            }
+            if (callback) {
+                callback(resp);
             }
         })
-        .catch(e => alert('Save failed: ' + e));
+        .catch(e => {
+            alert('Save failed: ' + e);
+            if (btn) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+            if (callback) {
+                callback({success: false, error: e.toString()});
+            }
+        });
     }
 
     function startAI() {
         const btn = document.getElementById('startAiBtn');
         btn.disabled = true;
-        btn.textContent = '⏳ AI Working...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> AI Working...';
         document.getElementById('statusMsg').textContent = 'AI is extracting details from documents...';
 
-        saveCase(() => {
+        saveCase((resp) => {
+            if (!resp.success) {
+                btn.disabled = false;
+                btn.innerHTML = '🤖 Start AI Automation';
+                document.getElementById('statusMsg').textContent = 'Save failed, aborted AI scan.';
+                return;
+            }
             fetch(`/case/${CASE_ID}/ai`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -1753,7 +1779,7 @@
             })
             .finally(() => {
                 btn.disabled = false;
-                btn.textContent = '🤖 Start AI Automation';
+                btn.innerHTML = '🤖 Start AI Automation';
             });
         });
     }
@@ -1963,6 +1989,11 @@
     }
 
     function generateRM() {
+        const btn = document.getElementById('btnGenerate');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1996,7 +2027,11 @@
             a.click();
             window.URL.revokeObjectURL(url);
         })
-        .catch(e => alert('Generation failed: ' + e.message));
+        .catch(e => alert('Generation failed: ' + e.message))
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
     }
     </script>
 

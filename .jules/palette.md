@@ -1,0 +1,3 @@
+## 2024-06-21 - Visual feedback for asynchronous form actions
+**Learning:** Adding loading spinners and disabling buttons for document generation, AI processing, and saving prevents double-clicks and provides immediate visual feedback.
+**Action:** Consistently apply disabled states and visual loading indicators (e.g., spinners or 'Saving...' text) to asynchronous triggering buttons to prevent duplicate submissions. Use existing CSS frameworks (like Bootstrap) to avoid adding custom CSS.
