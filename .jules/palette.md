@@ -1,0 +1,3 @@
+## 2024-06-22 - Missing Loading States on Async Action Buttons
+**Learning:** Core application actions like "Save Workspace" and "Generate Final Document" in `web_templates/case.html` lacked loading states or disabling logic while waiting for fetch responses. This allowed double-clicks resulting in multiple redundant network requests and lack of immediate visual feedback to the user.
+**Action:** When implementing asynchronous UI actions via `fetch` or `XMLHttpRequest`, proactively add a disabled state to the triggering button along with a loading indicator (like a spinner or changing text) until the promise resolves/rejects to prevent duplicate submissions and provide better user feedback.
