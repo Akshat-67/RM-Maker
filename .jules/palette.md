@@ -1,0 +1,3 @@
+## 2024-06-23 - Prevent Duplicate Submissions on Case Document Actions
+**Learning:** For asynchronous, high-latency actions like "Save Workspace" and "Generate Final RM Document" in `case.html`, users could trigger duplicate network requests by double-clicking. Missing loading states also caused confusion on whether the action registered.
+**Action:** Consistently apply `disabled=true` and Bootstrap spinner HTML (`<span class="spinner-border spinner-border-sm"...`) directly within the button `.innerHTML` before calling `fetch`. Restore the original button state in both the `.then()` and `.catch()` blocks.
