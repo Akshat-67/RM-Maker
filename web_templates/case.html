@@ -939,7 +939,7 @@
                             {% endif %}
 
                             <!-- Verification Trigger Button -->
-                            <button class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
+                            <button id="generateBtn" class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
                                 ✅ Verified: Generate Final {% if doc_type == 'SD' %}Hindi Sale Deed{% else %}RM{% endif %} Document
                             </button>
                             {% else %}
@@ -1963,6 +1963,11 @@
     }
 
     function generateRM() {
+        const btn = document.getElementById('generateBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating Document...';
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1995,8 +2000,14 @@
             a.download = `${docType}_${bank}_${CASE_ID}.docx`;
             a.click();
             window.URL.revokeObjectURL(url);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         })
-        .catch(e => alert('Generation failed: ' + e.message));
+        .catch(e => {
+            alert('Generation failed: ' + e.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
     }
     </script>
 
