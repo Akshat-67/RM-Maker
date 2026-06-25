@@ -1,0 +1,3 @@
+## 2024-06-25 - Added Loading State to Document Generation Button
+**Learning:** Preventing duplicate form submissions and API calls is a key UX and accessibility concern. Asynchronous operations like `fetch` calls should always be accompanied by a disabled, loading state on the triggering button to provide clear feedback and avoid frustrating multi-clicks.
+**Action:** When implementing new features or reviewing existing ones that involve async network requests, ensure the triggering UI element visually reflects the loading state (e.g., text change and disabled attribute) and restores its original state within a `finally()` block.
