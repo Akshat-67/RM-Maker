@@ -1,5 +1,9 @@
 import re
 
+# Performance optimization: Compiled regex for fast non-ASCII detection
+# Replaces slow python iteration: any(ord(char) > 127 for char in text)
+_non_ascii_regex = re.compile(r'[^\x00-\x7F]')
+
 def Unicode_to_KrutiDev(unicode_str):
     if not unicode_str: return ""
     s = str(unicode_str)
@@ -132,7 +136,7 @@ def Unicode_to_KrutiDev(unicode_str):
 def normalize_relation_prefix(r_str, doc_type="RM"):
     if not r_str: return ""
     s = str(r_str).strip()
-    is_hindi = (doc_type == "SD") or any(ord(char) > 127 for char in s)
+    is_hindi = (doc_type == "SD") or bool(_non_ascii_regex.search(s))
     if is_hindi:
         r_map = {"son of": "पुत्र स्व-", "daughter of": "पुत्री श्री", "wife of": "पत्नी श्री", "husband of": "पति श्री", "care of": "केयर ऑफ", "s/o": "पुत्र स्व-", "d/o": "पुत्री श्री", "w/o": "पत्नी श्री", "h/o": "पति श्री", "c/o": "केयर ऑफ"}
         if doc_type == "SD":
@@ -158,7 +162,7 @@ def normalize_name_salutation(name, relation=None, default_to_male=True):
     salutations = ["श्री", "श्रीमती", "सुश्री", "डॉ.", "Mr.", "Mrs.", "Ms.", "Dr."]
     for sal in salutations:
         if s.startswith(sal): return s
-    is_hindi = any(ord(char) > 127 for char in s)
+    is_hindi = bool(_non_ascii_regex.search(s))
     if relation:
         rel = relation.lower()
         if any(x in rel for x in ["पत्नी", "पुत्री", "wife", "daughter", "smt", "mrs"]):
@@ -171,7 +175,7 @@ def normalize_relative_salutation(name, relation_prefix=None):
     salutations = ["श्री", "श्रीमती", "सुश्री", "डॉ.", "Mr.", "Mrs.", "Ms.", "Dr.", "Late", "LoxhZ;", "स्व."]
     for sal in salutations:
         if s.startswith(sal): return sal, s[len(sal):].strip()
-    is_hindi = any(ord(char) > 127 for char in s)
+    is_hindi = bool(_non_ascii_regex.search(s))
     if relation_prefix:
         pref = relation_prefix.lower()
         if "स्व" in pref or "late" in pref: return s

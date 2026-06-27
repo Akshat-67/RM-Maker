@@ -116,9 +116,13 @@ def unicode_to_devlys(text):
     return modified_substring
 
 class UnicodeToDevLysConverter:
+    # Performance optimization: Compiled regex for fast Devanagari detection
+    # Replaces slow python iteration: any("\u0900" <= char <= "\u097F" for char in text)
+    _devanagari_regex = re.compile(r'[\u0900-\u097F]')
+
     @staticmethod
     def is_hindi(text):
-        return any("\u0900" <= char <= "\u097F" for char in text)
+        return bool(UnicodeToDevLysConverter._devanagari_regex.search(text))
 
     @staticmethod
     def set_font_devlys(run, font_name="DevLys 040"):
