@@ -308,7 +308,7 @@
                                         <p class="card-text small text-muted mb-0">
                                             Select a role for each extracted Aadhaar, then click "Apply Assignments" to populate their fields.
                                         </p>
-                                        <button class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="assignSelectedAadhars()">⚡ Apply Assignments</button>
+                                        <button id="assignAadharsBtn" class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="assignSelectedAadhars()">⚡ Apply Assignments</button>
                                     </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-bordered bg-white align-middle">
@@ -939,7 +939,7 @@
                             {% endif %}
 
                             <!-- Verification Trigger Button -->
-                            <button class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
+                            <button id="generateDocBtn" class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
                                 ✅ Verified: Generate Final {% if doc_type == 'SD' %}Hindi Sale Deed{% else %}RM{% endif %} Document
                             </button>
                             {% else %}
@@ -1759,6 +1759,12 @@
     }
 
     function assignSelectedAadhars() {
+        const btn = document.getElementById('assignAadharsBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Applying...';
+        }
+
         const rows = document.querySelectorAll('tr[id^="ua-row-"]');
         const assignedIndices = [];
         let assignedCount = 0;
@@ -1938,6 +1944,10 @@
 
         if (assignedCount === 0) {
             alert('Please select a role for at least one person first.');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Apply Assignments';
+            }
             return;
         }
 
@@ -1954,15 +1964,37 @@
                         location.reload();
                     } else {
                         alert('Failed to remove assignments: ' + removeResp.error);
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '⚡ Apply Assignments';
+                        }
+                    }
+                })
+                .catch(e => {
+                    alert('Error removing assignments: ' + e);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '⚡ Apply Assignments';
                     }
                 });
             } else {
                 alert('Save failed: ' + resp.error);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Apply Assignments';
+                }
             }
         });
     }
 
     function generateRM() {
+        const btn = document.getElementById('generateDocBtn');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating Document...';
+        }
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -1996,7 +2028,13 @@
             a.click();
             window.URL.revokeObjectURL(url);
         })
-        .catch(e => alert('Generation failed: ' + e.message));
+        .catch(e => alert('Generation failed: ' + e.message))
+        .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
     }
     </script>
 

@@ -1,37 +1,14 @@
- * Serving Flask app 'app'
- * Debug mode: on
+ * Debug mode: off
 [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
- * Running on http://127.0.0.1:5000
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:3000
+ * Running on http://192.168.0.2:3000
 [33mPress CTRL+C to quit[0m
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 662-384-240
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/kyc HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/kyc HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/kyc HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/kyc HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/kyc HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:03] "[33mPOST /case/test_val_1781938863/upload_bucket/legal HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/legal HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/legal HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/ats HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/upload_bucket/title_chain HTTP/1.1[0m" 404 -
-127.0.0.1 - - [20/Jun/2026 07:01:04] "[33mPOST /case/test_val_1781938863/ai HTTP/1.1[0m" 404 -
- * Detected change in '/app/app.py', reloading
- * Restarting with stat
- * Debugger is active!
- * Debugger PIN: 662-384-240
+127.0.0.1 - - [27/Jun/2026 11:33:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jun/2026 11:33:34] "GET /static/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jun/2026 11:33:36] "[32mGET /new_case?doc_type=RM HTTP/1.1[0m" 302 -
+127.0.0.1 - - [27/Jun/2026 11:33:36] "GET /case/case_1782560016 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jun/2026 11:33:36] "[36mGET /static/style.css HTTP/1.1[0m" 304 -
+127.0.0.1 - - [27/Jun/2026 11:33:38] "GET /devlys_keymap HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jun/2026 11:33:38] "GET /get_models HTTP/1.1" 200 -
+127.0.0.1 - - [27/Jun/2026 11:33:38] "GET /get_template_info?bank=ICICI&borrowers=1&loans=1&properties=1 HTTP/1.1" 200 -
