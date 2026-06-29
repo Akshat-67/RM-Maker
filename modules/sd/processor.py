@@ -435,6 +435,7 @@ class SDTemplateProcessor:
 
     def _split_multi_line_paragraphs(self, doc):
         """Splits paragraphs containing '\n' into actual separate Word paragraphs."""
+        from docx.shared import Pt
         paras = list(doc.paragraphs)
         for p in paras:
             if '\n' in p.text:
@@ -448,7 +449,8 @@ class SDTemplateProcessor:
                     new_para.style = p.style
                     new_para.alignment = p.alignment
                     if new_para.runs:
-                        new_para.runs[0].font.name = "DevLys 010"
+                        new_para.runs[0].font.name = "DevLys 040"
+                        new_para.runs[0].font.size = Pt(16)
                     current_p = new_para
 
     def _apply_highlight_markers(self, data, verified_fields, highlight_ai, highlight_missing, path=""):
@@ -512,38 +514,44 @@ class SDTemplateProcessor:
         if "fuoklh%&" not in text: text = text.replace("fuoklh%", "fuoklh%&")
         text = text.replace("iq¾", "iq=")
         
-        text = text.replace("mRrjkf/kdkjh", "mÙkjkf/kdkjh")
+        text = text.replace("mRrjkf/kdkjh", "mRrjkf/kdkjh")
         text = text.replace("ckcR", "ckcr~")
         text = text.replace("mRrj", "mÙkj")
         text = text.replace("mi-iath;d", "mi&iath;d").replace("mi.iath;d", "mi&iath;d")
         text = text.replace("fcYfMax", "fcfYMax")
         text = text.replace("fpUfgr", "fpfUgr")
         text = text.replace("dksÃ jde", "dksbZ jde")
-        text = text.replace("Cy‚d", "CykWd")
+        text = text.replace("Cy\u201ad", "CykWd")
         text = text.replace("vikVZesaV", "vikVZesUV")
         text = text.replace("yksoj", "yksvj")
         text = text.replace("ikfdaZx", "ikfdZax")
         text = text.replace("vkikVZesaV", "vkiVZesaV").replace("vkikVZesUV", "vkiVZesUV")
         
-        text = text.replace("LoRo vf/kdkjksa", "LoRo vfèkdkjksa")
-        text = text.replace("ekfydkuk vf/kdkjksa", "ekfydkuk vfèkdkjksa")
-        text = text.replace("laca/k", "lacaèk")
-        text = text.replace("LoRokf/kdkj", "LoRokfèkdkj")
-        text = text.replace("mÙkjkf/kdkfj;ksa", "mÙkjkfèkdkfj;ksa")
-        text = text.replace("izfrfuf/k;ksa", "izfrfufèk;ksa")
-        text = text.replace("tulk/ku", "tulkèku")
-        text = text.replace("lq[kkf/kdkj", "lq[kkfèkdkj")
-        text = text.replace("vf/kdkjksa o nkf;Ro", "vfèkdkjksa o nkf;Ro")
-        text = text.replace("vf/kdkjksa eq", "vfèkdkjksa eq")
-        text = text.replace("vf/kdkj ug", "vfèkdkj ug")
+        text = text.replace("LoRo vf/kdkjksa", "LoRo vf\u00e8kdkjksa")
+        text = text.replace("ekfydkuk vf/kdkjksa", "ekfydkuk vf\u00e8kdkjksa")
+        text = text.replace("laca/k", "laca\u00e8k")
+        text = text.replace("LoRokf/kdkj", "LoRokf\u00e8kdkj")
+        text = text.replace("mÙkjkf/kdkfj;ksa", "mÙkjkf\u00e8kdkfj;ksa")
+        text = text.replace("izfrfuf/k;ksa", "izfrfuf\u00e8k;ksa")
+        text = text.replace("tulk/ku", "tulk\u00e8ku")
+        text = text.replace("lq[kkf/kdkj", "lq[kkf\u00e8kdkj")
+        text = text.replace("vf/kdkjksa o nkf;Ro", "vf\u00e8kdkjksa o nkf;Ro")
+        text = text.replace("vf/kdkjksa eq", "vf\u00e8kdkjksa eq")
+        text = text.replace("vf/kdkj ug", "vf\u00e8kdkj ug")
 
-        text = text.replace("rRi'pqR", "rRi’pkr~").replace("rRi'pkr~", "rRi’pkr~").replace("rRi'pkr~", "rRi’pkr~")
-        text = text.replace("vikVZesUV/;wfuV~l/¶ysV~l", "vikVZesUV@;wfuV~l@¶ysV~l")
-        text = text.replace(";wfuV~/¶ysV", ";wfuV~@¶ysV")
-        text = text.replace(";wfuV/¶ysV", ";wfuV@¶ysV")
+        # tatpashchat ending with full 'taa' (r) instead of half 'ta' (r~)
+        text = text.replace("rRi'pqR", "rRi\u2019pkr").replace("rRi'pkr~", "rRi\u2019pkr").replace("rRi\u2019pkr~", "rRi\u2019pkr")
+        
+        # Double quotes of vikretagan / kretagan
+        text = text.replace('"foØsrkx.k"', '^^foØsrkx.k**').replace('"foØsrk"', '^^foØsrk**')
+        text = text.replace('"Øsrk"', '^^Øsrk**').replace('"Øsrkx.k"', '^^Øsrkx.k**')
+
+        text = text.replace("vikVZesUV/;wfuV~l/\u00b6ysV~l", "vikVZesUV@;wfuV~l@\u00b6ysV~l")
+        text = text.replace(";wfuV~/\u00b6ysV", ";wfuV~@\u00b6ysV")
+        text = text.replace(";wfuV/\u00b6ysV", ";wfuV@\u00b6ysV")
         text = text.replace("vyx-vyx", "vyx&vyx")
         
-        text = text.replace("ftu vf/kdkjksa eq\"rdkZ vf/kdkjksa] lq[kkfèkdkjksa lfgr Ø; fd;k Fkk", "ftu vfèkdkjksa eq*rdkZ vfèkdkjksa] lq[kkf/kdkjksa lfgr Ø; fd;k Fkk")
+        text = text.replace("ftu vf/kdkjksa eq\"rdkZ vf/kdkjksa] lq[kkf\u00e8kdkjksa lfgr Ø; fd;k Fkk", "ftu vf\u00e8kdkjksa eq*rdkZ vf\u00e8kdkjksa] lq[kkf/kdkjksa lfgr Ø; fd;k Fkk")
         text = re.sub(r'(vkoklh;\s+)\1', r'\1', text)
         text = text.replace("lEiRfr", "lEifRr")
 
@@ -557,14 +565,17 @@ class SDTemplateProcessor:
         """Applies highlight rendering and forces correct fonts run-by-run."""
         for paragraph in doc.paragraphs:
             self._highlight_paragraph_robust(paragraph, highlight_ai, highlight_missing)
+            self._apply_mixed_fonts_to_paragraph(paragraph)
             
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for paragraph in cell.paragraphs:
                         self._highlight_paragraph_robust(paragraph, highlight_ai, highlight_missing)
+                        self._apply_mixed_fonts_to_paragraph(paragraph)
 
     def _highlight_paragraph_robust(self, paragraph, highlight_ai, highlight_missing):
+        from docx.shared import Pt
         text = paragraph.text
         if not text:
             return
@@ -573,7 +584,8 @@ class SDTemplateProcessor:
             # Fix any Arial/default font issues on replaced legacy text runs
             for run in paragraph.runs:
                 if is_text_devlys(run.text):
-                    run.font.name = "DevLys 010"
+                    run.font.name = "DevLys 040"
+                    run.font.size = Pt(16)
             return
 
         alignment = paragraph.alignment
@@ -599,12 +611,64 @@ class SDTemplateProcessor:
             
             # Apply the correct font run-by-run
             if is_text_devlys(part):
-                run.font.name = "DevLys 010"
+                run.font.name = "DevLys 040"
+                run.font.size = Pt(16)
             else:
                 run.font.name = "Arial"
 
         paragraph.alignment = alignment
         paragraph.style = style
+
+    def _apply_mixed_fonts_to_paragraph(self, paragraph):
+        from docx.shared import Pt
+        # Rebuild runs in the paragraph to separate DevLys and English parts
+        runs_data = []
+        for run in paragraph.runs:
+            text = run.text
+            if not text:
+                continue
+            
+            # Save formatting attributes
+            bold = run.bold
+            italic = run.italic
+            underline = run.underline
+            color = run.font.color.rgb if run.font.color else None
+            highlight = run.font.highlight_color
+            
+            # Split by English words/numbers/dates/PANs, including S/o, C/o, W/o, D/o (case-insensitive)
+            parts = re.split(r'(\b[SsDdWwCc]/[Oo]\b|\b[A-Z0-9_]+(?:[\s,\-\/\.\(\)]+[A-Z0-9_]+)*\b)', text)
+            for idx, part in enumerate(parts):
+                if not part:
+                    continue
+                is_english = (idx % 2 == 1)
+                runs_data.append({
+                    "text": part,
+                    "is_english": is_english,
+                    "bold": bold,
+                    "italic": italic,
+                    "underline": underline,
+                    "color": color,
+                    "highlight": highlight
+                })
+        
+        # Rebuild paragraph runs
+        paragraph.text = ""
+        for rd in runs_data:
+            run = paragraph.add_run(rd["text"])
+            run.bold = rd["bold"]
+            run.italic = rd["italic"]
+            run.underline = rd["underline"]
+            if rd["color"]:
+                run.font.color.rgb = rd["color"]
+            if rd["highlight"]:
+                run.font.highlight_color = rd["highlight"]
+            
+            if rd["is_english"]:
+                run.font.name = "Arial"
+                run.font.size = Pt(11)
+            else:
+                run.font.name = "DevLys 040"
+                run.font.size = Pt(16)
 
     def _process_payment_tables_on_doc(self, doc, context):
         import docx
@@ -619,12 +683,12 @@ class SDTemplateProcessor:
             cell.text = text
             for p in cell.paragraphs:
                 for r in p.runs:
-                    r.font.name = "DevLys 010" if is_devlys else "Arial"
-                    r.font.size = Pt(10)
+                    r.font.name = "DevLys 040" if is_devlys else "Arial"
+                    r.font.size = Pt(16) if is_devlys else Pt(11)
 
-        def write_cell(cell, val):
+        def write_cell(cell, val, force_devlys=False):
             val_str = str(val or "")
-            is_hindi = any(ord(c) > 127 for c in val_str)
+            is_hindi = force_devlys or any(ord(c) > 127 for c in val_str)
             if is_hindi:
                 converted = Unicode_to_KrutiDev(val_str)
                 set_cell_text(cell, converted, is_devlys=True)
@@ -653,7 +717,7 @@ class SDTemplateProcessor:
             if payments:
                 for idx, p in enumerate(payments):
                     row = table.add_row()
-                    write_cell(row.cells[0], f"{idx + 1}.")
+                    write_cell(row.cells[0], f"{idx + 1}.", force_devlys=True)
                     write_cell(row.cells[1], p.get('a', ''))
                     write_cell(row.cells[2], p.get('n', ''))
                     write_cell(row.cells[3], p.get('d', ''))
@@ -662,7 +726,7 @@ class SDTemplateProcessor:
                 # Add 4 blank rows
                 for idx in range(4):
                     row = table.add_row()
-                    write_cell(row.cells[0], f"{idx + 1}.")
+                    write_cell(row.cells[0], f"{idx + 1}.", force_devlys=True)
                     write_cell(row.cells[1], "")
                     write_cell(row.cells[2], "")
                     write_cell(row.cells[3], "")

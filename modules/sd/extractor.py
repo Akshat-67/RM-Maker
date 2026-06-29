@@ -692,6 +692,11 @@ class SDDataExtractor:
                     if self._is_meaningful(k_item.get("pan")): c_item["pan"] = k_item["pan"]
                     if self._is_meaningful(k_item.get("relation_text")): c_item["relation_text"] = k_item["relation_text"]
             current[key] = current_list
+
+        # Preserve unassigned Aadhaar cards for Role Assignment UI in SD mode
+        if "unassigned_aadhars" in kyc:
+            current["unassigned_aadhars"] = kyc["unassigned_aadhars"]
+
         return current
 
     def _merge_legal_results(self, current, legal, file_paths=None):
@@ -763,15 +768,57 @@ class SDDataExtractor:
 
     def _build_kyc_prompt(self, expected_sellers, expected_buyers, expected_witnesses):
         return f"""
-        Extract identity data from these KYC/ID documents (Aadhaar, PAN). Return ONLY a JSON object.
-        IMPORTANT: Extract descriptive text in UNICODE HINDI. English names/addresses must be transliterated.
+        Extract identity data from these KYC/ID documents (Aadhaar, PAN, Driving License). Return ONLY a JSON object.
+        IMPORTANT: Extract descriptive text in UNICODE HINDI. English names/addresses/relations must be transliterated.
 
         JSON STRUCTURE:
         {{
-          "ss": [{{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase (e.g. 'पुत्र श्री भीवा राम')", "adr":"Address", "id":"Aadhar", "pan":"PAN"}}],
-          "bs": [{{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase", "adr":"Address", "id":"Aadhar", "pan":"PAN"}}]
+          "unassigned_aadhars": [{{
+            "s": "Mr/Mrs/Ms (based on gender)",
+            "n": "Name (Unicode Hindi)",
+            "a": "Age (numeric)",
+            "relation_text": "Complete Relation Phrase (e.g. 'पुत्र श्री ...' or 'पत्नी श्री ...' in Unicode Hindi)",
+            "adr": "Address (exact Aadhaar/DL print in Unicode Hindi)",
+            "id": "Aadhar Number (digits only)",
+            "pan": "PAN Card Number (10-char alphanumeric, if PAN card is provided)"
+          }}]
         }}
-        Expected Sellers: {expected_sellers}, Expected Buyers: {expected_buyers}
+        
+        CRITICAL EXTRACTION RULES:
+        1. AADHAAR CARDS & ID DOCUMENTS: Extract details from Aadhaar/PAN/DL into 'unassigned_aadhars' ONLY. DO NOT map them directly to sellers or buyers.
+        2. RELATIONS & ADDRESSES SEPARATION:
+           - Look at the relationship line in the ID documents.
+           - Format it strictly in Unicode Hindi as:
+             * "पुत्र श्री <Father's Name>" (for Son of)
+             * "पुत्री श्री <Father's Name>" (for Daughter of)
+             * "पत्नी श्री <Husband's Name>" (for Wife of)
+             * "पति श्री <Wife's Name>" (for Husband of)
+             * "पुत्र स्वर्गीय श्री <Name>" (if deceased/Late is mentioned)
+             * "केयर ऑफ श्री <Name>" (for Care of)
+           - Store this entire formatted phrase in the `relation_text` field.
+           - STRICTLY REMOVE this relationship prefix and the relative's name from the beginning of the `adr` field. The `adr` field must start with the house/flat number or street name, NOT the relative's name.
+        3. FIELD EXTRACTION PRIORITY & MERGING (Aadhaar > PAN > Driving License):
+           If multiple documents (e.g. Aadhaar, PAN, Driving License) belong to the same person, you MUST merge their details into a single object in the `unassigned_aadhars` list. For each field, follow this strict priority order:
+           - NAME (`n`):
+             1. Aadhaar Card name (Unicode Hindi).
+             2. PAN Card name (Unicode Hindi).
+             3. Driving License name (Unicode Hindi).
+           - AGE / DOB (`a`):
+             1. Aadhaar Card age/DOB.
+             2. PAN Card DOB (calculate age based on DOB relative to the current year 2026).
+             3. Driving License DOB (calculate age).
+           - RELATION (`relation_text`):
+             1. Aadhaar Card: Look at the back of the Aadhaar card. If a relationship line (e.g. "C/o", "S/o", "W/o", "D/o" or Hindi equivalent) is printed, use it.
+             2. PAN Card: If Aadhaar lacks it, extract the Father's Name from the PAN card and format it as "पुत्र श्री <Father's Name from PAN>" (if male) or "पुत्री श्री <Father's Name from PAN>" (if female).
+             3. Driving License: If both Aadhaar and PAN lack it, extract the "S/o", "W/o", or "D/o" line from the Driving License.
+           - ADDRESS (`adr`):
+             1. Aadhaar Card address (Unicode Hindi).
+             2. Driving License address (Unicode Hindi).
+             (Note: PAN card does not contain an address).
+           - ID NUMBERS:
+             - `id` = Aadhaar Number (from Aadhaar card).
+             - `pan` = PAN Card Number (from PAN card).
+        4. STRICT RELATION FORMATTING: ALWAYS format relations using exact Unicode Hindi. NEVER output English abbreviations like "S/O", "W/O", or "C/O" in `relation_text`.
         """
 
     def _build_legal_prompt(self):
@@ -943,6 +990,8 @@ class SDDataExtractor:
                     from utils.helpers import normalize_relation_prefix, parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
                     person["r"], person["rn"] = parse_relation_text(person["relation_text"])
+
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
 
         self._normalize_list(data, "title_chain", [
             "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
@@ -1181,7 +1230,7 @@ class SDDataExtractor:
             "conv_reg_add_page_start", "conv_reg_add_page_end"
         ])
         
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "relation_text", "adr", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
         
         witness_names = set()
         for w in data.get("ws", []):
