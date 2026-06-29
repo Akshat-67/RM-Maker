@@ -658,15 +658,13 @@ class SDDataExtractor:
                         return json.loads(dirty_str)
                     except:
                         return {"error": f"JSON Parse Failed: {str(e)}"}
-            except APIError as e:
-                last_error = str(e)
-                if e.code == 429:
-                    if not self._rotate_key():
-                        break
-                attempts += 1
             except Exception as e:
-                last_error = str(e)
-                break
+                from tenacity import RetryError
+                underlying = e.last_attempt.exception() if isinstance(e, RetryError) else e
+                last_error = str(underlying)
+                print(f"[FAILOVER WARNING] Gemini extraction failed: {last_error}")
+                self._rotate_key()
+                attempts += 1
 
         return {"error": f"Extraction Failed: {last_error}"}
 
