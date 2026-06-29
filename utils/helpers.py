@@ -132,13 +132,59 @@ def Unicode_to_KrutiDev(unicode_str):
 def normalize_relation_prefix(r_str, doc_type="RM"):
     if not r_str: return ""
     s = str(r_str).strip()
+    s = " ".join(s.split())
+    
     is_hindi = (doc_type == "SD") or any(ord(char) > 127 for char in s)
     if is_hindi:
-        r_map = {"son of": "पुत्र स्व-", "daughter of": "पुत्री श्री", "wife of": "पत्नी श्री", "husband of": "पति श्री", "care of": "केयर ऑफ", "s/o": "पुत्र स्व-", "d/o": "पुत्री श्री", "w/o": "पत्नी श्री", "h/o": "पति श्री", "c/o": "केयर ऑफ"}
-        if doc_type == "SD":
-            s = s.replace("स्वर्गीय", "स्व-").replace("स्व.", "स्व-").replace("पत्नि", "पत्नी")
-        val = s.lower().replace('.', '').replace(':', '').strip()
-        return r_map.get(val, s)
+        # Check if it's just the relation keyword itself
+        keyword_map = {
+            "son of": "पुत्र", "s/o": "पुत्र", "son": "पुत्र",
+            "daughter of": "पुत्री", "d/o": "पुत्री", "daughter": "पुत्री",
+            "wife of": "पत्नी", "w/o": "पत्नी", "wife": "पत्नी", "पत्नि": "पत्नी",
+            "husband of": "पत्नी", "h/o": "पत्नी", "husband": "पत्नी",
+            "care of": "केयर ऑफ", "c/o": "केयर ऑफ",
+            "पुत्र": "पुत्र", "पुत्री": "पुत्री", "पत्नी": "पत्नी", "पति": "पत्नी", "केयर ऑफ": "केयर ऑफ"
+        }
+        val_clean = s.lower().replace('.', '').replace(':', '').strip()
+        if val_clean in keyword_map:
+            return keyword_map[val_clean]
+            
+        # Clean double/corrupt deceased prefixes
+        s = re.sub(r'(स्वर्गीय|स्व\.|स्व\-)\s*(?:श्री\s*)?(?:र्गीय|स्वर्गीय|स्व\.|स्व\-)\s*(?:श्री\s*)?', r'\1 श्री ', s)
+        
+        # If it's already a normalized form like "पुत्र श्री राम" or "पुत्र स्वर्गीय श्री श्याम"
+        if re.match(r'^(पुत्र|पुत्री|पत्नी|पति|केयर\s+ऑफ)\s+(?:श्री|श्रीमती|स्वर्गीय\s+श्री|स्व\.|स्व\-)\s+\S+', s):
+            s = re.sub(r'\b(स्व\-|\bस्व\.)\s*(?:श्री)?\s*', 'स्वर्गीय श्री ', s)
+            s = " ".join(s.split())
+            return s
+            
+        # Otherwise, parse semantic relation text
+        rel = "पुत्र"  # default
+        if any(x in val_clean for x in ["daughter", "d/o", "पुत्री"]):
+            rel = "पुत्री"
+        elif any(x in val_clean for x in ["wife", "w/o", "husband", "h/o", "पत्नी", "पत्नि", "पति"]):
+            rel = "पत्नी"
+        elif any(x in val_clean for x in ["care", "c/o", "केयर"]):
+            rel = "केयर ऑफ"
+            
+        # Extract relative's name
+        prefix_pattern = r'^(?:father\'s\s+name|father\s+name|father|पिता\s+का\s+नाम|पिता|s/o|son\s+of|son|daughter\'s\s+name|daughter\s+name|daughter|पुत्री\s+का\s+नाम|पुत्री|d/o|wife\'s\s+name|wife\s+name|wife|पत्नी\s+का\s+नाम|पत्नी|पत्नि|w/o|husband\'s\s+name|husband\s+name|husband|पति\s+का\s+नाम|पति|h/o|care\s+of|c/o|केयर\s+ऑफ)\s*[:\-–—\s]*'
+        name_part = re.sub(prefix_pattern, '', s, flags=re.IGNORECASE).strip()
+        
+        if not name_part or name_part == s:
+            return s
+            
+        # Handle deceased prefix on relative name
+        is_deceased = False
+        if re.match(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\b', name_part, re.IGNORECASE):
+            is_deceased = True
+            name_part = re.sub(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\s*', '', name_part, flags=re.IGNORECASE).strip()
+            
+        # Strip any sub-salutation like Mr. or Shri or श्रीमती
+        name_part = re.sub(r'^(Mr\.|Mr|Shri|Shree|श्री|श्रीमती)\s*', '', name_part, flags=re.IGNORECASE).strip()
+        
+        sal = "स्वर्गीय श्री" if is_deceased else "श्री"
+        return f"{rel} {sal} {name_part}"
     else:
         r_map = {"son of": "S/o", "daughter of": "D/o", "wife of": "W/o", "husband of": "H/o", "care of": "C/o", "s/o": "S/o", "d/o": "D/o", "w/o": "W/o", "h/o": "H/o", "c/o": "C/o"}
         val = s.lower().replace('.', '').replace(':', '').strip()
@@ -155,22 +201,54 @@ def extract_salutation_and_name(full_name):
 def normalize_name_salutation(name, relation=None, default_to_male=True):
     if not name: return ""
     s = str(name).strip()
-    salutations = ["श्री", "श्रीमती", "सुश्री", "डॉ.", "Mr.", "Mrs.", "Ms.", "Dr."]
-    for sal in salutations:
-        if s.startswith(sal): return s
+    s = " ".join(s.split())
+    
+    # Handle deceased prefix first
+    if re.match(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\s*', s, re.IGNORECASE):
+        name_part = re.sub(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\s*', '', s, flags=re.IGNORECASE).strip()
+        name_part = re.sub(r'^(Mr\.|Mr|Shri|Shree|श्री|श्रीमती)\s*', '', name_part, flags=re.IGNORECASE).strip()
+        return "स्वर्गीय श्री " + name_part
+        
     is_hindi = any(ord(char) > 127 for char in s)
+    
+    living_salutations = ["श्री", "श्रीमती", "सुश्री", "Mr.", "Mrs.", "Ms.", "Mr", "Mrs", "Ms"]
+    for sal in living_salutations:
+        if s.startswith(sal):
+            if len(s) == len(sal) or s[len(sal)].isspace() or s[len(sal)] == '.':
+                rest = s[len(sal):].strip()
+                if rest.startswith('.'): rest = rest[1:].strip()
+                if relation:
+                    rel = relation.lower()
+                    if any(x in rel for x in ["पत्नी", "पुत्री", "wife", "daughter", "smt", "mrs", "w/o", "d/o"]):
+                        return ("श्रीमती " if is_hindi else "Mrs. ") + rest
+                return s
+                
     if relation:
         rel = relation.lower()
-        if any(x in rel for x in ["पत्नी", "पुत्री", "wife", "daughter", "smt", "mrs"]):
+        if any(x in rel for x in ["पत्नी", "पुत्री", "wife", "daughter", "smt", "mrs", "w/o", "d/o"]):
             return ("श्रीमती " if is_hindi else "Mrs. ") + s
-    return ("श्री " if is_hindi else "Mr. ") + s
+            
+    if default_to_male:
+        return ("श्री " if is_hindi else "Mr. ") + s
+    else:
+        return ("श्रीमती " if is_hindi else "Mrs. ") + s
 
 def normalize_relative_salutation(name, relation_prefix=None):
     if not name: return ""
     s = str(name).strip()
+    s = " ".join(s.split())
+    
+    if re.match(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\s*', s, re.IGNORECASE):
+        name_part = re.sub(r'^(Late|स्व\.|स्वर्गीय|स्व\-)\s*', '', s, flags=re.IGNORECASE).strip()
+        name_part = re.sub(r'^(Mr\.|Mr|Shri|Shree|श्री|श्रीमती)\s*', '', name_part, flags=re.IGNORECASE).strip()
+        return "स्वर्गीय श्री " + name_part
+        
     salutations = ["श्री", "श्रीमती", "सुश्री", "डॉ.", "Mr.", "Mrs.", "Ms.", "Dr.", "Late", "LoxhZ;", "स्व."]
     for sal in salutations:
-        if s.startswith(sal): return sal, s[len(sal):].strip()
+        if s.startswith(sal):
+            if len(s) == len(sal) or s[len(sal)].isspace() or s[len(sal)] == '.':
+                return s
+                
     is_hindi = any(ord(char) > 127 for char in s)
     if relation_prefix:
         pref = relation_prefix.lower()
@@ -233,3 +311,55 @@ def clean_aadhar_address(address_str):
     s = str(address_str).strip()
     s = re.sub(r'^(?:S/o|D/o|W/o|H/o|C/o|Son of|Daughter of|Wife of|Husband of|Care of)[^,]*,?\s*', '', s, flags=re.IGNORECASE).strip()
     return s
+
+def convert_hindi_digits_to_english(data):
+    if data is None:
+        return data
+    hindi_to_eng = {
+        '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+        '५': '5', '६': '6', '७': '7', '८': '8', '९': '9'
+    }
+    
+    def convert_str(s):
+        if not isinstance(s, str):
+            return s
+        for h, e in hindi_to_eng.items():
+            s = s.replace(h, e)
+        return s
+        
+    if isinstance(data, dict):
+        return {k: convert_hindi_digits_to_english(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_hindi_digits_to_english(item) for item in data]
+    elif isinstance(data, str):
+        return convert_str(data)
+    return data
+
+def parse_and_format_chain(raw_text):
+    if not raw_text:
+        return "", []
+    
+    lines = re.split(r'\n+|\r+', str(raw_text))
+    
+    clean_docs = []
+    for line in lines:
+        line_str = line.strip()
+        if not line_str:
+            continue
+            
+        line_lower = line_str.lower()
+        if any(w in line_lower for w in ["proposed", "purposed", "undertaking"]):
+            continue
+            
+        cleaned = re.sub(r'^(?:[a-zA-Z0-9]+[\.\)]|[\-\*•\s]+)\s*', '', line_str).strip()
+        
+        if cleaned:
+            clean_docs.append(cleaned)
+            
+    formatted_lines = []
+    for idx, doc in enumerate(clean_docs):
+        bullet = chr(ord('a') + idx)
+        formatted_lines.append(f"{bullet}.\t{doc}")
+        
+    formatted_text = "\n".join(formatted_lines)
+    return formatted_text, clean_docs
