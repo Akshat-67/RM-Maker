@@ -1,0 +1,3 @@
+full_address: 'Residential Flat S-1, Second Floor, Plot A-24, Krishnapuri, Jaipur'
+dimension_text: ''
+boundary_text: 'जिसकी चारों सीमाओें में पूर्व की ओर Plot No. 23, पश्चिम की ओर Road 30 feet wide, उत्तर की ओर Plot No. 25, तथा दक्षिण की ओर Remaining part of Plot A-24 स्िथत है'

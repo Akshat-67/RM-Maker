@@ -8,7 +8,7 @@ def prune_rm_data(data):
     doc_type = "RM"
     
     # Keep only RM allowed fields
-    rm_keys = ["rd", "ad", "bs", "ls", "ps", "bsign", "ws", "unassigned_aadhars", "second_schedule", "ds", "ds_text"]
+    rm_keys = ["rd", "ad", "bs", "ls", "ps", "bsign", "ws", "unassigned_aadhars", "second_schedule", "ds", "ds_text", "Chain_Text"]
     for k in rm_keys:
         if k in data:
             cleaned[k] = data[k]
@@ -70,7 +70,7 @@ def prune_rm_data(data):
 
     # Prune bsign items for RM
     if "bsign" in cleaned and isinstance(cleaned["bsign"], dict):
-        rm_bsign_fields = ["n", "a", "d", "r", "rn", "relation_text", "pan", "id"]
+        rm_bsign_fields = ["s", "n", "a", "d", "r", "rn", "relation_text", "pan", "id"]
         item = {k: cleaned["bsign"][k] for k in rm_bsign_fields if k in cleaned["bsign"]}
         if item.get("r"):
             item["r"] = normalize_relation_prefix(item["r"], doc_type)
@@ -90,6 +90,8 @@ def prune_rm_data(data):
             if isinstance(ua, dict) and ua.get("relation_text"):
                 r, rn = parse_relation_text(ua["relation_text"])
                 r_norm = normalize_relation_prefix(r, doc_type)
+                ua["r"] = r_norm
+                ua["rn"] = rn
                 if r_norm and rn:
                     ua["relation_text"] = f"{r_norm} {rn}"
 

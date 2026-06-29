@@ -6,8 +6,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from modules.sd.processor import SDTemplateProcessor as TemplateProcessor
 
 # Define the template path and the output path
-template_path = "templates/SALE_DEED/SD-Vivek Saxena,  Sunita Saxena - Vijay Laxmi - JDA+2SD+Flat_unicode (1)_devlys.docx"
-output_path = "cases/test_sd_output.docx"
+template_path = "templates/SALE_DEED/Flat - 2S_1B_1P.docx"
+output_path = "cases/test_sd_output_agent.docx"
 os.makedirs("cases", exist_ok=True)
 
 # 1. Construct Mock Bilingual & Grid Context
@@ -129,7 +129,9 @@ context = {
             "n": "Cheque No.849938",
             "b": "ICICI Bank"
         }
-    ]
+    ],
+    "amount": "1980000",
+    "amount_words": "Nineteen Lakhs Eighty Thousand"
 }
 
 # Provide 'd' alias for the entire context data structure without circular references

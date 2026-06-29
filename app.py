@@ -4,7 +4,7 @@ import json
 import time
 import shutil
 import re
-from utils.helpers import parse_relation_text, normalize_relation_prefix
+from utils.helpers import parse_relation_text, normalize_relation_prefix, convert_hindi_digits_to_english
 from modules.rm.extractor import RMDataExtractor
 from modules.sd.extractor import SDDataExtractor
 from modules.rm.processor import RMTemplateProcessor
@@ -13,6 +13,13 @@ from modules.sd.narrative import generate_chain_narrative
 from utils.config import DEFAULT_GEMINI_API_KEYS
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
+
+@app.template_filter('basename')
+def basename_filter(s):
+    if not s:
+        return ""
+    return str(s).replace('\\', '/').split('/')[-1]
+
 CASES_DIR = "cases"
 TEMPLATES_DIR = "templates"
 
@@ -75,14 +82,22 @@ def discover_templates():
         for fname in os.listdir(bank_dir):
             if not fname.lower().endswith(".docx"):
                 continue
-            # Parse: RM_{BANK}_{#B}B_{#L}L_anything.docx
+            # Parse: RM_{BANK}_{#B}B_{#L}L_anything.docx, with looser fallbacks
             m = re.match(r"RM_" + re.escape(bank_name) + r"_(\d+)B_(\d+)L", fname, re.IGNORECASE)
+            if not m:
+                # Fallback to RM_(\d+)B_(\d+)L without bank name
+                m = re.match(r"RM_(\d+)B_(\d+)L", fname, re.IGNORECASE)
+            if not m:
+                # Fallback to (\d+)B_(\d+)L without RM_ and bank name
+                m = re.match(r"(\d+)B_(\d+)L", fname, re.IGNORECASE)
+                
             if m:
                 b_count = m.group(1)   # "1", "2", "3" etc.
                 l_count = m.group(2)   # "1", "2", "3" etc.
                 
-                # Check if it specifies two properties in the filename
-                is_two_props = "two properties" in fname.lower()
+                # Check if it specifies two properties in the filename (e.g. "two properties", "2p", or "2_properties")
+                fname_lower = fname.lower()
+                is_two_props = "two properties" in fname_lower or "2p" in fname_lower or "2_properties" in fname_lower
                 p_count = "2" if is_two_props else "1"
                 
                 if b_count not in template_map[bank_name]:
@@ -120,6 +135,66 @@ def load_case_session(case_id):
         sel_temp = sess.get("selected_template", "")
         if "SD-" in sel_temp or "sale_deed" in sel_temp.lower():
             sess["doc_type"] = "SD"
+    if "data" in sess:
+        sess["data"] = convert_hindi_digits_to_english(sess["data"])
+        if isinstance(sess["data"], dict):
+            sess["data"]["property_type"] = sess.get("property_type", "Plot")
+            
+            # Universal bidirectional synchronization between long and short keys for title chain
+            for key_list_name in ["title_chain", "chain"]:
+                for evt in sess["data"].get(key_list_name, []):
+                    if isinstance(evt, dict):
+                        # Sync long keys (AI-extracted) to short keys (UI inputs)
+                        if "executant_name" in evt and not evt.get("s"):
+                            evt["s"] = evt["executant_name"]
+                        if "claimant_name" in evt and not evt.get("b"):
+                            evt["b"] = evt["claimant_name"]
+                        if "date" in evt and not evt.get("d"):
+                            evt["d"] = evt["date"]
+                        if "reg_book" in evt and not evt.get("b_no"):
+                            evt["b_no"] = evt["reg_book"]
+                        if "reg_vol" in evt and not evt.get("v_no"):
+                            evt["v_no"] = evt["reg_vol"]
+                        if "reg_page" in evt and not evt.get("p_no"):
+                            evt["p_no"] = evt["reg_page"]
+                        if "reg_no" in evt and not evt.get("r_no"):
+                            evt["r_no"] = evt["reg_no"]
+                        if "reg_add_book" in evt and not evt.get("add_book"):
+                            evt["add_book"] = evt["reg_add_book"]
+                        if "reg_add_vol" in evt and not evt.get("add_vol"):
+                            evt["add_vol"] = evt["reg_add_vol"]
+                        if "reg_add_page" in evt and not evt.get("add_page"):
+                            evt["add_page"] = evt["reg_add_page"]
+                            
+                        # Reverse sync short keys to long keys
+                        if evt.get("s") and not evt.get("executant_name"):
+                            evt["executant_name"] = evt["s"]
+                        if evt.get("b") and not evt.get("claimant_name"):
+                            evt["claimant_name"] = evt["b"]
+                        if evt.get("d") and not evt.get("date"):
+                            evt["date"] = evt.get("d")
+                        if evt.get("b_no") and not evt.get("reg_book"):
+                            evt["reg_book"] = evt["b_no"]
+                        if evt.get("v_no") and not evt.get("reg_vol"):
+                            evt["reg_vol"] = evt["v_no"]
+                        if evt.get("p_no") and not evt.get("reg_page"):
+                            evt["reg_page"] = evt["p_no"]
+                        if evt.get("r_no") and not evt.get("reg_no"):
+                            evt["reg_no"] = evt["r_no"]
+            
+            # Property details key synchronization
+            for p in sess["data"].get("ps", []):
+                if isinstance(p, dict):
+                    if "land_area" in p and not p.get("area"):
+                        p["area"] = p["land_area"]
+                    if "unit" in p and not p.get("area_unit"):
+                        p["area_unit"] = p["unit"]
+                        
+                    # Reverse sync
+                    if p.get("area") and not p.get("land_area"):
+                        p["land_area"] = p["area"]
+                    if p.get("area_unit") and not p.get("unit"):
+                        p["unit"] = p["area_unit"]
     return sess
 
 def prune_case_data(data, doc_type):
@@ -130,7 +205,7 @@ def prune_case_data(data, doc_type):
         from modules.rm.schema import prune_rm_data
         return prune_rm_data(data)
 
-def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None):
+def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None):
     os.makedirs(os.path.join(CASES_DIR, case_id), exist_ok=True)
     
     # Load existing to preserve fields if not explicitly passed
@@ -148,7 +223,36 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
     if property_type is None:
         property_type = existing.get("property_type", "Plot")
 
-    pruned_data = prune_case_data(data, doc_type)
+    # Merge incoming data with existing session data to preserve rich AI-extracted fields
+    existing_data = existing.get("data", {})
+    merged_data = data.copy()
+    
+    if "unassigned_aadhars" in existing_data and "unassigned_aadhars" not in merged_data:
+        merged_data["unassigned_aadhars"] = existing_data["unassigned_aadhars"]
+        
+    for key in ["ps", "sellers", "buyers", "ss", "bs", "ws", "chain", "title_chain"]:
+        if key in existing_data and key in merged_data:
+            existing_list = existing_data[key]
+            incoming_list = merged_data[key]
+            
+            if isinstance(existing_list, list) and isinstance(incoming_list, list):
+                merged_list = []
+                for idx, incoming_item in enumerate(incoming_list):
+                    if idx < len(existing_list):
+                        existing_item = existing_list[idx]
+                        if isinstance(existing_item, dict) and isinstance(incoming_item, dict):
+                            merged_item = existing_item.copy()
+                            merged_item.update(incoming_item)
+                            merged_list.append(merged_item)
+                        else:
+                            merged_list.append(incoming_item)
+                    else:
+                        merged_list.append(incoming_item)
+                merged_data[key] = merged_list
+            elif not incoming_list and existing_list:
+                merged_data[key] = existing_list
+                
+    pruned_data = prune_case_data(merged_data, doc_type)
 
     if doc_type == "SD":
         sellers_list = pruned_data.get("ss", [{}])
@@ -181,8 +285,11 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
         "chain_scenario": chain_scenario or "",
         "selected_template": selected_template or "",
         "property_type": property_type or "Plot",
-        "legal_report_files": legal_report_files if legal_report_files is not None else existing.get("legal_report_files", [])
+        "legal_report_files": legal_report_files if legal_report_files is not None else existing.get("legal_report_files", []),
+        "buckets": buckets if buckets is not None else existing.get("buckets", {})
     }
+    if "data" in session and session["data"]:
+        session["data"] = convert_hindi_digits_to_english(session["data"])
     path = os.path.join(CASES_DIR, case_id, "session.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(session, f, ensure_ascii=False)
@@ -446,13 +553,31 @@ def set_provider():
 def get_template_info():
     doc_type = request.args.get("doc_type", "RM")
     selected_template = request.args.get("selected_template", "")
+    case_id = request.args.get("case_id")
     
+    if not selected_template and case_id:
+        session = load_case_session(case_id)
+        if session:
+            selected_template = session.get("selected_template", "")
+            
+    template_path = ""
     if selected_template:
-        if doc_type == "SD":
-            template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", selected_template)
-        else:
-            bank = request.args.get("bank")
-            template_path = os.path.join(TEMPLATES_DIR, bank, selected_template) if bank else ""
+        # Check custom templates first if case_id is available
+        if case_id:
+            custom_path = os.path.join(CASES_DIR, case_id, "custom_templates", selected_template)
+            if os.path.exists(custom_path):
+                template_path = custom_path
+        
+        if not template_path:
+            if doc_type == "SD":
+                template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", selected_template)
+            else:
+                bank = request.args.get("bank")
+                if not bank and case_id:
+                    session = load_case_session(case_id)
+                    if session:
+                        bank = session.get("bank")
+                template_path = os.path.join(TEMPLATES_DIR, bank, selected_template) if bank else ""
     else:
         if doc_type == "SD":
             sellers = request.args.get("sellers")
@@ -474,6 +599,81 @@ def get_template_info():
         return jsonify({"success": True, "filename": os.path.basename(template_path)})
     return jsonify({"success": False, "error": "No template found"})
 
+@app.route("/case/<case_id>/upload_custom_template", methods=["POST"])
+def upload_custom_template(case_id):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+
+    if "template" not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    file = request.files["template"]
+    if not file or not file.filename:
+        return jsonify({"success": False, "error": "Invalid file"}), 400
+
+    if not file.filename.lower().endswith(".docx"):
+        return jsonify({"success": False, "error": "Only .docx files are allowed as templates"}), 400
+
+    # Save to cases/<case_id>/custom_templates/
+    custom_dir = os.path.join(CASES_DIR, case_id, "custom_templates")
+    os.makedirs(custom_dir, exist_ok=True)
+    
+    from werkzeug.utils import secure_filename
+    filename = secure_filename(file.filename)
+    if not filename:
+        filename = "custom_template.docx"
+        
+    filepath = os.path.join(custom_dir, filename)
+    file.save(filepath)
+
+    # Save to session
+    session["selected_template"] = filename
+    save_case_session(case_id, 
+                      session["data"],
+                      session["files"],
+                      set(session["verified_fields"]),
+                      session.get("bank", ""),
+                      session.get("borrower_count", "1"),
+                      session.get("loan_count", "1"),
+                      session.get("properties_count", "1"),
+                      session.get("processed_files", []),
+                      doc_type=session.get("doc_type", "RM"),
+                      sellers_count=session.get("sellers_count", "1"),
+                      buyers_count=session.get("buyers_count", "1"),
+                      chain_scenario=session.get("chain_scenario", ""),
+                      selected_template=filename,
+                      property_type=session.get("property_type", "Plot"),
+                      legal_report_files=session.get("legal_report_files", []))
+
+    return jsonify({"success": True, "filename": filename})
+
+@app.route("/case/<case_id>/clear_custom_template", methods=["POST"])
+def clear_custom_template(case_id):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+
+    session["selected_template"] = ""
+    save_case_session(case_id, 
+                      session["data"],
+                      session["files"],
+                      set(session["verified_fields"]),
+                      session.get("bank", ""),
+                      session.get("borrower_count", "1"),
+                      session.get("loan_count", "1"),
+                      session.get("properties_count", "1"),
+                      session.get("processed_files", []),
+                      doc_type=session.get("doc_type", "RM"),
+                      sellers_count=session.get("sellers_count", "1"),
+                      buyers_count=session.get("buyers_count", "1"),
+                      chain_scenario=session.get("chain_scenario", ""),
+                      selected_template="",
+                      property_type=session.get("property_type", "Plot"),
+                      legal_report_files=session.get("legal_report_files", []))
+
+    return jsonify({"success": True})
+
 @app.route("/case/<case_id>/save", methods=["POST"])
 def save_case(case_id):
     session = load_case_session(case_id)
@@ -482,6 +682,8 @@ def save_case(case_id):
     req_data = request.json
     ui_data = req_data.get("data", {})
     doc_type = req_data.get("doc_type", "RM")
+    if ui_data:
+        ui_data = convert_hindi_digits_to_english(ui_data)
     
     bank = req_data.get("bank")
     borrowers = req_data.get("borrowers")
@@ -510,14 +712,49 @@ def save_case(case_id):
     for key in ["ss", "bs", "ws", "ps", "sellers", "buyers", "title_chain", "chain"]:
         if key in current_extracted_data and key in merged_data:
             ui_arr = merged_data[key]
+            current_arr = current_extracted_data[key]
             # If the UI sent an array where ALL items are completely empty, but we already have valid data, keep ours
             all_empty = True
             for item in ui_arr:
                 if isinstance(item, dict) and any(str(v).strip() for v in item.values()):
                     all_empty = False
                     break
-            if all_empty and current_extracted_data[key]:
-                merged_data[key] = current_extracted_data[key]
+            if all_empty and current_arr:
+                merged_data[key] = current_arr
+            elif isinstance(current_arr, list) and isinstance(ui_arr, list):
+                merged_list = []
+                for idx, ui_item in enumerate(ui_arr):
+                    if idx < len(current_arr):
+                        curr_item = current_arr[idx]
+                        if isinstance(curr_item, dict) and isinstance(ui_item, dict):
+                            # Sync UI keys to DB keys in ui_item first
+                            if "d" in ui_item: ui_item["date"] = ui_item["d"]
+                            if "s" in ui_item: ui_item["executant_name"] = ui_item["s"]
+                            if "b" in ui_item: ui_item["claimant_name"] = ui_item["b"]
+                            if "b_no" in ui_item: ui_item["reg_book"] = ui_item["b_no"]
+                            if "v_no" in ui_item: ui_item["reg_vol"] = ui_item["v_no"]
+                            if "p_no" in ui_item: ui_item["reg_page"] = ui_item["p_no"]
+                            if "r_no" in ui_item: ui_item["reg_no"] = ui_item["r_no"]
+                            
+                            merged_item = curr_item.copy()
+                            merged_item.update(ui_item)
+                            
+                            # Also reverse sync so if DB keys exist, UI keys match
+                            if "date" in merged_item: merged_item["d"] = merged_item["date"]
+                            if "executant_name" in merged_item: merged_item["s"] = merged_item["executant_name"]
+                            if "claimant_name" in merged_item: merged_item["b"] = merged_item["claimant_name"]
+                            if "reg_book" in merged_item: merged_item["b_no"] = merged_item["reg_book"]
+                            if "reg_vol" in merged_item: merged_item["v_no"] = merged_item["reg_vol"]
+                            if "reg_page" in merged_item: merged_item["p_no"] = merged_item["reg_page"]
+                            if "reg_no" in merged_item: merged_item["r_no"] = merged_item["reg_no"]
+                            
+                            merged_list.append(merged_item)
+                    else:
+                        merged_list.append(ui_item)
+                merged_data[key] = merged_list
+
+    if "chain" in merged_data:
+        merged_data["title_chain"] = merged_data["chain"]
 
     if "ps" in merged_data and isinstance(merged_data["ps"], list):
         if doc_type == "SD":
@@ -532,6 +769,41 @@ def save_case(case_id):
             for p in merged_data["ps"]:
                 if isinstance(p, dict):
                     p["full_address"] = extractor.generate_full_property_address(p, property_type)
+
+    existing_prop_type = session.get("property_type", "Plot")
+    force_recompile = (property_type != existing_prop_type)
+    
+    if force_recompile and merged_data.get("title_chain"):
+        if property_type == "Flat":
+            key_map = {
+                "ALLOTMENT_PLOT": "ALLOTMENT_FLAT",
+                "ALLOTMENT_PLOT_NO_DEPOSIT": "ALLOTMENT_FLAT_NO_DEPOSIT",
+                "ALLOTMENT_MUNICIPAL_PLOT": "ALLOTMENT_MUNICIPAL_FLAT",
+                "SALE_DEED_PLOT": "SALE_DEED_FLAT",
+                "TRANSFER_PLOT": "TRANSFER_FLAT"
+            }
+        else:
+            key_map = {
+                "ALLOTMENT_FLAT": "ALLOTMENT_PLOT",
+                "ALLOTMENT_FLAT_NO_DEPOSIT": "ALLOTMENT_PLOT_NO_DEPOSIT",
+                "ALLOTMENT_MUNICIPAL_FLAT": "ALLOTMENT_MUNICIPAL_PLOT",
+                "SALE_DEED_FLAT": "SALE_DEED_PLOT",
+                "TRANSFER_FLAT": "TRANSFER_PLOT"
+            }
+        for key_list_name in ["title_chain", "chain"]:
+            for evt in merged_data.get(key_list_name, []):
+                if isinstance(evt, dict):
+                    old_key = evt.get("template_key")
+                    if old_key in key_map:
+                        evt["template_key"] = key_map[old_key]
+
+    if doc_type == "SD" and merged_data.get("title_chain"):
+        if force_recompile or not merged_data.get("chain_text"):
+            from modules.sd.narrative import generate_chain_narrative
+            ps0 = merged_data.get("ps", [{}])[0]
+            merged_data["property_type"] = property_type
+            chain_paras = generate_chain_narrative(merged_data["title_chain"], property_details=ps0, context=merged_data)
+            merged_data["chain_text"] = "\n\n\t".join(chain_paras)
 
     session["data"] = merged_data
     session["bank"] = bank
@@ -754,7 +1026,8 @@ def run_ai(case_id):
                     buckets, model,
                     expected_sellers=sellers_count, expected_buyers=buyers_count,
                     expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
-                    witness_hints=witness_hints, current_data=current_data
+                    witness_hints=witness_hints, current_data=current_data,
+                    target_bucket=req_data.get("bucket")
                 )
             else:
                 extracted_data = extractor.extract_with_ai(
@@ -763,11 +1036,87 @@ def run_ai(case_id):
                     expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
                     witness_hints=witness_hints, current_data=current_data
                 )
+        else:
+            extractor = RMDataExtractor(
+                api_keys=DEFAULT_GEMINI_API_KEYS,
+                provider="gemini"
+            )
+            borrower_hints = ", ".join([b.get("n", "") for b in current_data.get("bs", []) if b.get("n")])
+            witness_hints = ", ".join([w.get("n", "") for w in current_data.get("ws", []) if w.get("n")])
+            
+            extracted_data = extractor.extract_with_ai(
+                files_to_process, model, bank_name=bank,
+                expected_borrowers=borrowers, expected_loans=loans,
+                borrower_hints=borrower_hints, witness_hints=witness_hints,
+                current_data=current_data
+            )
 
         if extracted_data.get("error"):
             return jsonify({"success": False, "error": extracted_data["error"]}), 400
 
         session["data"] = smart_merge(current_data, extracted_data, verified_fields)
+        
+        # Auto-detect if the extracted property is a Flat
+        ps_list = session["data"].get("ps", [{}])
+        property_type = req_data.get("property_type") or session.get("property_type", "Plot")
+        if ps_list and isinstance(ps_list[0], dict):
+            p0 = ps_list[0]
+            if p0.get("flat_no") or p0.get("building_name") or p0.get("floor") or "flat" in str(p0.get("plot_no", "")).lower():
+                property_type = "Flat"
+        
+        session["property_type"] = property_type
+        session["data"]["property_type"] = property_type
+        
+        # Auto-inject CONSTRUCTION event into title_chain for Flat properties so it shows in the verification UI
+        if doc_type == "SD" and property_type == "Flat":
+            title_chain = session["data"].get("title_chain", [])
+            has_construction = any(e.get("event_type") == "CONSTRUCTION" for e in title_chain)
+            if not has_construction:
+                builder_name = ""
+                project_name = ""
+                ps = session["data"].get("ps", [{}])
+                if ps:
+                    project_name = ps[0].get("building_name") or ps[0].get("project_name") or ""
+                
+                for evt in title_chain:
+                    src_txt = str(evt.get("source_text", "")).lower()
+                    doc_n = str(evt.get("document_name", "")).lower()
+                    exec_n = evt.get("executant_name") or evt.get("s") or ""
+                    is_flat_sale = (
+                        "flat" in src_txt or "unit" in src_txt or "apartment" in src_txt
+                        or "फ्लैट" in src_txt or "फ्लेट" in src_txt or "यूनิต" in src_txt or "अपार्टमेंट" in src_txt or "अपार्टमेन्ट" in src_txt
+                        or "फ्लेट" in doc_n or "फ्लैट" in doc_n
+                    )
+                    if is_flat_sale and exec_n:
+                        builder_name = exec_n
+                        break
+                
+                if builder_name:
+                    injected_const = {
+                        "template_key": "CONSTRUCTION_FLAT",
+                        "event_type": "CONSTRUCTION",
+                        "executant_name": builder_name,
+                        "s": builder_name,
+                        "claimant_name": project_name or "बहुमंजिला इमारत",
+                        "b": project_name or "बहुमंजिला इमारत",
+                        "document_name": "CONSTRUCTION",
+                        "is_registered": "false",
+                        "d": "",
+                        "date": "",
+                        "b_no": "",
+                        "v_no": "",
+                        "p_no": "",
+                        "r_no": ""
+                    }
+                    title_chain.append(injected_const)
+                    session["data"]["title_chain"] = title_chain
+                    session["data"]["chain"] = title_chain
+
+        if doc_type == "SD" and session["data"].get("title_chain"):
+            from modules.sd.narrative import generate_chain_narrative
+            ps0 = session["data"].get("ps", [{}])[0]
+            chain_paras = generate_chain_narrative(session["data"]["title_chain"], property_details=ps0, context=session["data"])
+            session["data"]["chain_text"] = "\n\n\t".join(chain_paras)
         
         # Mark files as processed only after successful AI run
         for f in files_to_process:
@@ -835,8 +1184,16 @@ def generate_rm(case_id):
                       selected_template=selected_template,
                       property_type=property_type)
 
+    # Reload from session to get the fully merged data (retains flat_no, executant_name, etc.)
+    session = load_case_session(case_id)
+    data = session["data"]
+
     if selected_template:
-        if doc_type == "SD":
+        # Check custom templates first
+        custom_path = os.path.join(CASES_DIR, case_id, "custom_templates", selected_template)
+        if os.path.exists(custom_path):
+            template_path = custom_path
+        elif doc_type == "SD":
             template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", selected_template)
         else:
             template_path = os.path.join(TEMPLATES_DIR, bank, selected_template) if bank else ""
@@ -1050,12 +1407,13 @@ def generate_rm(case_id):
 
     # Now generate chain paragraphs since we have computed ps fields
     if doc_type == "SD":
-        if "title_chain" in context and isinstance(context["title_chain"], list):
+        if not context.get("chain_text") and "title_chain" in context and isinstance(context["title_chain"], list):
             ps0 = context.get("ps", [{}])[0]
             chain_paras = generate_chain_narrative(context["title_chain"], property_details=ps0, context=context)
-                
             context["chain_paragraphs"] = chain_paras
-            context["chain_text"] = "\n\n\tतत्पश्चात् ".join(chain_paras) # Fallback for old templates
+            context["chain_text"] = "\n\n\t".join(chain_paras) # Fallback for old templates
+        elif context.get("chain_text"):
+            context["chain_paragraphs"] = [p.strip() for p in context["chain_text"].split("\n\n") if p.strip()]
         else:
             context["chain_paragraphs"] = []
             context["chain_text"] = ""
@@ -1188,9 +1546,66 @@ def extract_chain(case_id):
 
         chain_events = result.get("title_chain", [])
 
+        # Translate the title chain to Hindi!
+        chain_events = extractor.translate_title_chain_to_hindi(chain_events, file_paths=all_files, model=model)
+
         # Merge extracted chain into session data
         current_data = session.get("data", {})
         current_data["title_chain"] = chain_events
+
+        # Auto-inject CONSTRUCTION event into title_chain for Flat properties so it shows in the verification UI
+        property_type = session.get("property_type", "Plot")
+        if property_type == "Flat":
+            title_chain = current_data.get("title_chain", [])
+            has_construction = any(e.get("event_type") == "CONSTRUCTION" for e in title_chain)
+            if not has_construction:
+                builder_name = ""
+                project_name = ""
+                ps = current_data.get("ps", [{}])
+                if ps:
+                    project_name = ps[0].get("building_name") or ps[0].get("project_name") or ""
+                
+                for evt in title_chain:
+                    src_txt = str(evt.get("source_text", "")).lower()
+                    doc_n = str(evt.get("document_name", "")).lower()
+                    exec_n = evt.get("executant_name") or evt.get("s") or ""
+                    is_flat_sale = (
+                        "flat" in src_txt or "unit" in src_txt or "apartment" in src_txt
+                        or "फ्लैट" in src_txt or "फ्लेट" in src_txt or "यूनित" in src_txt or "अपार्टमेंट" in src_txt or "अपार्टमेन्ट" in src_txt
+                        or "फ्लेट" in doc_n or "फ्लैट" in doc_n
+                    )
+                    if is_flat_sale and exec_n:
+                        builder_name = exec_n
+                        break
+                
+                if builder_name:
+                    injected_const = {
+                        "template_key": "CONSTRUCTION_FLAT",
+                        "event_type": "CONSTRUCTION",
+                        "executant_name": builder_name,
+                        "s": builder_name,
+                        "claimant_name": project_name or "बहुमंजिला इमारत",
+                        "b": project_name or "बहुमंजिला इमारत",
+                        "document_name": "CONSTRUCTION",
+                        "is_registered": "false",
+                        "d": "",
+                        "date": "",
+                        "b_no": "",
+                        "v_no": "",
+                        "p_no": "",
+                        "r_no": ""
+                    }
+                    title_chain.append(injected_const)
+                    current_data["title_chain"] = title_chain
+                    current_data["chain"] = title_chain
+                    chain_events = title_chain
+
+        # Generate the Hindi narrative text!
+        from modules.sd.narrative import generate_chain_narrative
+        ps0 = current_data.get("ps", [{}])[0]
+        chain_paras = generate_chain_narrative(chain_events, property_details=ps0, context=current_data)
+        current_data["chain_text"] = "\n\n\t".join(chain_paras)
+
         session["data"] = current_data
 
         verified_fields = set(session.get("verified_fields", []))
@@ -1412,10 +1827,106 @@ def delete_case(case_id):
         shutil.rmtree(case_path)
     return redirect(url_for("dashboard"))
 
+@app.route("/case/<case_id>/delete_file", methods=["POST"])
+def delete_case_file(case_id):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+
+    req_data = request.json or {}
+    filename = req_data.get("filename")
+    bucket = req_data.get("bucket")
+
+    if not filename:
+        return jsonify({"success": False, "error": "Filename is required"}), 400
+
+    filename = os.path.basename(filename)
+    success = False
+    error_msg = ""
+
+    if bucket:
+        bucket_dir = os.path.join(CASES_DIR, case_id, "buckets", bucket)
+        file_path = os.path.join(bucket_dir, filename)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                success = True
+            except Exception as e:
+                error_msg = str(e)
+        
+        buckets = session.get("buckets", {})
+        if bucket in buckets:
+            old_list = buckets[bucket]
+            new_list = [f for f in old_list if os.path.basename(f) != filename]
+            buckets[bucket] = new_list
+            session["buckets"] = buckets
+    else:
+        case_files_dir = os.path.join(CASES_DIR, case_id, "files")
+        file_path = os.path.join(case_files_dir, filename)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                success = True
+            except Exception as e:
+                error_msg = str(e)
+
+        if not success:
+            legal_dir = os.path.join(CASES_DIR, case_id, "legal_reports")
+            file_path = os.path.join(legal_dir, filename)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    success = True
+                except Exception as e:
+                    error_msg = str(e)
+                
+                legal_report_files = session.get("legal_report_files", [])
+                new_legal = [f for f in legal_report_files if os.path.basename(f) != filename]
+                session["legal_report_files"] = new_legal
+
+        files = session.get("files", [])
+        new_files = [f for f in files if os.path.basename(f) != filename]
+        session["files"] = new_files
+
+        processed = session.get("processed_files", [])
+        new_processed = [f for f in processed if os.path.basename(f) != filename]
+        session["processed_files"] = new_processed
+
+    if success:
+        save_case_session(case_id,
+                          session.get("data", {}),
+                          session.get("files", []),
+                          set(session.get("verified_fields", [])),
+                          session.get("bank"),
+                          session.get("borrower_count"),
+                          session.get("loan_count"),
+                          session.get("properties_count", "1"),
+                          session.get("processed_files", []),
+                          doc_type=session.get("doc_type"),
+                          sellers_count=session.get("sellers_count"),
+                          buyers_count=session.get("buyers_count"),
+                          chain_scenario=session.get("chain_scenario"),
+                          selected_template=session.get("selected_template"),
+                          property_type=session.get("property_type"),
+                          legal_report_files=session.get("legal_report_files", []),
+                          buckets=session.get("buckets", {}))
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "error": error_msg or "File not found on server"})
+
 # @app.route("/static/<path:filename>")
 # def static_files(filename):
 #     # This is a placeholder for local development. In production, serve static files directly.
 #     return send_from_directory("static", filename)
+
+@app.route("/api/chain_templates")
+def get_chain_templates():
+    from modules.sd.chain_templates import CHAIN_TEMPLATES, CHAIN_TEMPLATE_METADATA
+    return jsonify({
+        "success": True,
+        "templates": CHAIN_TEMPLATES,
+        "metadata": CHAIN_TEMPLATE_METADATA
+    })
 
 @app.route("/devlys_keymap")
 def devlys_keymap():

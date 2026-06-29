@@ -15,7 +15,9 @@ from utils.helpers import (
     clean_aadhar_address,
     normalize_name_salutation,
     parse_relation_text,
-    normalize_relation_prefix
+    normalize_relation_prefix,
+    parse_and_format_chain,
+    convert_hindi_digits_to_english
 )
 
 class RMDataExtractor:
@@ -135,8 +137,9 @@ class RMDataExtractor:
                 match = re.search(r'\{.*\}', response.text, re.DOTALL)
                 if match:
                     data = json.loads(match.group(0))
-                    return self._normalize_response(data, expected_borrowers, expected_loans,
+                    norm_data = self._normalize_response(data, expected_borrowers, expected_loans,
                                                     expected_witnesses, borrower_hints, witness_hints)
+                    return convert_hindi_digits_to_english(norm_data)
                 return {"error": "AI returned non-JSON response", "raw": response.text}
             except Exception as e:
                 last_error = str(e)
@@ -214,11 +217,11 @@ class RMDataExtractor:
             return {"error": "AI returned JSON, but it was not an object"}
 
         data["ad"] = format_date_with_dots(data.get("ad", ""))
-        self._normalize_list(data, "bs", ["s", "n", "a", "relation_text", "adr", "id", "pan"])
+        self._normalize_list(data, "bs", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id", "pan"])
         self._normalize_list(data, "ls", ["n", "a", "w", "t"])
         self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w"])
-        self._normalize_list(data, "ws", ["n", "relation_text", "adr"])
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "relation_text", "adr", "id"])
+        self._normalize_list(data, "ws", ["n", "r", "rn", "relation_text", "adr"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
 
         if "bsign" in data and isinstance(data["bsign"], dict):
             bsign = data["bsign"]
@@ -241,24 +244,14 @@ class RMDataExtractor:
             raw_ds = str(data["second_schedule"])
             m = re.search(r'Documents\s*to\s*be\s*collected\b[:\s]*(.*)', raw_ds, re.IGNORECASE)
             if m:
-                data["ds_text"] = m.group(1).strip()
-            elif raw_ds:
-                data["ds_text"] = raw_ds.strip()
+                raw_ds = m.group(1).strip()
             else:
-                data["ds_text"] = ""
+                raw_ds = raw_ds.strip()
 
-        data["second_schedule"] = "" if data.get("second_schedule") is None else str(data.get("second_schedule", "")).strip()
-
-        if data["second_schedule"]:
-            val = str(data["second_schedule"])
-            val = re.sub(r'(?<=\S)\s+(Original\b|Certified Copy\b)', r'\n\1', val, flags=re.IGNORECASE)
-            data["second_schedule"] = val
-
-        for key in ["ds_text", "second_schedule"]:
-            if data.get(key):
-                val = str(data[key])
-                val = re.sub(r'\bProposed\s+(Sale\s+Deed|SD|Title\s+Deed|Deed)\b', r'\1', val, flags=re.IGNORECASE)
-                data[key] = val
+        formatted_chain, clean_docs = parse_and_format_chain(raw_ds)
+        data["ds_text"] = formatted_chain
+        data["second_schedule"] = formatted_chain
+        data["ds"] = [{"t": doc} for doc in clean_docs]
 
         for b in data.get("bs", []):
             if b.get("adr"): b["adr"] = clean_aadhar_address(b["adr"])
@@ -285,8 +278,14 @@ class RMDataExtractor:
                 w["rn"] = rn
             if w.get("n"): w["n"] = normalize_name_salutation(w["n"], w.get("r"))
         for ua in data.get("unassigned_aadhars", []):
-            if ua.get("relation_text"): ua["relation_text"] = normalize_relation_prefix(ua["relation_text"], "RM")
-            if ua.get("n"): ua["n"] = normalize_name_salutation(ua["n"], ua.get("relation_text"))
+            if ua.get("relation_text"):
+                norm_rel = normalize_relation_prefix(ua["relation_text"], "RM")
+                ua["relation_text"] = norm_rel
+                r, rn = parse_relation_text(norm_rel)
+                ua["r"] = r
+                ua["rn"] = rn
+            if ua.get("n"):
+                ua["n"] = normalize_name_salutation(ua["n"], ua.get("r"))
 
         def split_sal(name_with_sal):
             m = re.match(r'^((?:Mr|Mrs|Ms|Shri|Smt|Sh)\.)\s*(.*)', name_with_sal, re.IGNORECASE)

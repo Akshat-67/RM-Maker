@@ -12,7 +12,8 @@ from utils.helpers import (
     normalize_relative_salutation,
     normalize_name_salutation,
     parse_relation_text,
-    normalize_relation_prefix
+    normalize_relation_prefix,
+    parse_and_format_chain
 )
 
 HL_MARKER = "~~HL~~"
@@ -25,7 +26,7 @@ class RMTemplateProcessor:
         self.doc = DocxTemplate(template_path)
 
     def _convert_context_to_legacy(self, data):
-        """Recursively scans context and encodes Hindi Unicode fields to DevLys ASCII."""
+        """Recursively scans context and prepares fields for Word Template rendering."""
         if isinstance(data, dict):
             return {k: self._convert_context_to_legacy(v) for k, v in data.items()}
         elif isinstance(data, list):
@@ -33,19 +34,15 @@ class RMTemplateProcessor:
         elif isinstance(data, str):
             # Strip invalid XML control characters
             data = re.sub(r'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF]', '', data)
-            val = data
-            if any(0x0900 <= ord(c) <= 0x097F for c in data):
-                val = Unicode_to_KrutiDev(data)
-                
-            if '\n' in val:
+            if '\n' in data:
                 rt = RichText()
-                parts = val.split('\n')
+                parts = data.split('\n')
                 for i, part in enumerate(parts):
-                    rt.add(part)
+                    rt.add(part, font='Cambria', size=24)
                     if i < len(parts) - 1:
                         rt.add('\a')
                 return rt
-            return val
+            return data
         else:
             return data
 
@@ -89,12 +86,16 @@ class RMTemplateProcessor:
         xml_content = self._template_xml()
         has_bsign_s = "bsign.s" in xml_content
         doc_type = "RM"
+        seen_ids = set()
 
         for ctx in contexts_to_clean:
             # 1. Normalize Borrowers relative names
             if "bs" in ctx and isinstance(ctx["bs"], list):
-                for b in ctx["bs"]:
+                for i, b in enumerate(ctx["bs"]):
                     if isinstance(b, dict):
+                        if id(b) in seen_ids:
+                            continue
+                        seen_ids.add(id(b))
                         if b.get("r"):
                             b["r"] = normalize_relation_prefix(b["r"], doc_type)
                         
@@ -113,11 +114,29 @@ class RMTemplateProcessor:
                                 
                         if b.get("rn"):
                             b["rn"] = normalize_relative_salutation(b["rn"], b.get("r"))
+
+                        if b.get("n"):
+                            raw_name = b["n"]
+                            existing_s = b.get("s", "").strip()
+                            starts_with_sal, _ = extract_salutation_and_name(raw_name)
+                            if existing_s and not starts_with_sal:
+                                raw_name = f"{existing_s} {raw_name}"
+                            sal, clean_name = extract_salutation_and_name(raw_name)
+                            has_bs_s = bool(re.search(rf"bs\s*\[\s*{i}\s*\]\s*\.\s*s\b", xml_content))
+                            if has_bs_s:
+                                b["s"] = sal
+                                b["n"] = clean_name
+                            else:
+                                b["s"] = ""
+                                b["n"] = normalize_name_salutation(raw_name, b.get("r"))
             
             # 2. Normalize Witnesses names and relative names
             if "ws" in ctx and isinstance(ctx["ws"], list):
                 for w in ctx["ws"]:
                     if isinstance(w, dict):
+                        if id(w) in seen_ids:
+                            continue
+                        seen_ids.add(id(w))
                         if w.get("r"):
                             w["r"] = normalize_relation_prefix(w["r"], doc_type)
                         
@@ -142,36 +161,42 @@ class RMTemplateProcessor:
             # 3. Normalize Bank Signatory
             if "bsign" in ctx and isinstance(ctx["bsign"], dict):
                 bsign = ctx["bsign"]
-                if bsign.get("r"):
-                    bsign["r"] = normalize_relation_prefix(bsign["r"], doc_type)
-                
-                if bsign.get("r") and bsign.get("rn"):
-                    if not bsign.get("relation_text"):
-                        bsign["relation_text"] = f"{bsign['r']} {bsign['rn']}"
-                elif bsign.get("relation_text"):
-                    r, rn = parse_relation_text(bsign["relation_text"])
-                    bsign["r"] = r
-                    bsign["rn"] = rn
+                if id(bsign) not in seen_ids:
+                    seen_ids.add(id(bsign))
+                    if bsign.get("r"):
+                        bsign["r"] = normalize_relation_prefix(bsign["r"], doc_type)
                     
-                if bsign.get("r"):
-                    bsign["r"] = normalize_relation_prefix(bsign["r"], doc_type)
-                    if bsign.get("rn"):
-                        bsign["relation_text"] = f"{bsign['r']} {bsign['rn']}"
+                    if bsign.get("r") and bsign.get("rn"):
+                        if not bsign.get("relation_text"):
+                            bsign["relation_text"] = f"{bsign['r']} {bsign['rn']}"
+                    elif bsign.get("relation_text"):
+                        r, rn = parse_relation_text(bsign["relation_text"])
+                        bsign["r"] = r
+                        bsign["rn"] = rn
                         
-                if bsign.get("rn"):
-                    bsign["rn"] = normalize_relative_salutation(bsign["rn"], bsign.get("r"))
-                
-                # Normalize name and split or embed salutation depending on has_bsign_s
-                if bsign.get("n"):
-                    raw_name = bsign["n"]
-                    sal, clean_name = extract_salutation_and_name(raw_name)
+                    if bsign.get("r"):
+                        bsign["r"] = normalize_relation_prefix(bsign["r"], doc_type)
+                        if bsign.get("rn"):
+                            bsign["relation_text"] = f"{bsign['r']} {bsign['rn']}"
+                            
+                    if bsign.get("rn"):
+                        bsign["rn"] = normalize_relative_salutation(bsign["rn"], bsign.get("r"))
                     
-                    if has_bsign_s:
-                        bsign["s"] = sal
-                        bsign["n"] = clean_name
-                    else:
-                        bsign["s"] = ""
-                        bsign["n"] = normalize_name_salutation(raw_name, bsign.get("r"))
+                    # Normalize name and split or embed salutation depending on has_bsign_s
+                    if bsign.get("n"):
+                        raw_name = bsign["n"]
+                        existing_s = bsign.get("s", "").strip()
+                        starts_with_sal, _ = extract_salutation_and_name(raw_name)
+                        if existing_s and not starts_with_sal:
+                            raw_name = f"{existing_s} {raw_name}"
+                        sal, clean_name = extract_salutation_and_name(raw_name)
+                        
+                        if has_bsign_s:
+                            bsign["s"] = sal
+                            bsign["n"] = clean_name
+                        else:
+                            bsign["s"] = ""
+                            bsign["n"] = normalize_name_salutation(raw_name, bsign.get("r"))
 
     def generate(self, context, output_path, highlight_ai=False, highlight_missing=False, verified_fields=None):
         if verified_fields is None: verified_fields = set()
@@ -180,6 +205,51 @@ class RMTemplateProcessor:
         context['d'] = d_ctx
         
         self._normalize_context_salutations(context)
+
+        # Process and standardize title chain documents
+        raw_chain = d_ctx.get("ds_text", "") or d_ctx.get("second_schedule", "")
+        
+        # If we have chain text, parse and format it
+        if raw_chain:
+            formatted_chain, clean_docs = parse_and_format_chain(raw_chain)
+            
+            d_ctx["ds_text"] = formatted_chain
+            d_ctx["second_schedule"] = formatted_chain
+            if d_ctx is not context:
+                context["ds_text"] = formatted_chain
+                context["second_schedule"] = formatted_chain
+                
+            d_ctx["ds"] = [{"t": doc} for doc in clean_docs]
+            if d_ctx is not context:
+                context["ds"] = [{"t": doc} for doc in clean_docs]
+        else:
+            # If no raw chain text is present, but ds list is already present, format from ds list
+            existing_ds = d_ctx.get("ds", [])
+            if existing_ds:
+                clean_docs = [item["t"] for item in existing_ds if isinstance(item, dict) and item.get("t")]
+                raw_chain_from_ds = "\n".join(clean_docs)
+                formatted_chain, _ = parse_and_format_chain(raw_chain_from_ds)
+                
+                d_ctx["ds_text"] = formatted_chain
+                d_ctx["second_schedule"] = formatted_chain
+                if d_ctx is not context:
+                    context["ds_text"] = formatted_chain
+                    context["second_schedule"] = formatted_chain
+
+        # Populate Chain_Text in all contexts
+        formatted_chain = d_ctx.get("ds_text", "")
+        d_ctx["Chain_Text"] = formatted_chain
+        if d_ctx is not context:
+            context["Chain_Text"] = formatted_chain
+            
+        # Ensure verification status carries over to Chain_Text and all ds list items
+        if "ds_text" in verified_fields:
+            verified_fields.add("Chain_Text")
+            verified_fields.add("d.Chain_Text")
+            for idx in range(len(d_ctx.get("ds", []))):
+                verified_fields.add(f"ds.{idx}.t")
+                verified_fields.add(f"d.ds.{idx}.t")
+
         self._pad_indexed_lists(d_ctx)
 
         if highlight_ai or highlight_missing:
@@ -188,12 +258,20 @@ class RMTemplateProcessor:
         context = self._convert_context_to_legacy(context)
         self.doc.render(context)
 
-        if highlight_ai or highlight_missing:
-            self._apply_body_highlights()
+        # ALWAYS apply body highlights to strip delimiters
+        self._apply_body_highlights(highlight_ai, highlight_missing)
 
         self._postprocess_saved_doc(output_path)
 
     def _apply_highlight_markers(self, data, verified_fields, highlight_ai, highlight_missing, path=""):
+        # Exclude title chain / list of documents from highlighting completely
+        norm_path = path.lower()
+        if (norm_path == "ds_text" or norm_path == "d.ds_text" or 
+            norm_path == "second_schedule" or norm_path == "d.second_schedule" or 
+            norm_path == "chain_text" or norm_path == "d.chain_text" or 
+            norm_path.startswith("ds") or norm_path.startswith("d.ds")):
+            return data
+
         if isinstance(data, dict):
             return {k: self._apply_highlight_markers(v, verified_fields, highlight_ai, highlight_missing, f"{path}.{k}" if path else k) for k, v in data.items()}
         elif isinstance(data, list):
@@ -204,48 +282,81 @@ class RMTemplateProcessor:
                     return f"{HL_MARKER}MISSING:{path.upper()}{HL_MARKER}"
                 return data
             if highlight_ai and path not in verified_fields:
+                if "\n" in data:
+                    parts = []
+                    for line in data.split("\n"):
+                        if line.strip():
+                            parts.append(f"{HL_MARKER}{line}{HL_MARKER}")
+                        else:
+                            parts.append(line)
+                    return "\n".join(parts)
                 return f"{HL_MARKER}{data}{HL_MARKER}"
             return data
         else:
             return data
 
-    def _apply_body_highlights(self):
+    def _apply_body_highlights(self, highlight_ai, highlight_missing):
         yellow_highlight = WD_COLOR_INDEX.YELLOW
         red_highlight = WD_COLOR_INDEX.RED
         
-        # Color match function
         for paragraph in self.doc.paragraphs:
-            self._highlight_paragraph_runs(paragraph, yellow_highlight, red_highlight)
+            self._highlight_paragraph_runs(paragraph, yellow_highlight, red_highlight, highlight_ai, highlight_missing)
             
         for table in self.doc.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for paragraph in cell.paragraphs:
-                        self._highlight_paragraph_runs(paragraph, yellow_highlight, red_highlight)
+                        self._highlight_paragraph_runs(paragraph, yellow_highlight, red_highlight, highlight_ai, highlight_missing)
 
-    def _highlight_paragraph_runs(self, paragraph, yellow_highlight, red_highlight):
-        runs = paragraph.runs
-        i = 0
-        while i < len(runs):
-            run = runs[i]
-            text = run.text
-            if HL_MARKER in text:
-                parts = text.split(HL_MARKER)
-                for idx, part in enumerate(parts):
-                    if idx % 2 == 1:
-                        # Inside highlighter markers
-                        new_run = paragraph.add_run(part)
-                        if part.startswith("MISSING:"):
-                            new_run.font.highlight_color = red_highlight
-                            new_run.font.color.rgb = RGBColor(255, 255, 255)
-                        else:
-                            new_run.font.highlight_color = yellow_highlight
-                    else:
-                        new_run = paragraph.add_run(part)
-                # Remove original run
-                p_element = paragraph._p
-                p_element.remove(run._r)
-            i += 1
+    def _highlight_paragraph_runs(self, paragraph, yellow_highlight, red_highlight, highlight_ai, highlight_missing):
+        if HL_MARKER not in paragraph.text:
+            return
+
+        base_font_name = "Cambria"
+        base_font_size = None
+        base_bold = False
+        base_italic = False
+        base_color = None
+
+        for r in paragraph.runs:
+            if r.text:
+                if r.font.name:
+                    base_font_name = r.font.name
+                if r.font.size:
+                    base_font_size = r.font.size
+                if r.bold is not None:
+                    base_bold = r.bold
+                if r.italic is not None:
+                    base_italic = r.italic
+                if r.font.color and r.font.color.rgb:
+                    base_color = r.font.color.rgb
+                break
+
+        text = paragraph.text
+        paragraph.text = "" # Clears old runs
+
+        parts = text.split(HL_MARKER)
+        for idx, part in enumerate(parts):
+            if not part:
+                continue
+            run = paragraph.add_run(part)
+            
+            run.font.name = base_font_name
+            if base_font_size:
+                run.font.size = base_font_size
+            run.bold = base_bold
+            run.italic = base_italic
+            if base_color:
+                run.font.color.rgb = base_color
+
+            if idx % 2 == 1:
+                if part.startswith("MISSING:"):
+                    if highlight_missing:
+                        run.font.highlight_color = red_highlight
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+                else:
+                    if highlight_ai:
+                        run.font.highlight_color = yellow_highlight
 
     def _postprocess_saved_doc(self, output_path):
         self.doc.save(output_path)

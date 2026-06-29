@@ -232,79 +232,216 @@ class SDDataExtractor:
         
         return f"जिसकी चारों सीमाओें में {', '.join(parts)} स्िथत है"
 
+    def _filter_relevant_pages(self, pages_text, min_pages_threshold=8, score_threshold=2):
+        """Pre-filters pages of text-searchable PDFs based on high-relevance title flow keywords."""
+        total_pages = len(pages_text)
+        if total_pages <= min_pages_threshold:
+            print(f"[Pre-filter] Total pages ({total_pages}) <= threshold ({min_pages_threshold}). Keeping all pages.")
+            return [text for _, text in pages_text], list(range(1, total_pages + 1))
+
+        # Keywords with weights
+        primary_keywords = [
+            "chain of title", "history of title", "flow of title", "tracing of title", 
+            "chain of documents", "detail of documents", "deeds", "विक्रय पत्र", 
+            "पट्टा विलेख", "मुख्तियारनामा", "हकत्याग पत्र", "वसीयतनामा", "दाखिल खारिज", 
+            "नामांतरण", "chain of deeds", "antecedent deeds", "flow of ownership"
+        ]
+        
+        secondary_keywords = [
+            "sale deed", "allotment", "lease deed", "power of attorney", "will", 
+            "death certificate", "succession", "gift deed", "relinquishment", "mutation", 
+            "patta", "registered", "registry", "khasra", "khata", "rakba", "ownership",
+            "विक्रय", "आवंटन", "रजिस्ट्री", "पंजीकृत", "उत्तराधिकार", "मृत्यु", "खसरा", 
+            "खाता", "क्रेता", "विक्रेता", "स्वामित्व", "शीर्षक", "दस्तावेज"
+        ]
+
+        page_scores = []
+        total_extracted_len = 0
+        for page_num, text in pages_text:
+            total_extracted_len += len(text)
+            score = 0
+            text_lower = text.lower()
+            
+            # Score primary keywords (3 points each)
+            for kw in primary_keywords:
+                if kw in text_lower:
+                    score += 3
+                    
+            # Score secondary keywords (1 point each)
+            for kw in secondary_keywords:
+                if kw in text_lower:
+                    score += 1
+                    
+            page_scores.append((page_num, score, text))
+
+        # If the PDF has no searchable text (scanned PDF), return None to disable filtering and send raw bytes
+        if total_extracted_len < 200:
+            print(f"[Pre-filter] Scanned PDF detected (total text len: {total_extracted_len}). Disabling pre-filtering.")
+            return None, None
+
+        # Select pages matching threshold
+        selected_indices = set()
+        for idx, (page_num, score, _) in enumerate(page_scores):
+            if score >= score_threshold:
+                selected_indices.add(idx)
+                # Also keep the immediately following page to prevent cutting off a paragraph in the middle
+                if idx + 1 < total_pages:
+                    selected_indices.add(idx + 1)
+                # Also keep the immediately preceding page to ensure context
+                if idx - 1 >= 0:
+                    selected_indices.add(idx - 1)
+
+        # Sort selected indices
+        selected_indices = sorted(list(selected_indices))
+        
+        # If no pages matched, fall back to keeping all pages
+        if not selected_indices:
+            print("[Pre-filter] No pages matched the score threshold. Keeping all pages.")
+            return [text for _, text in pages_text], list(range(1, total_pages + 1))
+
+        selected_texts = [page_scores[i][2] for i in selected_indices]
+        selected_page_nums = [page_scores[i][0] for i in selected_indices]
+        
+        print(f"[Pre-filter] Filtered {total_pages} pages down to {len(selected_texts)} pages: {selected_page_nums}")
+        return selected_texts, selected_page_nums
+
     def extract_title_chain(self, file_paths, model_name="gemini-2.5-flash"):
-        """Dedicated extraction path for parsing Title Chain history from Legal Reports."""
+        """Dedicated extraction path for parsing Title Chain history from Legal Reports with Chronological CoT and PDF pre-filtering."""
         if not self.api_keys:
             return {"error": "Gemini API Keys Missing"}
 
         contents = []
         txt_files = [p for p in file_paths if p.lower().endswith('.txt')]
         effective_paths = txt_files if txt_files else file_paths
+        
+        filtered_files_desc = []
+
         for path in effective_paths:
             ext = os.path.splitext(path)[1].lower()
             mime_type, _ = mimetypes.guess_type(path)
-            if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+            
+            if ext == '.pdf':
+                # Try pre-filtering the PDF using pypdf text extraction
+                try:
+                    import pypdf
+                    pages_text = []
+                    reader = pypdf.PdfReader(path)
+                    for idx, page in enumerate(reader.pages):
+                        text = page.extract_text() or ""
+                        pages_text.append((idx + 1, text))
+                    
+                    selected_texts, selected_pages = self._filter_relevant_pages(pages_text)
+                    if selected_texts is not None:
+                        # Success! We filtered the PDF text pages
+                        combined_filtered_text = f"--- Legal Report Page-Filtered Content ({os.path.basename(path)}) ---\n"
+                        for p_num, p_text in zip(selected_pages, selected_texts):
+                            combined_filtered_text += f"\n--- PAGE {p_num} ---\n{p_text}\n"
+                        contents.append(types.Part.from_text(text=combined_filtered_text))
+                        filtered_files_desc.append(f"{os.path.basename(path)} (Pages {selected_pages} kept)")
+                        print(f"[Pre-filter] Successfully filtered {os.path.basename(path)} to pages {selected_pages}")
+                        continue
+                except Exception as pdf_err:
+                    print(f"[Pre-filter Warning] Failed to pre-filter PDF {path}: {pdf_err}")
+                
+                # If pre-filtering failed or was bypassed (scanned PDF), send the raw PDF bytes
                 with open(path, 'rb') as f:
                     raw = f.read()
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+                filtered_files_desc.append(f"{os.path.basename(path)} (Sent entire PDF as binary)")
+                
+            elif ext in ['.jpg', '.jpeg', '.png']:
+                with open(path, 'rb') as f:
+                    raw = f.read()
+                contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+                filtered_files_desc.append(f"{os.path.basename(path)} (Sent image)")
+                
             elif ext == '.txt':
                 with open(path, 'r', encoding='utf-8') as f:
                     contents.append(types.Part.from_text(text=f.read()))
+                filtered_files_desc.append(f"{os.path.basename(path)} (Sent text)")
 
         if not contents:
             return {"error": "No valid files to process."}
 
         prompt = """
         CRITICAL MISSION: You are a senior legal analyst reviewing a Title Search Report (TSR) or chain of documents.
-        Your task is to extract the CHRONOLOGICAL History of Title / Chain of Ownership.
+        Your task is to extract the complete, highly accurate CHRONOLOGICAL History of Title / Chain of Ownership of the property.
 
-        Map each transfer event strictly to ONE of the following event_types:
-        - ALLOTMENT: Original grant, Patta, Lease Deed, Allotment Letter by an Authority/Society.
-        - CONSTRUCTION: Builder/Owner constructs building, apartments, or flats.
-        - SALE_DEED: Sale Deed, Conveyance Deed, Sub-lease Deed for consideration.
-        - TRANSFER: Any other transfer (e.g. Gift Deed, Relinquishment Deed, Release Deed, Haktyag, Will, Mutation, Transfer Letter, Transfer Order).
+        LINKAGE & CHAIN OF CUSTODY RULE:
+        Every title flow is a continuous chain of custody. Ensure that the Claimant (Buyer/Allottee/Heir) of Event N matches the Executant (Seller/Giver/Deceased) of Event N+1. If there is a gap (e.g. Person A acquires the property, but later Person B sells it), carefully search the text to find the bridging event (such as a Will, Death/Succession, Gift, or Power of Attorney) and extract it!
 
-        DO NOT extract or use GIFT_DEED, RELINQUISHMENT, DEATH, WILL, PARTITION, or COURT_ORDER as separate event types. Map them to TRANSFER instead.
+        MAP TO SPECIFIC TEMPLATE KEYS:
+        Classify each event and populate its matching template fields:
+        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY).
+        2. DEATH_HEIRS_WITH_SPOUSE: Demise of owner and spouse. Requires: "wife_name", "wife_death_date" (DD.MM.YYYY), "share_fraction" (fraction/percentage, e.g., '1/2' or 'अविभाजित').
+        3. DEATH_HEIRS_SINGLE: Demise of single owner. Requires: "share_fraction".
+        4. DEATH_DIVIDED: Demise of owner with physical divided portions given to heirs. Requires: "husband_name", "husband_death_date" (DD.MM.YYYY), "east_owner", "west_owner".
+        5. HAK_TYAG: Relinquishment deed. Requires: "share_fraction".
+        6. AGRICULTURAL_ALLOTMENT: Revenue record allotment. Requires: "khata_no", "khasra_no", "rakba", "share_fraction".
+        7. POA_AGRICULTURAL: Power of attorney for agricultural land. Requires: "khasra_no", "rakba", "share_fraction", "co_owner".
+        8. POA_NON_AGRICULTURAL: Standard registered POA. Requires: "share_fraction".
+        9. COLONY_DEVELOPMENT: Plot sub-division event. Requires: "owner_name", "share_fraction".
+        10. DEVELOPER_AGREEMENT: Development agreement. Requires: "share_fraction".
+        11. PART_SALE: Sale deed transferring partial share. Requires: "share_fraction".
+        12. TRANSFER_CERTIFICATE: Transfer certificate with receipt. Requires: "receipt_no", "receipt_date" (DD.MM.YYYY).
+        13. GIFT_DEED: Registered Gift deed. Requires: "parent_property_info" (parent plot/land info).
+        14. WILL: Registered/unregistered Will. Requires: "will_type" (Registered/Unregistered), "death_date" (DD.MM.YYYY of testator).
+        15. PARTITION: Partition deed. Requires: "share_fraction".
+        16. ALLOTMENT_PLOT / ALLOTMENT_FLAT: Plot or Flat allotment by local authority.
+        17. CONSTRUCTION_FLAT: Multi-story building construction. Requires: "project_name", "unit_number".
+        18. SALE_DEED_PLOT / SALE_DEED_FLAT: Standard registered sale deed of plot or flat.
 
-        For each event, extract:
-        - event_type (from list above)
-        - document_name: The Hindi translation of the document type (e.g., 'विक्रय पत्र', 'पट्टा विलेख', 'हस्तान्तरण पत्र', 'निर्माण पत्र')
-        - document_number: The exact patta/document number (e.g. 'डी-2341')
-        - date: DD.MM.YYYY (DO NOT HALLUCINATE. If no date is found, leave blank "")
-        - executant_name: Seller/Principal/Authority/Builder in Unicode Hindi
-        - claimant_name: Buyer/Attorney/Allottee in Unicode Hindi
-        - is_registered: true or false (boolean)
-        - reg_office: Registrar Office in Unicode Hindi
-        - reg_date: DD.MM.YYYY
-        - reg_book, reg_vol, reg_page: Registration details (numbers only)
-        - reg_no: The 15-digit E-Panjiyan sequence/receipt number (e.g. '201803021103534', labeled 'क्रम संख्या' or 'Receipt No')
-        - reg_add_book, reg_add_vol: Additional Book details
-        - reg_add_page: Additional Book page number or page range (e.g., '1026-1039', '494-507'). DO NOT truncate page ranges to a single page number. Extract the full range if present in the text (e.g., '1026 to 1039' should be extracted as '1026-1039').
-        - consideration_amount: Numeric digits only (DO NOT HALLUCINATE)
-        - project_name: Project name for CONSTRUCTION events only (Unicode Hindi, e.g. 'परियोजना का नाम')
-        - unit_number: Unit/Flat number for CONSTRUCTION events only (Unicode Hindi, e.g. 'एस-1')
-        - confidence: Rate the extraction quality as "High", "Medium", or "Low" based on text clarity.
-        - source_text: Provide the exact 1-2 sentences from the English report that proves this event.
+        MAP EVENT TYPES:
+        Each event MUST have an "event_type" mapping to one of: ALLOTMENT, CONSTRUCTION, SALE_DEED, WILL, DEATH, HAK_TYAG, POA, or TRANSFER.
 
-        Return ONLY a JSON object with a single key "title_chain" containing the array of events sorted chronologically (oldest first).
-        
-        CONSTRUCTION EVENT RULES:
-        - If the report/TSR mentions construction, flats constructed, units numbered, project named, or scheme named, you MUST create a CONSTRUCTION event. Do not discard these paragraphs.
-        - For a CONSTRUCTION event, capture the 'project_name' (e.g. 'परियोजना का नाम') and 'unit_number' (e.g. 'एस-1') where available.
-        - Specifically, if a construction paragraph in the documents contains language about naming/identifying the building or project (such as "तथा उसका नाम ... रख दिया", "परियोजना का नाम ... रखा गया", "अपार्टमेंट का नाम ... रखा", "नामकरण"), you MUST extract that exact project/building name as the project_name and store it on the CONSTRUCTION event.
-        - The 'executant_name' for CONSTRUCTION should be the builder/owner who constructed the units (e.g., 'मैसर्स एक्सवाईजेड कंस्ट्रक्शन जरिये प्रोपराइटर श्री एबीसी पुत्र श्री एक्सवाईजेड'). DO NOT hallucinate the claimant.
+        ENGLISH-FIRST EXTRACTION RULE:
+        To maximize parsing accuracy and avoid cognitive overload, extract all names ("executant_name", "claimant_name", "wife_name", "husband_name", "east_owner", "west_owner", "owner_name", "co_owner"), document types ("document_name"), and registrar offices ("reg_office") in ENGLISH, EXACTLY as written in the report. They will be translated/transliterated to Hindi in a subsequent dedicated step.
 
-        TRANSFER EVENT RULES:
-        - If the report/TSR contains 'Transfer Deed', 'Transfer Letter', or 'Transfer Order', you MUST create a TRANSFER event.
+        JSON FORMAT SPECIFICATION:
+        Return a JSON object with EXACTLY two keys:
+        1. "chronological_analysis": A detailed, step-by-step text description showing your legal reasoning, how you traced the property chain of custody, how you resolved any name/title gaps, and how you mapped each event to a template.
+        2. "title_chain": An array of objects sorted chronologically (oldest first) containing the following fields:
+           - template_key: (String, one of the 18 keys listed above, e.g. "ALLOTMENT_SOCIETY")
+           - event_type: (String, ALLOTMENT, CONSTRUCTION, SALE_DEED, WILL, DEATH, HAK_TYAG, POA, TRANSFER)
+           - document_name: (String, e.g., 'Sale Deed', 'Allotment Letter', 'Death/Succession', 'Power of Attorney')
+           - document_number: (String, e.g., 'D-2341')
+           - date: (String, DD.MM.YYYY format. Convert e.g., '11th July, 2019' to '11.07.2019'. Leave blank "" if not found)
+           - executant_name: (String, Seller/Principal/Authority in English)
+           - claimant_name: (String, Buyer/Attorney/Allottee/Heir in English)
+           - is_registered: (String, "true" or "false")
+           - reg_office: (String, Registrar office in English, e.g., 'Sub-Registrar Jaipur-VII')
+           - reg_date: (String, DD.MM.YYYY format)
+           - reg_book, reg_vol, reg_page: (String, numbers only)
+           - reg_no: (String, 15-digit E-Panjiyan sequence/receipt number, e.g., '201803021103534')
+           - reg_add_book, reg_add_vol: (String, numbers only)
+           - reg_add_page: (String, page range, e.g., '1026-1039')
+           - consideration_amount: (String, numbers only)
+           - project_name: (String, e.g., 'Royal Enclave' - for CONSTRUCTION only)
+           - unit_number: (String, e.g., 'S-1' - for CONSTRUCTION only)
+           - share_fraction: (String, e.g. '1/2', 'undivided' - where applicable)
+           - wife_name: (String, where applicable)
+           - wife_death_date: (String, DD.MM.YYYY)
+           - husband_name: (String, where applicable)
+           - husband_death_date: (String, DD.MM.YYYY)
+           - east_owner: (String, where applicable)
+           - west_owner: (String, where applicable)
+           - khata_no: (String, where applicable)
+           - khasra_no: (String, where applicable)
+           - rakba: (String, where applicable)
+           - co_owner: (String, where applicable)
+           - owner_name: (String, where applicable)
+           - parent_property_info: (String, where applicable)
+           - will_type: (String, 'Registered' or 'Unregistered')
+           - death_date: (String, DD.MM.YYYY)
+           - receipt_no: (String, where applicable)
+           - receipt_date: (String, DD.MM.YYYY)
+           - confidence: (String, 'High', 'Medium', 'Low')
+           - source_text: (String, exact 1-2 sentences from English report proving this event)
 
-        CRITICAL NAME EXTRACTION RULES:
-        - Names in executant_name and claimant_name MUST be EXACT, COMPLETE, and in UNICODE HINDI (Hindi script).
-        - Preserve all proprietor and relative/parent details in the name field (e.g. 'मैसर्स एक्सवाईजेड कंस्ट्रक्शन जरिये प्रोपराइटर श्री एबीसी पुत्र श्री एक्सवाईजेड'). Do not trim or truncate these.
-
-        CRITICAL RULES FOR TITLE CHAIN:
-        1. DO NOT SKIP ANY TRANSFERS. If A sold to B, and B sold to C, you MUST extract exactly all events!
-        2. DO NOT HALLUCINATE DATES OR AMOUNTS. If the exact date or exact consideration amount is not explicitly written in the text for that specific transfer event, leave it blank "". Do not copy dates or amounts from other transfers.
-        3. DO NOT INCLUDE CONVERSATIONAL TEXT. ONLY VALID JSON.
+        CRITICAL RULES:
+        1. DO NOT SKIP ANY TRANSFERS. Every link must be represented.
+        2. DO NOT HALLUCINATE DATES OR KEYS. If a specific field is not found in the text, leave it blank "".
+        3. Return ONLY valid, parseable JSON. No conversational text outside JSON.
         """
 
         attempts = 0
@@ -341,12 +478,16 @@ class SDDataExtractor:
                     data["title_chain"] = []
                 else:
                     self._normalize_list(data, "title_chain", [
-                        "event_type", "document_name", "document_number", "date", "consideration_amount", 
+                        "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
                         "executant_name", "claimant_name", "reg_office", "reg_date", 
                         "reg_book", "reg_vol", "reg_page", "reg_no", "reg_add_book", "reg_add_vol", "reg_add_page", 
                         "book_no", "volume_no", "page_no", "additional_book_no", "additional_volume_no", "additional_page_range",
-                        "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type"
+                        "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type",
+                        "share_fraction", "wife_name", "wife_death_date", "husband_name", "husband_death_date", 
+                        "east_owner", "west_owner", "khata_no", "khasra_no", "rakba", "co_owner", "owner_name", 
+                        "parent_property_info", "will_type", "death_date", "receipt_no", "receipt_date"
                     ])
+                    # We run OCR healing later on the Hindi translated name lists, but run a basic pass here as well
                     self.heal_title_chain_from_ocr(data["title_chain"], file_paths)
                     
                 return data
@@ -358,6 +499,49 @@ class SDDataExtractor:
                 attempts += 1
 
         return {"error": f"AI Extraction Failed after {max_attempts} attempts. Last error: {last_error}"}
+
+    def translate_title_chain_to_hindi(self, chain_events, file_paths=None, model="gemini-2.5-flash"):
+        """Translates English fields in title chain to Unicode Hindi using Gemini and runs OCR healing."""
+        if not chain_events:
+            return chain_events
+            
+        prompt = f"""
+        You are a Hindi legal translation expert.
+        Translate the following list of title chain events into Unicode Hindi.
+        
+        Specifically:
+        - Translate/transliterate "executant_name", "claimant_name", "reg_office", "document_name", "wife_name", "husband_name", "east_owner", "west_owner", "owner_name", and "co_owner" into proper Unicode Hindi (Devanagari script).
+        - Keep dates, numbers, event_type, is_registered, and numeric/alphanumeric fields (like reg_book, reg_vol, reg_page, reg_no, document_number) exactly as they are.
+        - Ensure names preserve relation details and title/proprietorship structures (e.g. "wife of", "son of", "Proprietor", "M/s" translated/transliterated properly in Hindi).
+        
+        Input list:
+        {json.dumps(chain_events, ensure_ascii=False, indent=2)}
+        
+        Return ONLY a JSON array of these events with the translated fields. Do not include any explanation.
+        """
+        try:
+            raw_res = self.raw_generate(prompt, model_name=model)
+            if raw_res:
+                m = re.search(r'```json\s*(.*?)\s*```', raw_res, re.DOTALL | re.IGNORECASE)
+                if m:
+                    raw_res = m.group(1)
+                else:
+                    m = re.search(r'(\[.*\])', raw_res, re.DOTALL)
+                    if m:
+                        raw_res = m.group(1)
+                translated = json.loads(raw_res)
+                if isinstance(translated, list) and len(translated) == len(chain_events):
+                    # Call heal_title_chain_from_ocr on the translated Hindi events to restore full parentage details
+                    if file_paths:
+                        self.heal_title_chain_from_ocr(translated, file_paths)
+                    return translated
+        except Exception as e:
+            print(f"[WARNING] translate_title_chain_to_hindi failed: {e}")
+            
+        # Fallback: run healing on the untranslated chain if translation fails
+        if file_paths:
+            self.heal_title_chain_from_ocr(chain_events, file_paths)
+        return chain_events
 
 
     def extract_buckets_with_ai(self, buckets, selected_model, expected_sellers=None, expected_buyers=None,
@@ -384,7 +568,7 @@ class SDDataExtractor:
             legal_prompt = self._build_legal_prompt()
             legal_res = self._run_gemini_extraction(buckets["legal"], selected_model, legal_prompt)
             if legal_res and not legal_res.get("error"):
-                merged_data = self._merge_legal_results(merged_data, legal_res)
+                merged_data = self._merge_legal_results(merged_data, legal_res, file_paths=buckets["legal"])
 
         # 3. ATS - Extract Consideration and Transaction only
         if buckets.get("ats"):
@@ -512,7 +696,7 @@ class SDDataExtractor:
             current[key] = current_list
         return current
 
-    def _merge_legal_results(self, current, legal):
+    def _merge_legal_results(self, current, legal, file_paths=None):
         # Legal is #1 for Property Address, Area, Boundaries, Title Chain
         # It is #2 for Seller/Buyer Address
         current_ps = current.get("ps", [{}])
@@ -525,7 +709,10 @@ class SDDataExtractor:
         current["ps"] = current_ps
 
         if legal.get("title_chain") and len(legal["title_chain"]) > 0:
-            current["title_chain"] = legal["title_chain"]
+            raw_chain = legal["title_chain"]
+            # Translate English fields to Unicode Hindi and heal with OCR if file_paths are present
+            translated_chain = self.translate_title_chain_to_hindi(raw_chain, file_paths=file_paths)
+            current["title_chain"] = translated_chain
 
         for key in ["ss", "bs"]:
             current_list = current.get(key, [])
@@ -591,26 +778,117 @@ class SDDataExtractor:
 
     def _build_legal_prompt(self):
         return """
-        Extract Property details and Title Chain from this Legal/Technical Report. Return ONLY a JSON object.
-        IMPORTANT: Extract descriptive text in UNICODE HINDI.
+        CRITICAL MISSION: You are a senior legal analyst reviewing a Title Search Report (TSR) or chain of documents.
+        Your task is to extract BOTH:
+        1. Property Details: Extract the property address, plot/flat details, area, and boundaries. Extract these in UNICODE HINDI.
+        2. Title Chain: Extract the complete, highly accurate CHRONOLOGICAL History of Title / Chain of Ownership of the property. Extract the title chain names and text in ENGLISH-FIRST (they will be translated to Hindi later).
 
-        JSON STRUCTURE:
-        {
-          "ps": [{
-            "adr": "Full address (Unicode Hindi)",
-            "plot_no": "Plot/Flat/Unit number",
-            "floor": "Floor description",
-            "building_name": "Building/Society name (Unicode Hindi)",
-            "land_area": "Area of ORIGINAL PLOT with unit",
-            "const_area": "Super Built-up/Construction area",
-            "unit": "Unit for land_area",
-            "n": "North boundary",
-            "s": "South boundary",
-            "e": "East boundary",
-            "w": "West boundary"
-          }],
-          "title_chain": [{"event_type": "SALE_DEED", "document_name": "विक्रय पत्र", "date": "10.05.2010", "executant_name": "Seller Name", "claimant_name": "Buyer Name"}]
-        }
+        LINKAGE & CHAIN OF CUSTODY RULE:
+        Every title flow is a continuous chain of custody. Ensure that the Claimant (Buyer/Allottee/Heir) of Event N matches the Executant (Seller/Giver/Deceased) of Event N+1. If there is a gap (e.g. Person A acquires the property, but later Person B sells it), carefully search the text to find the bridging event (such as a Will, Death/Succession, Gift, or Power of Attorney) and extract it!
+
+        MAP TO SPECIFIC TEMPLATE KEYS:
+        MAP TO SPECIFIC TEMPLATE KEYS:
+        Classify each event and populate its matching template fields:
+        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY).
+        2. DEATH_HEIRS_WITH_SPOUSE: Demise of owner and spouse. Requires: "wife_name", "wife_death_date" (DD.MM.YYYY), "share_fraction" (fraction/percentage, e.g., '1/2' or 'अविभाजित').
+        3. DEATH_HEIRS_SINGLE: Demise of single owner. Requires: "share_fraction".
+        4. DEATH_DIVIDED: Demise of owner with physical divided portions given to heirs. Requires: "husband_name", "husband_death_date" (DD.MM.YYYY), "east_owner", "west_owner".
+        5. HAK_TYAG: Relinquishment deed. Requires: "share_fraction".
+        6. AGRICULTURAL_ALLOTMENT: Revenue record allotment. Requires: "khata_no", "khasra_no", "rakba", "share_fraction".
+        7. POA_AGRICULTURAL: Power of attorney for agricultural land. Requires: "khasra_no", "rakba", "share_fraction", "co_owner".
+        8. POA_NON_AGRICULTURAL: Standard registered POA. Requires: "share_fraction".
+        9. COLONY_DEVELOPMENT: Plot sub-division event. Requires: "owner_name", "share_fraction".
+        10. DEVELOPER_AGREEMENT: Development agreement. Requires: "share_fraction".
+        11. PART_SALE: Sale deed transferring partial share. Requires: "share_fraction".
+        12. TRANSFER_CERTIFICATE: Transfer certificate with receipt. Requires: "receipt_no", "receipt_date" (DD.MM.YYYY).
+        13. GIFT_DEED: Registered Gift deed. Requires: "parent_property_info" (parent plot/land info).
+        14. WILL: Registered/unregistered Will. Requires: "will_type" (Registered/Unregistered), "death_date" (DD.MM.YYYY of testator).
+        15. PARTITION: Partition deed. Requires: "share_fraction".
+        16. ALLOTMENT_PLOT / ALLOTMENT_FLAT: Plot or Flat allotment by local authority (e.g. JDA/NNJ/UIT). IMPORTANT: In Rajasthan, these allotments/lease deeds/pattas are almost always registered documents. You MUST extract their registration details (reg_office, reg_date, reg_book, reg_vol, reg_page, reg_no, reg_add_book, reg_add_vol, reg_add_page) if present in the text!
+        17. LEASE_DEED: Allotment / Lease deed by Rajasthan Housing Board (RHB). These are also registered and require extracting all registration details!
+        18. CONSTRUCTION_FLAT: Multi-story building construction. Requires: "project_name", "unit_number".
+        19. SALE_DEED_PLOT / SALE_DEED_FLAT: Standard registered sale deed of plot or flat.
+
+        MAP EVENT TYPES:
+        Each event MUST have an "event_type" mapping to one of: ALLOTMENT, CONSTRUCTION, SALE_DEED, WILL, DEATH, HAK_TYAG, POA, or TRANSFER.
+
+        ENGLISH-FIRST EXTRACTION RULE FOR TITLE CHAIN:
+        To maximize parsing accuracy and avoid cognitive overload, extract all names ("executant_name", "claimant_name", "wife_name", "husband_name", "east_owner", "west_owner", "owner_name", "co_owner"), document types ("document_name"), and registrar offices ("reg_office") in ENGLISH, EXACTLY as written in the report. They will be translated/transliterated to Hindi in a subsequent dedicated step.
+
+        JSON FORMAT SPECIFICATION:
+        Return ONLY a JSON object with EXACTLY three keys:
+        1. "ps": An array containing exactly one object with property details:
+           - adr: Full address (Unicode Hindi)
+           - plot_no: Plot/Flat/Unit number (e.g., "A-24" or "S-1")
+           - floor: Floor description (Unicode Hindi, e.g., "सेकंड फ्लोर")
+           - building_name: Building/Society/Complex name (Unicode Hindi)
+           - land_area: Area of the ORIGINAL PLOT with unit (e.g., "183.33 वर्गगज")
+           - const_area: Super Built-up/Construction area of the flat (e.g., "1087.19 वर्ग फीट")
+           - unit: Unit for land_area (e.g., "वर्ग गज")
+           - const_unit: Unit for const_area (e.g., "वर्ग फीट")
+           - n: North boundary of the ORIGINAL PLOT (Unicode Hindi)
+           - s: South boundary of the ORIGINAL PLOT (Unicode Hindi)
+           - e: East boundary of the ORIGINAL PLOT (Unicode Hindi)
+           - w: West boundary of the ORIGINAL PLOT (Unicode Hindi)
+        2. "chronological_analysis": A detailed, step-by-step text description showing your legal reasoning, how you traced the property chain of custody, how you resolved any name/title gaps, and how you mapped each event to a template.
+        3. "title_chain": An array of objects sorted chronologically (oldest first) containing the following fields:
+           - template_key: (String, one of the 19 keys listed above, e.g. "ALLOTMENT_SOCIETY")
+           - event_type: (String, ALLOTMENT, CONSTRUCTION, SALE_DEED, WILL, DEATH, HAK_TYAG, POA, TRANSFER)
+           - document_name: (String, e.g., 'Sale Deed', 'Allotment Letter', 'Death/Succession', 'Power of Attorney')
+           - document_number: (String, e.g., 'D-2341')
+           - date: (String, DD.MM.YYYY format. Convert e.g., '11th July, 2019' to '11.07.2019'. Leave blank "" if not found)
+           - executant_name: (String, Seller/Principal/Authority in English)
+           - claimant_name: (String, Buyer/Attorney/Allottee/Heir in English)
+           - is_registered: (String, "true" or "false")
+           - reg_office: (String, Registrar office in English, e.g., 'Sub-Registrar Jaipur-VII')
+           - reg_date: (String, DD.MM.YYYY format)
+           - reg_book, reg_vol, reg_page: (String, numbers or Roman numerals, e.g. '1', '464', 'I')
+           - reg_no: (String, registration number or 15-digit E-Panjiyan sequence, e.g., '4321' or '201803021103534')
+           - reg_add_book, reg_add_vol: (String, numbers or Roman numerals, e.g. '1', '1855', 'I')
+           - reg_add_page: (String, page range or single page, e.g., '1026-1039' or '98')
+           - consideration_amount: (String, numbers only)
+           - project_name: (String, e.g., 'Royal Enclave' - for CONSTRUCTION only)
+           - unit_number: (String, e.g., 'S-1' - for CONSTRUCTION only)
+           - share_fraction: (String, e.g. '1/2', 'undivided' - where applicable)
+           - wife_name: (String, where applicable)
+           - wife_death_date: (String, DD.MM.YYYY)
+           - husband_name: (String, where applicable)
+           - husband_death_date: (String, DD.MM.YYYY)
+           - east_owner: (String, where applicable)
+           - west_owner: (String, where applicable)
+           - khata_no: (String, where applicable)
+           - khasra_no: (String, where applicable)
+           - rakba: (String, where applicable)
+           - co_owner: (String, where applicable)
+           - possession_no: (String, possession letter number, e.g., '1234' - where applicable)
+           - possession_date: (String, possession date in DD.MM.YYYY, e.g., '17.04.2018' - where applicable)
+           - nodues_date: (String, no dues certificate date in DD.MM.YYYY, e.g., '17.04.2018' - where applicable)
+           - lease_date: (String, perpetual lease deed date in DD.MM.YYYY, e.g., '17.04.2018' - where applicable)
+           - conveyance_date: (String, conveyance deed/allottee date in DD.MM.YYYY, e.g., '17.04.2018' - where applicable)
+           - reg_add_serial: (String, registration additional serial/file number, e.g., '1234' - where applicable)
+           - conv_reg_book: (String, Conveyance Deed registration book, e.g., 'I' or '1' - where applicable)
+           - conv_reg_vol: (String, Conveyance Deed registration volume, e.g., '1855' - where applicable)
+           - conv_reg_page: (String, Conveyance Deed registration page, e.g., '1026' - where applicable)
+           - conv_reg_no: (String, Conveyance Deed registration number, e.g., '201803021103534' - where applicable)
+           - conv_reg_add_book: (String, Conveyance Deed registration additional book, e.g., 'I' - where applicable)
+           - conv_reg_add_vol: (String, Conveyance Deed registration additional volume, e.g., '1858' - where applicable)
+           - conv_reg_add_serial: (String, Conveyance Deed registration additional serial, e.g., '494' - where applicable)
+           - conv_reg_add_page_start: (String, Conveyance Deed registration additional page start, e.g., '494' - where applicable)
+           - conv_reg_add_page_end: (String, Conveyance Deed registration additional page end, e.g., '507' - where applicable)
+           - owner_name: (String, where applicable)
+           - parent_property_info: (String, where applicable)
+           - will_type: (String, 'Registered' or 'Unregistered')
+           - death_date: (String, DD.MM.YYYY)
+           - receipt_no: (String, where applicable)
+           - receipt_date: (String, DD.MM.YYYY)
+           - confidence: (String, 'High', 'Medium', 'Low')
+           - source_text: (String, exact 1-2 sentences from English report proving this event)
+
+        CRITICAL RULES:
+        1. REGISTRATION DETAILS RULE: For EVERY event in the title chain (including Sale Deeds, Lease Deeds, Gift Deeds, Hak Tyags, Power of Attorneys, or any other document), if the text indicates it was registered, you MUST extract all registration details (reg_office, reg_date, reg_book, reg_vol, reg_page, reg_no, reg_add_book, reg_add_vol, reg_add_page). Never leave these blank if they are present in the text!
+        2. DO NOT SKIP ANY TRANSFERS. Every link must be represented.
+        3. DO NOT HALLUCINATE DATES OR KEYS. If a specific field is not found in the text, leave it blank "".
+        4. Return ONLY valid, parseable JSON. No conversational text outside JSON.
         """
 
     def _build_ats_prompt(self):
@@ -664,15 +942,23 @@ class SDDataExtractor:
                 if person.get("n"):
                     person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
                 if person.get("relation_text"):
-                    from utils.text_utils import normalize_relation_prefix
+                    from utils.helpers import normalize_relation_prefix, parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
+                    person["r"], person["rn"] = parse_relation_text(person["relation_text"])
 
         self._normalize_list(data, "title_chain", [
-            "event_type", "document_name", "document_number", "date", "consideration_amount",
-            "executant_name", "claimant_name", "reg_office", "reg_date",
-            "reg_book", "reg_vol", "reg_page", "reg_no", "reg_add_book", "reg_add_vol", "reg_add_page",
+            "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
+            "executant_name", "claimant_name", "reg_office", "reg_date", 
+            "reg_book", "reg_vol", "reg_page", "reg_no", "reg_add_book", "reg_add_vol", "reg_add_page", 
             "book_no", "volume_no", "page_no", "additional_book_no", "additional_volume_no", "additional_page_range",
-            "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type"
+            "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type",
+            "share_fraction", "wife_name", "wife_death_date", "husband_name", "husband_death_date", 
+            "east_owner", "west_owner", "khata_no", "khasra_no", "rakba", "co_owner", "owner_name", 
+            "parent_property_info", "will_type", "death_date", "receipt_no", "receipt_date",
+            "possession_no", "possession_date", "nodues_date", "lease_date", "conveyance_date",
+            "reg_add_serial", "conv_reg_book", "conv_reg_vol", "conv_reg_page", "conv_reg_no",
+            "conv_reg_add_book", "conv_reg_add_vol", "conv_reg_add_serial",
+            "conv_reg_add_page_start", "conv_reg_add_page_end"
         ])
 
         for p in data.get("ps", []):
@@ -813,7 +1099,7 @@ class SDDataExtractor:
             "property_portion": "Portion of the property being sold"
           }],
           "ws": [{"n":"Name", "relation_text":"Complete Relation Phrase (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "adr":"Address"}],
-          "title_chain": [{"event_type":"SALE_DEED|ALLOTMENT|CONSTRUCTION|POA|RELINQUISHMENT|CORRECTION_DEED|TRANSFER", "document_name":"हिंदी Doc Name (e.g. 'विक्रय पत्र')", "date":"DD.MM.YYYY", "consideration_amount":"digits", "executant_name":"Seller/Authority (Unicode Hindi)", "claimant_name":"Buyer/Allottee (Unicode Hindi)", "is_registered":"true/false", "reg_office":"Office (Hindi)", "reg_date":"DD.MM.YYYY", "reg_book":"#", "reg_vol":"#", "reg_page":"#", "reg_no":"#", "reg_add_book":"#", "reg_add_vol":"#", "reg_add_page":"1026-1039 (number or range)", "project_name":"Name if CONSTRUCTION (Unicode Hindi, e.g. 'रॉयल एन्क्लेव')", "unit_number":"Unit/Flat No if CONSTRUCTION (Unicode Hindi, e.g. 'एस-1')", "confidence":"High/Medium/Low", "source_text":"exact source text"}],
+          "title_chain": [{"template_key":"Specific template key (e.g. 'SALE_DEED_PLOT', 'ALLOTMENT_SOCIETY')", "event_type":"SALE_DEED|ALLOTMENT|CONSTRUCTION|POA|RELINQUISHMENT|CORRECTION_DEED|TRANSFER", "document_name":"हिंदी Doc Name (e.g. 'विक्रय पत्र')", "date":"DD.MM.YYYY", "consideration_amount":"digits", "executant_name":"Seller/Authority (Unicode Hindi)", "claimant_name":"Buyer/Allottee (Unicode Hindi)", "is_registered":"true/false", "reg_office":"Office (Hindi)", "reg_date":"DD.MM.YYYY", "reg_book":"#", "reg_vol":"#", "reg_page":"#", "reg_no":"#", "reg_add_book":"#", "reg_add_vol":"#", "reg_add_page":"1026-1039 (number or range)", "project_name":"Name if CONSTRUCTION (Unicode Hindi, e.g. 'रॉयल एन्क्लेव')", "unit_number":"Unit/Flat No if CONSTRUCTION (Unicode Hindi, e.g. 'एस-1')", "confidence":"High/Medium/Low", "source_text":"exact source text", "share_fraction":"e.g. '1/2', 'undivided'", "wife_name":"where applicable", "wife_death_date":"DD.MM.YYYY", "husband_name":"where applicable", "husband_death_date":"DD.MM.YYYY", "east_owner":"where applicable", "west_owner":"where applicable", "khata_no":"where applicable", "khasra_no":"where applicable", "rakba":"where applicable", "co_owner":"where applicable", "owner_name":"where applicable", "parent_property_info":"where applicable", "will_type":"'Registered' or 'Unregistered'", "death_date":"DD.MM.YYYY", "receipt_no":"where applicable", "receipt_date":"DD.MM.YYYY"}],
           "reg": {"office":"Name", "book":"#", "vol":"#", "page":"#", "reg_no":"#", "reg_date":"Date"},
           "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "relation_text":"Complete Relation Phrase (exact Unicode Hindi)", "adr":"Address (exact Unicode Hindi)", "id":"Aadhar"}]
         }
@@ -878,14 +1164,23 @@ class SDDataExtractor:
                     # Remove trailing comma from name if AI hallucinates it before a relation
                     person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
                 if person.get("relation_text"):
+                    from utils.helpers import parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
+                    person["r"], person["rn"] = parse_relation_text(person["relation_text"])
 
         self._normalize_list(data, "title_chain", [
-            "event_type", "document_name", "document_number", "date", "consideration_amount", 
+            "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
             "executant_name", "claimant_name", "reg_office", "reg_date", 
             "reg_book", "reg_vol", "reg_page", "reg_no", "reg_add_book", "reg_add_vol", "reg_add_page", 
             "book_no", "volume_no", "page_no", "additional_book_no", "additional_volume_no", "additional_page_range",
-            "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type"
+            "confidence", "source_text", "is_registered", "project_name", "unit_number", "field_sources", "event_property_type",
+            "share_fraction", "wife_name", "wife_death_date", "husband_name", "husband_death_date", 
+            "east_owner", "west_owner", "khata_no", "khasra_no", "rakba", "co_owner", "owner_name", 
+            "parent_property_info", "will_type", "death_date", "receipt_no", "receipt_date",
+            "possession_no", "possession_date", "nodues_date", "lease_date", "conveyance_date",
+            "reg_add_serial", "conv_reg_book", "conv_reg_vol", "conv_reg_page", "conv_reg_no",
+            "conv_reg_add_book", "conv_reg_add_vol", "conv_reg_add_serial",
+            "conv_reg_add_page_start", "conv_reg_add_page_end"
         ])
         
         self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "relation_text", "adr", "id"])

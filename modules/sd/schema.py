@@ -2,33 +2,49 @@ def prune_sd_data(data):
     if not isinstance(data, dict):
         return data
         
-    # Force alignment between sellers/ss and buyers/bs
-    if "sellers" in data:
-        data["ss"] = data["sellers"]
-    elif "ss" in data:
-        data["sellers"] = data["ss"]
+    def get_list_completeness(lst):
+        if not lst or not isinstance(lst, list): return 0
+        score = 0
+        for item in lst:
+            if isinstance(item, dict):
+                score += sum(1 for v in item.values() if v)
+        return score
 
-    if "buyers" in data:
-        data["bs"] = data["buyers"]
-    elif "bs" in data:
-        data["buyers"] = data["bs"]
+    if "sellers" in data or "ss" in data:
+        s_score = get_list_completeness(data.get("sellers"))
+        ss_score = get_list_completeness(data.get("ss"))
+        if ss_score >= s_score:
+            data["sellers"] = data.get("ss", [])
+        else:
+            data["ss"] = data.get("sellers", [])
 
-    if "chain" in data:
-        data["title_chain"] = data["chain"]
-    elif "title_chain" in data:
-        data["chain"] = data["title_chain"]
+    if "buyers" in data or "bs" in data:
+        b_score = get_list_completeness(data.get("buyers"))
+        bs_score = get_list_completeness(data.get("bs"))
+        if bs_score >= b_score:
+            data["buyers"] = data.get("bs", [])
+        else:
+            data["bs"] = data.get("buyers", [])
+
+    if "chain" in data or "title_chain" in data:
+        c_score = get_list_completeness(data.get("chain"))
+        tc_score = get_list_completeness(data.get("title_chain"))
+        if tc_score >= c_score:
+            data["chain"] = data.get("title_chain", [])
+        else:
+            data["title_chain"] = data.get("chain", [])
         
     cleaned = {}
     
     # Keep only SD allowed fields (including both backend aliases and frontend keys)
-    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "title_chain", "reg", "unassigned_aadhars", "sellers", "buyers", "chain"]
+    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "title_chain", "reg", "unassigned_aadhars", "sellers", "buyers", "chain", "chain_text", "payments", "seller_label", "buyer_label"]
     for k in sd_keys:
         if k in data:
             cleaned[k] = data[k]
             
     # Prune ps items for SD
     if "ps" in cleaned and isinstance(cleaned["ps"], list):
-        sd_ps_fields = ["adr", "plot_no", "scheme", "length_ew", "length_ns", "land_area", "unit", "n", "s", "e", "w", "ward", "state", "khasra", "parking_type", "parking_number", "area_type", "covered_area", "property_portion", "full_address", "dimension_text", "boundary_text"]
+        sd_ps_fields = ["adr", "adr_en", "area", "area_unit", "plot_no", "scheme", "length_ew", "length_ns", "land_area", "unit", "n", "n_en", "s", "s_en", "e", "e_en", "w", "w_en", "ward", "state", "khasra", "parking_type", "parking_number", "area_type", "covered_area", "property_portion", "full_address", "dimension_text", "boundary_text", "flat_no", "floor", "building_name", "project_name", "village", "tehsil", "dist", "landmark", "const_area", "const_unit"]
         clean_ps = []
         for p in cleaned["ps"]:
             if isinstance(p, dict):

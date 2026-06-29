@@ -140,8 +140,8 @@ h6.section-title {
 }
 
 .hindi-legacy-input {
-    font-family: 'DevLys 010', 'DevLys 040', 'Kruti Dev 010', 'Courier New', monospace !important;
-    font-size: 1.2rem !important;
+    font-family: 'Segoe UI', 'Mangal', 'Arial Unicode MS', sans-serif !important;
+    font-size: 0.95rem !important;
     font-weight: 500 !important;
     background-color: #fefcf0 !important; /* Extremely soft warm yellow for Hindi inputs */
     direction: ltr;
