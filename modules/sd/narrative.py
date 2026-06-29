@@ -51,6 +51,107 @@ def deduplicate_chain(title_chain):
             unique_chain.append(evt)
     return unique_chain
 
+def determine_template_key(evt, is_flat_property):
+    # Method A: AI-assisted explicit template key
+    explicit_key = evt.get("template_key")
+    if explicit_key == "CONSTRUCTION":
+        explicit_key = "CONSTRUCTION_FLAT"
+    elif explicit_key == "SALE_DEED":
+        explicit_key = "SALE_DEED_FLAT" if is_flat_property else "SALE_DEED_PLOT"
+    elif explicit_key == "TRANSFER":
+        explicit_key = "TRANSFER_FLAT" if is_flat_property else "TRANSFER_PLOT"
+    elif explicit_key == "ALLOTMENT":
+        explicit_key = None # Let fallback determine specific allotment type
+        
+    if explicit_key and explicit_key in CHAIN_TEMPLATES:
+        return explicit_key
+        
+    # Method B: Keyword-based Python Fallback
+    event_type = str(evt.get("event_type", "")).upper()
+    doc_name = str(evt.get("document_name", "")).lower()
+    src_text = str(evt.get("source_text", "")).lower()
+    executant = str(evt.get("executant_name", "")).lower()
+    claimant = str(evt.get("claimant_name", "")).lower()
+    receipt_no = evt.get("receipt_no") or ""
+    khasra_no = evt.get("khasra_no") or ""
+    wife_name = evt.get("wife_name") or evt.get("husband_name") or ""
+    east_owner = evt.get("east_owner") or evt.get("west_owner") or ""
+    
+    # 1. CONSTRUCTION
+    if event_type == "CONSTRUCTION" or "construct" in src_text or "build" in src_text or "apartment" in src_text or "flat" in src_text or "निर्माण" in src_text or "अपार्टमेंट" in src_text or "फ्लैट" in src_text or "फ्लेट" in src_text:
+        if evt.get("project_name") or "‘‘" in src_text:
+            return "CONSTRUCTION_FLAT"
+        else:
+            return "CONSTRUCTION_FLAT_NO_NAME"
+            
+    # 2. DEATH / SUCCESSION
+    if event_type == "DEATH" or "death" in src_text or "succession" in src_text or "मृत्यु" in src_text or "फौती" in src_text or "fauti" in src_text or "heir" in src_text or "उत्तराधिकार" in src_text:
+        if east_owner:
+            return "DEATH_DIVIDED"
+        elif wife_name:
+            return "DEATH_HEIRS_WITH_SPOUSE"
+        else:
+            return "DEATH_HEIRS_SINGLE"
+            
+    # 3. HAK_TYAG / RELINQUISHMENT
+    if event_type == "HAK_TYAG" or "relinquishment" in doc_name or "release" in doc_name or "hak" in doc_name or "tyag" in doc_name or "हकत्याग" in doc_name or "हक त्याग" in doc_name:
+        return "HAK_TYAG"
+        
+    # 4. POA (Power of Attorney)
+    if event_type == "POA" or "poa" in doc_name or "attorney" in doc_name or "मुख्तियारनामा" in doc_name or "power of" in doc_name:
+        if khasra_no:
+            return "POA_AGRICULTURAL"
+        else:
+            return "POA_NON_AGRICULTURAL"
+            
+    # 5. DEVELOPER AGREEMENT
+    if "developer" in doc_name or "development agreement" in doc_name or "विकास" in doc_name or "अनुबंध" in doc_name:
+        return "DEVELOPER_AGREEMENT"
+        
+    # 6. GIFT DEED
+    if "gift" in doc_name or "दान" in doc_name or "बख्शिश" in doc_name:
+        return "GIFT_DEED"
+        
+    # 7. TRANSFER CERTIFICATE
+    if "transfer certificate" in doc_name or "certificate" in doc_name or "हस्तान्तरण" in doc_name:
+        return "TRANSFER_CERTIFICATE"
+        
+    # 8. COLONY DEVELOPMENT
+    if "colony" in doc_name or "sub-division" in doc_name or "विभाजन" in doc_name:
+        return "COLONY_DEVELOPMENT"
+        
+    # 9. ALLOTMENT / LEASE DEED
+    if event_type == "ALLOTMENT" or "allot" in doc_name or "lease" in doc_name or "patta" in doc_name or "आवंटन" in doc_name or "पट्टा" in doc_name or "लीज" in doc_name:
+        is_municipal = any(x in executant or x in src_text for x in ["municipal", "corporation", "निगम", "nnj", "नगर निगम", "नगरनिगम"])
+        is_society = any(x in executant or x in src_text for x in ["society", "samiti", "गृह निर्माण", "सहकारी", "समिति"])
+        is_lease = "lease" in doc_name or "लीज" in doc_name or "पट्टा" in doc_name or "patta" in doc_name
+        
+        if is_society:
+            return "ALLOTMENT_SOCIETY"
+        elif is_municipal:
+            return "ALLOTMENT_MUNICIPAL_FLAT" if is_flat_property else "ALLOTMENT_MUNICIPAL_PLOT"
+        elif is_lease:
+            return "LEASE_DEED"
+        else:
+            has_dep = bool(evt.get("consideration_amount") or evt.get("amount") or "amount" in src_text or "रु" in src_text or "रुपये" in src_text)
+            if is_flat_property:
+                return "ALLOTMENT_FLAT" if has_dep else "ALLOTMENT_FLAT_NO_DEPOSIT"
+            else:
+                return "ALLOTMENT_PLOT" if has_dep else "ALLOTMENT_PLOT_NO_DEPOSIT"
+                
+    # 10. SALE DEED
+    if event_type == "SALE_DEED" or "sale" in doc_name or "transfer" in doc_name or "विक्रय" in doc_name or "बैनामा" in doc_name or "इकरारनामा" in doc_name:
+        if evt.get("share_fraction") or "share" in src_text or "हिस्सा" in src_text:
+            return "PART_SALE"
+        else:
+            return "SALE_DEED_FLAT" if is_flat_property else "SALE_DEED_PLOT"
+            
+    # Default Fallback
+    if is_flat_property:
+        return "SALE_DEED_FLAT"
+    else:
+        return "SALE_DEED_PLOT"
+
 def generate_chain_narrative(title_chain, property_details=None, context=None):
     """
     Generate a formal Hindi title-chain narrative matching firm (ACTUAL.docx) style
@@ -442,18 +543,14 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         }
 
     for i, e in enumerate(filtered_chain):
-        # Update template key if it matches the map
         old_key = e.get("template_key")
         if old_key in key_map:
             e["template_key"] = key_map[old_key]
 
-        # Compute event_property_type dynamically based on the current is_flat setting
-        if const_idx != -1 and i < const_idx:
-            e["event_property_type"] = "PLOT"
-        elif e.get("event_type") == "CONSTRUCTION":
+        if e.get("event_type") == "CONSTRUCTION":
             e["event_property_type"] = "FLAT"
         else:
-            e["event_property_type"] = "FLAT" if const_idx != -1 else ("FLAT" if is_flat else "PLOT")
+            e["event_property_type"] = "FLAT" if is_flat else "PLOT"
             
     paragraphs = []
     extractor = SDDataExtractor()
@@ -971,70 +1068,8 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         else:
             ctx["reg_details"] = ""
 
-        # --- Template Key Selection ---
-        explicit_tpl_key = evt.get("template_key")
-        evt_is_flat = (evt.get("event_property_type", "FLAT" if is_flat else "PLOT") == "FLAT")
-        
-        if explicit_tpl_key and explicit_tpl_key in CHAIN_TEMPLATES:
-            tpl_key = explicit_tpl_key
-        else:
-            tpl_key = event_type
-            if event_type == "SALE_DEED":
-                if share_fraction:
-                    tpl_key = "PART_SALE"
-                else:
-                    tpl_key = "SALE_DEED_FLAT" if evt_is_flat else "SALE_DEED_PLOT"
-            elif event_type == "TRANSFER":
-                tpl_key = "TRANSFER_FLAT" if evt_is_flat else "TRANSFER_PLOT"
-            elif event_type == "ALLOTMENT":
-                doc_n_lower = str(doc_name or "").lower()
-                # Detect if it's a municipal / authority / committee allotment
-                exec_lower = str(executant or "").lower()
-                is_municipal = any(x in exec_lower for x in ["नगर निगम", "नगरनिगम", "विकास प्राधिकरण", "samiti", "समिति", "jda", "जेडीए", "uit", "यूआईटी"])
-                
-                if "lease" in doc_n_lower or "लीज" in doc_n_lower:
-                    tpl_key = "LEASE_DEED"
-                elif receipt_no:
-                    tpl_key = "ALLOTMENT_SOCIETY"
-                elif is_municipal:
-                    tpl_key = "ALLOTMENT_MUNICIPAL_FLAT" if evt_is_flat else "ALLOTMENT_MUNICIPAL_PLOT"
-                else:
-                    has_dep = bool(claimant and executant)
-                    if evt_is_flat:
-                        tpl_key = "ALLOTMENT_FLAT" if has_dep else "ALLOTMENT_FLAT_NO_DEPOSIT"
-                    else:
-                        tpl_key = "ALLOTMENT_PLOT" if has_dep else "ALLOTMENT_PLOT_NO_DEPOSIT"
-            elif event_type == "WILL":
-                tpl_key = "WILL"
-            elif event_type == "CONSTRUCTION":
-                tpl_key = "CONSTRUCTION_FLAT" if ctx["project_name"] else "CONSTRUCTION_FLAT_NO_NAME"
-            elif event_type == "DEATH":
-                if east_owner or west_owner:
-                    tpl_key = "DEATH_DIVIDED"
-                elif wife_name or husband_name:
-                    tpl_key = "DEATH_HEIRS_WITH_SPOUSE"
-                else:
-                    tpl_key = "DEATH_HEIRS_SINGLE"
-            elif event_type == "HAK_TYAG":
-                tpl_key = "HAK_TYAG"
-            elif event_type == "POA":
-                if khasra_no:
-                    tpl_key = "POA_AGRICULTURAL"
-                else:
-                    tpl_key = "POA_NON_AGRICULTURAL"
-            elif event_type == "DEVELOPER_AGREEMENT":
-                tpl_key = "DEVELOPER_AGREEMENT"
-            elif event_type == "GIFT_DEED":
-                tpl_key = "GIFT_DEED"
-            elif event_type == "TRANSFER_CERTIFICATE":
-                tpl_key = "TRANSFER_CERTIFICATE"
-            elif event_type == "COLONY_DEVELOPMENT":
-                tpl_key = "COLONY_DEVELOPMENT"
-            elif event_type == "AGRICULTURAL_ALLOTMENT":
-                tpl_key = "AGRICULTURAL_ALLOTMENT"
-            
-        if tpl_key not in CHAIN_TEMPLATES:
-            tpl_key = "TRANSFER_FLAT" if evt_is_flat else "TRANSFER_PLOT"
+        # --- Template Key Selection (Method A + Method B Fallback) ---
+        tpl_key = determine_template_key(evt, is_flat)
             
         template = CHAIN_TEMPLATES[tpl_key]
         formatted_para = template.format(**ctx)

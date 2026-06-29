@@ -372,8 +372,7 @@
                         <!-- Document Upload Area -->
                         {% if doc_type == 'SD' %}
                         <div id="sdUploadBuckets">
-                            <h5 class="card-title section-title mt-4">3. Upload Documents</h5>
-
+                            
                             <!-- KYC Documents -->
                             <div class="mb-3 border rounded p-2 bg-light">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
@@ -478,9 +477,9 @@
  
                             <!-- Legacy Files Display (for older cases) -->
                             {% if files and files|length > 0 %}
-                            <div class="mb-3 border border-warning rounded p-2 bg-light">
-                                <h6 class="fw-bold mb-1 small text-warning">Legacy Uploaded Files</h6>
-                                <ul class="list-group list-group-flush" id="fileList">
+                            <div class="mb-3 border rounded p-2 bg-light">
+                                <h6 class="fw-bold mb-1 small text-dark">Other Case Documents</h6>
+                                <ul class="list-group list-group-flush" id="legacyFileList">
                                     {% for f in files %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
@@ -2920,6 +2919,118 @@
         return `जिसकी चारों सीमाओें में ${parts.join(", ")} स्थित है`;
     }
 
+    function determineTemplateKeyJS(evt, propertyType) {
+        const isFlat = (propertyType === 'Flat');
+        let explicitKey = evt.template_key;
+        
+        if (explicitKey === "CONSTRUCTION") {
+            explicitKey = "CONSTRUCTION_FLAT";
+        } else if (explicitKey === "SALE_DEED") {
+            explicitKey = isFlat ? "SALE_DEED_FLAT" : "SALE_DEED_PLOT";
+        } else if (explicitKey === "TRANSFER") {
+            explicitKey = isFlat ? "TRANSFER_FLAT" : "TRANSFER_PLOT";
+        } else if (explicitKey === "ALLOTMENT") {
+            explicitKey = null;
+        }
+        
+        if (explicitKey && window.CHAIN_TEMPLATES_JS[explicitKey]) {
+            return explicitKey;
+        }
+        
+        const eventType = (evt.event_type || "").toUpperCase();
+        const docName = (evt.document_name || "").toLowerCase();
+        const srcText = (evt.source_text || "").toLowerCase();
+        const executant = (evt.executant_name || "").toLowerCase();
+        const claimant = (evt.claimant_name || "").toLowerCase();
+        
+        // 1. CONSTRUCTION
+        if (eventType === "CONSTRUCTION" || srcText.includes("construct") || srcText.includes("build") || srcText.includes("apartment") || srcText.includes("flat") || srcText.includes("निर्माण") || srcText.includes("अपार्टमेंट") || srcText.includes("फ्लैट") || srcText.includes("फ्लेट")) {
+            if (evt.project_name || srcText.includes("‘‘")) {
+                return "CONSTRUCTION_FLAT";
+            } else {
+                return "CONSTRUCTION_FLAT_NO_NAME";
+            }
+        }
+        
+        // 2. DEATH / SUCCESSION
+        if (eventType === "DEATH" || srcText.includes("death") || srcText.includes("succession") || srcText.includes("मृत्यु") || srcText.includes("फौती") || srcText.includes("fauti") || srcText.includes("heir") || srcText.includes("उत्तराधिकार")) {
+            const wifeName = evt.wife_name || evt.husband_name;
+            if (wifeName) {
+                return "DEATH_HEIRS_WITH_SPOUSE";
+            } else {
+                return "DEATH_HEIRS_SINGLE";
+            }
+        }
+        
+        // 3. HAK_TYAG / RELINQUISHMENT
+        if (eventType === "HAK_TYAG" || docName.includes("relinquishment") || docName.includes("release") || docName.includes("hak") || docName.includes("tyag") || docName.includes("हकत्याग") || docName.includes("हक त्याग")) {
+            return "HAK_TYAG";
+        }
+        
+        // 4. POA
+        if (eventType === "POA" || docName.includes("poa") || docName.includes("attorney") || docName.includes("मुख्तियारनामा") || docName.includes("power of")) {
+            if (evt.khasra_no) {
+                return "POA_AGRICULTURAL";
+            } else {
+                return "POA_NON_AGRICULTURAL";
+            }
+        }
+        
+        // 5. DEVELOPER AGREEMENT
+        if (docName.includes("developer") || docName.includes("development agreement") || docName.includes("विकास") || docName.includes("अनुबंध")) {
+            return "DEVELOPER_AGREEMENT";
+        }
+        
+        // 6. GIFT DEED
+        if (docName.includes("gift") || docName.includes("दान") || docName.includes("बख्शिश")) {
+            return "GIFT_DEED";
+        }
+        
+        // 7. TRANSFER CERTIFICATE
+        if (docName.includes("transfer certificate") || docName.includes("certificate") || docName.includes("हस्तान्तरण")) {
+            return "TRANSFER_CERTIFICATE";
+        }
+        
+        // 8. COLONY DEVELOPMENT
+        if (docName.includes("colony") || docName.includes("sub-division") || docName.includes("विभाजन")) {
+            return "COLONY_DEVELOPMENT";
+        }
+        
+        // 9. ALLOTMENT / LEASE DEED
+        if (eventType === "ALLOTMENT" || docName.includes("allot") || docName.includes("lease") || docName.includes("patta") || docName.includes("आवंटन") || docName.includes("पट्टा") || docName.includes("लीज")) {
+            const isMunicipal = ["municipal", "corporation", "निगम", "nnj", "नगर निगम", "नगरनिगम"].some(x => executant.includes(x) || srcText.includes(x));
+            const isSociety = ["society", "samiti", "गृह निर्माण", "सहकारी", "समिति"].some(x => executant.includes(x) || srcText.includes(x));
+            const isLease = docName.includes("lease") || docName.includes("लीज") || docName.includes("पट्टा") || docName.includes("patta");
+            
+            if (isSociety) {
+                return "ALLOTMENT_SOCIETY";
+            } else if (isMunicipal) {
+                return isFlat ? "ALLOTMENT_MUNICIPAL_FLAT" : "ALLOTMENT_MUNICIPAL_PLOT";
+            } else if (isLease) {
+                return "LEASE_DEED";
+            } else {
+                const hasDep = !!(evt.consideration_amount || evt.amount || srcText.includes("amount") || srcText.includes("रु") || srcText.includes("रुपये"));
+                if (isFlat) {
+                    return hasDep ? "ALLOTMENT_FLAT" : "ALLOTMENT_FLAT_NO_DEPOSIT";
+                } else {
+                    return hasDep ? "ALLOTMENT_PLOT" : "ALLOTMENT_PLOT_NO_DEPOSIT";
+                }
+            }
+        }
+        
+        // 10. SALE DEED
+        if (eventType === "SALE_DEED" || docName.includes("sale") || docName.includes("transfer") || docName.includes("विक्रय") || docName.includes("बैनामा") || docName.includes("इकरारनामा")) {
+            if (evt.share_fraction || srcText.includes("share") || srcText.includes("हिस्सा")) {
+                return "PART_SALE";
+            } else {
+                return isFlat ? "SALE_DEED_FLAT" : "SALE_DEED_PLOT";
+            }
+        }
+        
+        // Default
+        return isFlat ? "SALE_DEED_FLAT" : "SALE_DEED_PLOT";
+    }
+
     function compileCardPreview(idx) {
         const isManualCheckbox = document.getElementById(`field_chain_${idx}_is_manual`);
         if (isManualCheckbox && isManualCheckbox.checked) {
@@ -2927,7 +3038,30 @@
             return;
         }
 
-        const selectedKey = document.getElementById(`field_chain_${idx}_event_type`)?.value || 'SALE_DEED_PLOT';
+        const propertyType = document.getElementById('propertyTypeSelect')?.value || 'Plot';
+        
+        // Construct event object for template key determination
+        const evtObj = {
+            template_key: document.getElementById(`field_chain_${idx}_event_type`)?.value || '',
+            event_type: document.getElementById(`field_chain_${idx}_event_type`)?.value || '',
+            document_name: document.getElementById(`field_chain_${idx}_document_name`)?.value || '',
+            executant_name: document.getElementById(`field_chain_${idx}_s`)?.value || '',
+            claimant_name: document.getElementById(`field_chain_${idx}_b`)?.value || '',
+            project_name: document.getElementById(`field_chain_${idx}_project_name`)?.value || '',
+            amount: document.getElementById(`field_chain_${idx}_amount`)?.value || '',
+            share_fraction: document.getElementById(`field_chain_${idx}_share_fraction`)?.value || ''
+        };
+        
+        // Fallbacks from initial event data if fields are empty in inputs
+        const initialEvent = (window.INITIAL_CHAIN_DATA_JS && window.INITIAL_CHAIN_DATA_JS[idx]) || {};
+        evtObj.source_text = initialEvent.source_text || '';
+        evtObj.receipt_no = initialEvent.receipt_no || '';
+        evtObj.khasra_no = initialEvent.khasra_no || '';
+        evtObj.wife_name = initialEvent.wife_name || initialEvent.husband_name || '';
+        evtObj.east_owner = initialEvent.east_owner || initialEvent.west_owner || '';
+        
+        const selectedKey = determineTemplateKeyJS(evtObj, propertyType);
+        
         const date = document.getElementById(`field_chain_${idx}_d`)?.value || '';
         const executant = document.getElementById(`field_chain_${idx}_s`)?.value || '';
         const claimant = document.getElementById(`field_chain_${idx}_b`)?.value || '';
@@ -2950,8 +3084,7 @@
         const docName = document.getElementById(`field_chain_${idx}_document_name`)?.value || '';
         const docNoInput = document.getElementById(`field_chain_${idx}_document_number`)?.value || '';
 
-        // Retrieve initial event data from window.INITIAL_CHAIN_DATA_JS if it exists
-        const initialEvent = (window.INITIAL_CHAIN_DATA_JS && window.INITIAL_CHAIN_DATA_JS[idx]) || {};
+        // Retrieve initial event data from window.INITIAL_CHAIN_DATA_JS if it exists (already declared above)
         
         // Dynamic fallback logic
         const docNo = docNoInput || initialEvent.document_number || initialEvent.doc_no || '';
@@ -3075,7 +3208,6 @@
         
         // Retrieve and format property details
         const propDetails = getPropertyDetails();
-        const propertyType = "{{ property_type }}";
         const fullAddress = generateFullPropertyAddressJS(propDetails, propertyType);
         
         let dimStr = generateDimensionTextJS(propDetails);

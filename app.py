@@ -125,6 +125,34 @@ def list_cases():
         except: pass
     return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
 
+def sync_template_keys_to_property_type(chain_list, property_type):
+    if not chain_list or not isinstance(chain_list, list):
+        return
+        
+    plot_to_flat_map = {
+        "ALLOTMENT_PLOT": "ALLOTMENT_FLAT",
+        "ALLOTMENT_PLOT_NO_DEPOSIT": "ALLOTMENT_FLAT_NO_DEPOSIT",
+        "ALLOTMENT_MUNICIPAL_PLOT": "ALLOTMENT_MUNICIPAL_FLAT",
+        "SALE_DEED_PLOT": "SALE_DEED_FLAT",
+        "TRANSFER_PLOT": "TRANSFER_FLAT"
+    }
+    
+    flat_to_plot_map = {
+        "ALLOTMENT_FLAT": "ALLOTMENT_PLOT",
+        "ALLOTMENT_FLAT_NO_DEPOSIT": "ALLOTMENT_PLOT_NO_DEPOSIT",
+        "ALLOTMENT_MUNICIPAL_FLAT": "ALLOTMENT_MUNICIPAL_PLOT",
+        "SALE_DEED_FLAT": "SALE_DEED_PLOT",
+        "TRANSFER_FLAT": "TRANSFER_PLOT"
+    }
+    
+    key_map = plot_to_flat_map if property_type == "Flat" else flat_to_plot_map
+    
+    for evt in chain_list:
+        if isinstance(evt, dict):
+            old_key = evt.get("template_key")
+            if old_key in key_map:
+                evt["template_key"] = key_map[old_key]
+
 def load_case_session(case_id):
     path = os.path.join(CASES_DIR, case_id, "session.json")
     if not os.path.exists(path): return None
@@ -138,11 +166,14 @@ def load_case_session(case_id):
     if "data" in sess:
         sess["data"] = convert_hindi_digits_to_english(sess["data"])
         if isinstance(sess["data"], dict):
-            sess["data"]["property_type"] = sess.get("property_type", "Plot")
+            property_type = sess.get("property_type", "Plot")
+            sess["data"]["property_type"] = property_type
             
             # Universal bidirectional synchronization between long and short keys for title chain
             for key_list_name in ["title_chain", "chain"]:
-                for evt in sess["data"].get(key_list_name, []):
+                chain_list = sess["data"].get(key_list_name, [])
+                sync_template_keys_to_property_type(chain_list, property_type)
+                for evt in chain_list:
                     if isinstance(evt, dict):
                         # Sync long keys (AI-extracted) to short keys (UI inputs)
                         if "executant_name" in evt and not evt.get("s"):
@@ -252,6 +283,11 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
             elif not incoming_list and existing_list:
                 merged_data[key] = existing_list
                 
+    # Sync template keys to the property type
+    for key_list_name in ["title_chain", "chain"]:
+        if key_list_name in merged_data:
+            sync_template_keys_to_property_type(merged_data[key_list_name], property_type)
+                 
     pruned_data = prune_case_data(merged_data, doc_type)
 
     if doc_type == "SD":
