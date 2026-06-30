@@ -388,7 +388,7 @@
                                     {% for f in buckets.get('kyc', []) %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'kyc')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'kyc')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -409,7 +409,7 @@
                                     {% for f in buckets.get('legal', []) %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'legal')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'legal')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -430,7 +430,7 @@
                                     {% for f in buckets.get('ats', []) %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ats')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ats')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -451,7 +451,7 @@
                                     {% for f in buckets.get('title_chain', []) %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'title_chain')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'title_chain')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -469,7 +469,7 @@
                                     {% for f in buckets.get('ocr', []) %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ocr')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ocr')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -483,7 +483,7 @@
                                     {% for f in files %}
                                     <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                         <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file"></button>
+                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file" title="Delete file"></button>
                                     </li>
                                     {% endfor %}
                                 </ul>
@@ -501,7 +501,7 @@
                             {% for f in files %}
                             <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
                                 <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file"></button>
+                                <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file" title="Delete file"></button>
                             </li>
                             {% endfor %}
                         </ul>

@@ -201,7 +201,7 @@
                     <div class="file-size" id="fileSize">0 KB</div>
                   </div>
                 </div>
-                <button type="button" class="btn-close" id="removeFileBtn" aria-label="Remove"></button>
+                <button type="button" class="btn-close" id="removeFileBtn" aria-label="Remove" title="Remove"></button>
               </div>
 
               <!-- Font & Options Panel -->
@@ -351,7 +351,7 @@
         alertContainer.innerHTML = `
           <div class="alert alert-${type} alert-dismissible fade show" role="alert">
             <strong>${type === 'success' ? 'Success!' : 'Error!'}</strong> ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" title="Close"></button>
           </div>
         `;
       }
