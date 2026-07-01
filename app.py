@@ -14,6 +14,13 @@ from utils.config import DEFAULT_GEMINI_API_KEYS
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
 
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 @app.template_filter('basename')
 def basename_filter(s):
     if not s:
@@ -1030,7 +1037,13 @@ def run_ai(case_id):
 
     all_files = session.get("files", [])
     processed_files = session.get("processed_files", [])
-    files_to_process = [f for f in all_files if f not in processed_files]
+    
+    # Check if user specified a subset of files to process
+    selected_filenames = req_data.get("selected_files")
+    if selected_filenames:
+        files_to_process = [f for f in all_files if os.path.basename(f) in selected_filenames]
+    else:
+        files_to_process = [f for f in all_files if f not in processed_files]
 
     buckets = session.get("buckets", {})
     has_bucket_files = any(len(b) > 0 for b in buckets.values())
@@ -1039,10 +1052,17 @@ def run_ai(case_id):
         if all_files:
             files_to_process = all_files
         else:
-            return jsonify({"success": False, "error": "No new documents to process. Please upload a document first."}), 400
+            return jsonify({"success": False, "error": "No documents selected to process."}), 400
 
     try:
         current_data = session.get("data", {})
+        
+        # If regenerate is requested, clear the old title chain data to start fresh
+        if req_data.get("regenerate"):
+            for k in ["title_chain", "chain", "chain_text", "chain_paragraphs"]:
+                if k in current_data:
+                    del current_data[k]
+                    
         verified_fields = set(session.get("verified_fields", []))
 
         if doc_type == "SD":
@@ -1153,6 +1173,8 @@ def run_ai(case_id):
             ps0 = session["data"].get("ps", [{}])[0]
             chain_paras = generate_chain_narrative(session["data"]["title_chain"], property_details=ps0, context=session["data"])
             session["data"]["chain_text"] = "\n\n\t".join(chain_paras)
+            session["data"]["chain_paragraphs"] = chain_paras
+            session["data"]["chain"] = session["data"]["title_chain"]
         
         # Mark files as processed only after successful AI run
         for f in files_to_process:
@@ -1443,11 +1465,11 @@ def generate_rm(case_id):
 
     # Now generate chain paragraphs since we have computed ps fields
     if doc_type == "SD":
-        if not context.get("chain_text") and "title_chain" in context and isinstance(context["title_chain"], list):
+        if "title_chain" in context and isinstance(context["title_chain"], list) and len(context["title_chain"]) > 0:
             ps0 = context.get("ps", [{}])[0]
             chain_paras = generate_chain_narrative(context["title_chain"], property_details=ps0, context=context)
             context["chain_paragraphs"] = chain_paras
-            context["chain_text"] = "\n\n\t".join(chain_paras) # Fallback for old templates
+            context["chain_text"] = "\n\n\t".join(chain_paras)
         elif context.get("chain_text"):
             context["chain_paragraphs"] = [p.strip() for p in context["chain_text"].split("\n\n") if p.strip()]
         else:
@@ -2082,6 +2104,327 @@ def _google_input_tools_transliterate(text):
         return None
     return result
 
+
+
+# --- e-Panjiyan Automation Endpoints ---
+
+@app.route("/api/cases/recent")
+def get_recent_cases():
+    try:
+        cases = list_cases()
+        recent = []
+        for case in cases[:10]:
+            case_id = case.get("id", "")
+            doc_type = case.get("doc_type", "RM")
+            data = case.get("data", {})
+            
+            name = "Unnamed Case"
+            if doc_type == "RM":
+                bs = data.get("bs", [])
+                if bs and bs[0].get("n"):
+                    name = bs[0]["n"]
+                else:
+                    sig = data.get("bsign", {})
+                    if sig.get("n"):
+                        name = sig["n"]
+            else:
+                es = data.get("es", [])
+                if es and es[0].get("n"):
+                    name = es[0]["n"]
+                else:
+                    name = data.get("purchaser_name", "Unnamed SD Case")
+                    
+            recent.append({
+                "case_id": case_id,
+                "doc_type": doc_type,
+                "name": name.upper(),
+                "updated": time.strftime("%Y-%m-%d %H:%M", time.localtime(case.get("last_updated", 0)))
+            })
+        return jsonify(recent)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def split_address(address_str):
+    if not address_str:
+        return {
+            "house_no": "00",
+            "colony": "",
+            "area": "",
+            "city": "JAIPUR",
+            "pincode": ""
+        }
+    
+    address_str = address_str.strip()
+    
+    pincode_match = re.search(r'\b\d{6}\b', address_str)
+    pincode = pincode_match.group(0) if pincode_match else ""
+    if pincode:
+        address_str = address_str.replace(pincode, "").strip()
+        
+    address_str = re.sub(r'[\s,\.]+$', '', address_str)
+    
+    city = "JAIPUR"
+    city_match = re.search(r'\b(jaipur|sanganer|amer|bagru)\b', address_str, re.IGNORECASE)
+    if city_match:
+        city = city_match.group(0).upper()
+        address_str = re.sub(r'\b' + city_match.group(0) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
+        
+    address_str = re.sub(r'\b(rajasthan|rj)\b', '', address_str, flags=re.IGNORECASE).strip()
+    address_str = re.sub(r'[\s,\.]+$', '', address_str)
+    
+    house_no = "00"
+    house_match = re.search(r'\b(?:plot|p\.?|h\.?|flat|shop|house|ward)\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+    if house_match:
+        house_no = house_match.group(1).upper()
+        address_str = address_str.replace(house_match.group(0), "").strip()
+    else:
+        start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
+        if start_match and start_match.group(1).isdigit():
+            house_no = start_match.group(1)
+            address_str = address_str.replace(house_no, "", 1).strip()
+            
+    address_str = re.sub(r'^[\s,\.]+', '', address_str)
+    address_str = re.sub(r'[\s,\.]+$', '', address_str)
+    
+    common_areas = [
+        "Jhotwara", "Mansarovar", "Sodala", "Malviya Nagar", "Vaishali Nagar", 
+        "C-Scheme", "Raja Park", "Adarsh Nagar", "Bani Park", "Shastri Nagar", 
+        "Vidhyadhar Nagar", "Pratap Nagar", "Sanganer", "Gopalpura", "Tonk Road", 
+        "Jagatpura", "Patrakar Colony", "Nirman Nagar", "Civil Lines", "Ajmer Road", 
+        "Sirsi Road", "Kalwar Road", "Agra Road", "Delhi Road", "Amer", "Chomu",
+        "Prithviraj Nagar", "PRN", "Muhana", "Bhakrota", "Bindayaka"
+    ]
+    
+    area = ""
+    for a in common_areas:
+        if re.search(r'\b' + re.escape(a) + r'\b', address_str, re.IGNORECASE):
+            area = a.upper()
+            address_str = re.sub(r'\b' + re.escape(a) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
+            break
+            
+    address_str = re.sub(r'^[\s,\.\-]+', '', address_str)
+    address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
+    
+    if not area:
+        parts = [p.strip() for p in address_str.split(",") if p.strip()]
+        if parts:
+            area = parts[-1].upper()
+            address_str = ",".join(parts[:-1]).strip()
+            
+    colony = address_str.upper() if address_str else "JAIPUR"
+    if not colony:
+        colony = area
+        
+    return {
+        "house_no": house_no,
+        "colony": colony,
+        "area": area,
+        "city": city,
+        "pincode": pincode
+    }
+
+
+@app.route("/api/case/<case_id>/epanjiyan_data")
+def get_epanjiyan_data(case_id):
+    try:
+        session = load_case_session(case_id)
+        if not session:
+            return jsonify({"error": "Case not found"}), 404
+            
+        data = session.get("data", {})
+        doc_type = session.get("doc_type", "RM")
+        
+        sro = "JAIPUR-VII"
+        tehsil = "JAIPUR"
+        
+        face_value = 0
+        r_rate = "12.00%"
+        emi = ""
+        emi_w = ""
+        ls = data.get("ls", [])
+        if ls:
+            for loan in ls:
+                try:
+                    amt_str = str(loan.get("a", "0")).replace(",", "").replace("/-", "").strip()
+                    face_value += int(float(amt_str))
+                except:
+                    pass
+            first_loan = ls[0]
+            r_rate = first_loan.get("r_rate", "12.00%")
+            if r_rate and "%" not in r_rate:
+                r_rate = f"{r_rate}%"
+            emi = str(first_loan.get("emi", "")).replace(",", "").replace("/-", "").strip()
+            emi_w = first_loan.get("emi_w", "")
+            
+        def clean_val(val):
+            if val is None:
+                return ""
+            return str(val).strip().upper()
+            
+        executants = []
+        for b in data.get("bs", []):
+            name_en = clean_val(b.get("n", ""))
+            rel_name_en = clean_val(b.get("rn", ""))
+            
+            sal = clean_val(b.get("s", ""))
+            gender = "MALE"
+            if "MRS" in sal or "MS" in sal or "FEMALE" in sal:
+                gender = "FEMALE"
+                
+            addr_str = b.get("adr", "")
+            addr_split = split_address(addr_str)
+            
+            rel_type = clean_val(b.get("r", "S/O"))
+            if "W/O" in rel_type or "WIFE" in rel_type:
+                rel_type = "HUSBAND"
+            else:
+                rel_type = "FATHER"
+                
+            executants.append({
+                "name_en": name_en,
+                "relation_type": rel_type,
+                "relation_name_en": rel_name_en,
+                "gender": gender,
+                "age": clean_val(b.get("a", "")),
+                "dob": clean_val(b.get("dob", "")),
+                "aadhaar": clean_val(b.get("id", "")).replace(" ", ""),
+                "pan": clean_val(b.get("pan", "")).replace(" ", ""),
+                "address": {
+                    "house_no": clean_val(addr_split["house_no"]),
+                    "colony": clean_val(addr_split["colony"]),
+                    "area": clean_val(addr_split["area"]),
+                    "city": clean_val(addr_split["city"]),
+                    "pincode": clean_val(addr_split["pincode"])
+                }
+            })
+            
+        claimant = {}
+        bank_map = {
+            "CHOLA": {
+                "en": "CHOLAMANDALAM INVESTMENT AND FINANCE COMPANY LIMITED"
+            },
+            "ICICI": {
+                "en": "ICICI BANK LIMITED"
+            }
+        }
+        
+        bank_folder = session.get("bank", "CHOLA")
+        bank_names = bank_map.get(bank_folder, bank_map["CHOLA"])
+        
+        sig = data.get("bsign", {})
+        sig_name_en = clean_val(sig.get("n", ""))
+        sig_rel_name_en = clean_val(sig.get("rn", ""))
+        
+        sig_sal = clean_val(sig.get("s", ""))
+        sig_gender = "MALE"
+        if "MRS" in sig_sal or "MS" in sig_sal or "FEMALE" in sig_sal:
+            sig_gender = "FEMALE"
+            
+        sig_addr_str = sig.get("adr", "")
+        if not sig_addr_str:
+            sig_addr_str = "JAIPUR"
+        sig_addr_split = split_address(sig_addr_str)
+        
+        sig_rel_type = clean_val(sig.get("r", "S/O"))
+        if "W/O" in sig_rel_type or "WIFE" in sig_rel_type:
+            sig_rel_type = "HUSBAND"
+        else:
+            sig_rel_type = "FATHER"
+            
+        bank_composite_en = f"{bank_names['en']} THROUGH AUTHORISED SIGNATORY {sig_name_en}"
+        
+        claimant = {
+            "name_en": clean_val(bank_composite_en),
+            "relation_type": sig_rel_type,
+            "relation_name_en": sig_rel_name_en,
+            "gender": sig_gender,
+            "age": clean_val(sig.get("a", "")),
+            "dob": clean_val(sig.get("dob", "")),
+            "aadhaar": clean_val(sig.get("id", "")).replace(" ", ""),
+            "pan": clean_val(sig.get("pan", "")).replace(" ", ""),
+            "address": {
+                "house_no": clean_val(sig_addr_split["house_no"]),
+                "colony": clean_val(sig_addr_split["colony"]),
+                "area": clean_val(sig_addr_split["area"]),
+                "city": clean_val(sig_addr_split["city"]),
+                "pincode": clean_val(sig_addr_split["pincode"])
+            }
+        }
+        
+        witnesses = []
+        for w in data.get("ws", []):
+            w_name_en = clean_val(w.get("n", ""))
+            w_rel_name_en = clean_val(w.get("rn", ""))
+            
+            w_rel_type = clean_val(w.get("r", "S/O"))
+            if "W/O" in w_rel_type or "WIFE" in w_rel_type:
+                w_rel_type = "HUSBAND"
+            else:
+                w_rel_type = "FATHER"
+                
+            w_addr_str = w.get("adr", "")
+            w_addr_split = split_address(w_addr_str)
+            
+            w_age = clean_val(w.get("a", ""))
+            if not w_age:
+                w_age = "35"
+                
+            witnesses.append({
+                "name_en": w_name_en,
+                "relation_type": w_rel_type,
+                "relation_name_en": w_rel_name_en,
+                "gender": "MALE",
+                "age": w_age,
+                "dob": clean_val(w.get("dob", "")),
+                "aadhaar": clean_val(w.get("id", "")),
+                "address": {
+                    "house_no": clean_val(w_addr_split["house_no"]),
+                    "colony": clean_val(w_addr_split["colony"]),
+                    "area": clean_val(w_addr_split["area"]),
+                    "city": clean_val(w_addr_split["city"]),
+                    "pincode": clean_val(w_addr_split["pincode"])
+                }
+            })
+            
+        properties = []
+        for p in data.get("ps", []):
+            p_addr_str = p.get("adr", "")
+            p_addr_split = split_address(p_addr_str)
+            properties.append({
+                "address": {
+                    "house_no": clean_val(p_addr_split["house_no"]),
+                    "colony": clean_val(p_addr_split["colony"]),
+                    "area": clean_val(p_addr_split["area"]),
+                    "city": clean_val(p_addr_split["city"]),
+                    "pincode": clean_val(p_addr_split["pincode"])
+                },
+                "lat": clean_val(p.get("lat", "")),
+                "lng": clean_val(p.get("lng", ""))
+            })
+            
+        import datetime
+        today_date = datetime.date.today().strftime("%d-%m-%Y")
+        
+        response_data = {
+            "case_id": case_id,
+            "doc_type": doc_type,
+            "sro": sro,
+            "tehsil": tehsil,
+            "face_value": face_value,
+            "execution_date": today_date,
+            "r_rate": r_rate,
+            "emi": emi,
+            "emi_w": clean_val(emi_w),
+            "executants": executants,
+            "claimant": claimant,
+            "witnesses": witnesses,
+            "properties": properties
+        }
+        
+        return jsonify(response_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
