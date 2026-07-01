@@ -15,7 +15,7 @@ def prune_rm_data(data):
             
     # Prune ps items for RM
     if "ps" in cleaned and isinstance(cleaned["ps"], list):
-        rm_ps_fields = ["adr", "n", "s", "e", "w"]
+        rm_ps_fields = ["adr", "adr_en", "area", "area_unit", "n", "s", "e", "w", "lat", "lng"]
         clean_ps = []
         for p in cleaned["ps"]:
             if isinstance(p, dict):
@@ -26,7 +26,7 @@ def prune_rm_data(data):
         
     # Prune bs items for RM
     if "bs" in cleaned and isinstance(cleaned["bs"], list):
-        rm_bs_fields = ["s", "n", "a", "r", "rn", "relation_text", "adr", "id", "pan"]
+        rm_bs_fields = ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"]
         clean_bs = []
         for b in cleaned["bs"]:
             if isinstance(b, dict):
@@ -48,7 +48,7 @@ def prune_rm_data(data):
 
     # Prune ws items for RM
     if "ws" in cleaned and isinstance(cleaned["ws"], list):
-        rm_ws_fields = ["n", "r", "rn", "relation_text", "adr", "id", "a"]
+        rm_ws_fields = ["n", "r", "rn", "relation_text", "adr", "id", "a", "dob"]
         clean_ws = []
         for w in cleaned["ws"]:
             if isinstance(w, dict):
@@ -70,7 +70,7 @@ def prune_rm_data(data):
 
     # Prune bsign items for RM
     if "bsign" in cleaned and isinstance(cleaned["bsign"], dict):
-        rm_bsign_fields = ["s", "n", "a", "d", "r", "rn", "relation_text", "pan", "id"]
+        rm_bsign_fields = ["s", "n", "a", "dob", "d", "r", "rn", "relation_text", "pan", "id", "adr"]
         item = {k: cleaned["bsign"][k] for k in rm_bsign_fields if k in cleaned["bsign"]}
         if item.get("r"):
             item["r"] = normalize_relation_prefix(item["r"], doc_type)

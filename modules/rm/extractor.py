@@ -177,12 +177,12 @@ class RMDataExtractor:
         JSON STRUCTURE:
         {
           "ad": "Loan Date (e.g. '15.04.2024')",
-          "bs": [{"s":"Mr./Ms./Mrs.", "n":"Name", "a":"Age", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Vinod Malhotra')", "adr":"Address", "id":"Aadhar ID", "pan":"PAN Card No"}],
-          "ls": [{"n":"LAN", "a":"Amount (digits)", "w":"Amount in words", "t":"Tenure (MUST be in Months, e.g. '180 Months')"}],
-          "ps": [{"adr":"Property Address", "lease_deed_no":"Lease Deed Number", "n":"North", "s":"South", "e":"East", "w":"West"}],
-          "bsign": {"n":"Signatory Name", "a":"Age", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Rajesh Nama')", "pan":"PAN Card No", "id":"Aadhar ID"},
-          "ws": [{"n":"Name", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Gopal Singh')", "adr":"Address"}],
-          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "relation_text":"Complete Relation Phrase", "adr":"Address (exact Aadhar print)", "id":"Aadhar Number"}],
+          "bs": [{"s":"Mr./Ms./Mrs.", "n":"Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Vinod Malhotra')", "adr":"Address", "id":"Aadhar ID", "pan":"PAN Card No"}],
+          "ls": [{"n":"LAN", "a":"Amount (digits)", "w":"Amount in words", "t":"Tenure (MUST be in Months, e.g. '180 Months')", "emi":"EMI Amount (digits, e.g. '96013')", "emi_w":"EMI Amount in words (e.g. 'Ninety Six Thousand Thirteen')", "r_rate":"Applicable interest rate as on date (percentage, e.g. '12.00%')"}],
+          "ps": [{"adr":"Property Address", "lease_deed_no":"Lease Deed Number", "n":"North", "s":"South", "e":"East", "w":"West", "lat":"Latitude from the location map of the technical report (e.g. '26.949441')", "lng":"Longitude from the location map of the technical report (e.g. '75.678939')"}],
+          "bsign": {"n":"Signatory Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Rajesh Nama')", "pan":"PAN Card No", "id":"Aadhar ID", "adr":"Address"},
+          "ws": [{"n":"Name", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Gopal Singh')", "adr":"Address", "a":"Age (numeric, calculate from YOB/DOB as of 2026)", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "id":"Aadhar ID"}],
+          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase", "adr":"Address (exact Aadhar print)", "id":"Aadhar Number", "pan":"PAN Card Number (if a PAN card is uploaded)"}],
           "second_schedule": "Documents to be collected section."
         }
 
@@ -190,9 +190,9 @@ class RMDataExtractor:
         1. NO HALLUCINATION. If missing, use "".
         2. COUNTS: "bs" exactly selected count. "ls" selected count. "ws" exactly 2.
         3. DATES & BOUNDARIES: Extract exactly as printed.
-        4. AADHAAR CARDS: Extract details from uploaded Aadhaar cards (including name, age, relation phrase, address, and ID) EXCLUSIVELY into 'unassigned_aadhars'. DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
+        4. AADHAAR & PAN CARDS: Extract details from uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars'. DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
         4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
-        5. AGE: Calculate numeric age as of 2026 from YOB/DOB (e.g. '38').
+        5. DOB & AGE: Extract the actual Date of Birth (DOB) as printed (e.g. '20/02/1993' or '1993' if only year is printed) into 'dob' field, and calculate numeric age as of 2026 from YOB/DOB into 'a' field (e.g. '33').
         6. SALUTATIONS: Separate salutations from names. Use 's' field for 'Mr./Ms./Mrs.' and DO NOT prefix the name in the 'n' field or relative name in the 'relation_text' field with any salutation. Use 'Mr.' (with one dot) for males, 'Mrs.' for females.
         7. ADDRESS & RELATIONS: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
         7b. STRICT RELATION FORMATTING: ALWAYS format relations using exact English (e.g. 'S/o Mr. ...', 'W/o Mr. ...', 'D/o Mr. ...'). DO NOT leave them as 'Son of' or 'Wife of' in the extracted output.
@@ -203,12 +203,9 @@ class RMDataExtractor:
         12. PAN CARDS: Extract 10-char alphanumeric PAN into 'pan' field.
         13. BORROWER DETAILS: STRICTLY DO NOT extract borrower details from non-ID documents. 'bs' list must be empty initially. Populate from Aadhaar/PAN processed into 'unassigned_aadhars' and manually map.
         14. MULTI-LOAN: If multiple sanction letters are present, extract ALL of them into the 'ls' list.
-        15. PRECISION: EXTRACT ALL DIGITS OF THE LOAN AMOUNT. DO NOT MISS ANY NUMBERS. (Example: If it is 56,782, extract exactly 56782, NOT 5782).
+        15. PRECISION: EXTRACT ALL DIGITS OF THE LOAN AMOUNT AND EMI AMOUNT. DO NOT MISS ANY NUMBERS.
         16. MANDATORY ENGLISH SCRIPT: You MUST use English script for ALL descriptive text including names ('n'), relations ('relation_text'), and addresses ('adr'). DO NOT USE HINDI/Devanagari script for these fields.
-            - Correct Name: 'Ramkumar Sharma' (NOT 'रामकुमार शर्मा')
-            - Correct Address: '123, Malviya Nagar, Jaipur' (NOT '१२३, मालवीय नगर, जयपुर')
-            - Correct Relation: 'S/o Mr. Banwari Lal' (NOT 'पुत्र श्री बनवारी लाल')
-        17. ENGLISH SOURCE PRIORITY: Always prefer extracting names and addresses natively from English text in the uploaded documents (e.g., the English side of an Aadhaar card). The English print is much more reliable. Only fallback to translating/transliterating Hindi text into English if English text is completely unavailable.
+        17. ENGLISH SOURCE PRIORITY: Always prefer extracting names and addresses natively from English text in the uploaded documents.
         """
         return prompt
 
@@ -217,18 +214,18 @@ class RMDataExtractor:
             return {"error": "AI returned JSON, but it was not an object"}
 
         data["ad"] = format_date_with_dots(data.get("ad", ""))
-        self._normalize_list(data, "bs", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id", "pan"])
-        self._normalize_list(data, "ls", ["n", "a", "w", "t"])
-        self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w"])
-        self._normalize_list(data, "ws", ["n", "r", "rn", "relation_text", "adr"])
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
+        self._normalize_list(data, "bs", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"])
+        self._normalize_list(data, "ls", ["n", "a", "w", "t", "emi", "emi_w", "r_rate"])
+        self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w", "lat", "lng"])
+        self._normalize_list(data, "ws", ["n", "r", "rn", "relation_text", "adr", "a", "dob", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"])
 
         if "bsign" in data and isinstance(data["bsign"], dict):
             bsign = data["bsign"]
-            for f in ["n", "a", "relation_text", "pan", "id"]:
+            for f in ["n", "a", "dob", "relation_text", "pan", "id", "adr"]:
                 bsign[f] = str(bsign.get(f, "")).strip()
         else:
-            data["bsign"] = {"n":"", "a":"", "relation_text":"", "pan":"", "id":""}
+            data["bsign"] = {"n":"", "a":"", "dob":"", "relation_text":"", "pan":"", "id":"", "adr":""}
 
         # Normalize relations
         doc_type = "RM"
@@ -301,7 +298,7 @@ class RMDataExtractor:
 
         bsign = data.get("bsign", {})
         if not bsign.get("id") and not bsign.get("pan"):
-            bsign = {"n":"", "a":"", "r":"", "rn":"", "relation_text":"", "pan":"", "id":""}
+            bsign = {"n":"", "a":"", "dob":"", "r":"", "rn":"", "relation_text":"", "pan":"", "id":"", "adr":""}
         else:
             if bsign.get("relation_text"):
                 norm_rel = normalize_relation_prefix(bsign["relation_text"], "RM")
@@ -311,13 +308,13 @@ class RMDataExtractor:
                 bsign["rn"] = rn
             if bsign.get("n"):
                 bsign["n"] = normalize_name_salutation(bsign["n"], bsign.get("r"))
-        data["bsign"] = self._normalize_person(bsign, ["n", "a", "r", "rn", "relation_text", "pan", "id"])
+        data["bsign"] = self._normalize_person(bsign, ["n", "a", "dob", "r", "rn", "relation_text", "pan", "id", "adr"])
 
         self._apply_person_hints(data, borrower_hints, witness_hints)
 
         for b in data.get("bs", []):
             if not b.get("id") and not b.get("pan"):
-                for k in ["s", "n", "a", "r", "rn", "relation_text", "adr", "id", "pan"]:
+                for k in ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"]:
                     b[k] = ""
 
         # Witness OCR Isolation: Filter out witness names from unassigned_aadhars
@@ -361,9 +358,9 @@ class RMDataExtractor:
         if "ls" in data and isinstance(data["ls"], list):
             data["ls"].sort(key=lambda x: get_amount_float(x.get("a", 0)), reverse=True)
 
-        self._force_count(data, "bs", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id", "pan"], expected_borrowers)
-        self._force_count(data, "ls", ["n", "a", "w", "t"], expected_loans)
-        self._force_count(data, "ws", ["n", "r", "rn", "relation_text", "adr"], expected_witnesses)
+        self._force_count(data, "bs", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"], expected_borrowers)
+        self._force_count(data, "ls", ["n", "a", "w", "t", "emi", "emi_w", "r_rate"], expected_loans)
+        self._force_count(data, "ws", ["n", "r", "rn", "relation_text", "adr", "a", "dob", "id"], expected_witnesses)
 
         for loan in data.get("ls", []):
             if loan.get("a"):
@@ -371,6 +368,11 @@ class RMDataExtractor:
             if not loan.get("w") or loan["w"].casefold() in {"amount in words", "not found"}:
                 loan["w"] = amount_to_words(str(loan.get("a", "0")))
             
+            if loan.get("emi"):
+                loan["emi"] = format_indian_currency(str(loan["emi"]))
+            if not loan.get("emi_w") or loan["emi_w"].casefold() in {"amount in words", "not found"}:
+                loan["emi_w"] = amount_to_words(str(loan.get("emi", "0")))
+                
             if loan.get("t"):
                 t_val = str(loan["t"]).strip()
                 match = re.search(r'(\d+)\s*(?:years?|yrs?|y/o)', t_val, re.IGNORECASE)

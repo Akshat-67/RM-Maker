@@ -398,7 +398,13 @@
                             <div class="mb-3 border rounded p-2 bg-light">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <h6 class="fw-bold m-0 small text-dark">Legal & Technical Reports</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_legal" onclick="startAIForBucket('legal', this)" {% if not buckets.get('legal') %}disabled title="No files uploaded"{% endif %}>⚡ Extract Legal</button>
+                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_legal" onclick="startAIForBucket('legal', this, {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}true{% else %}false{% endif %})" {% if not buckets.get('legal') %}disabled title="No files uploaded"{% endif %}>
+                                        {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}
+                                            ⚡ Re-generate Chain Narrative
+                                        {% else %}
+                                            ⚡ Extract Legal
+                                        {% endif %}
+                                    </button>
                                 </div>
                                 <p class="text-muted small mb-1" style="font-size: 0.75rem;">Primary source for Property & Title Chain.</p>
                                 <div class="drop-zone mb-2" onclick="document.getElementById('legalFiles').click()" style="padding: 10px; min-height: 40px;">
@@ -440,7 +446,13 @@
                             <div class="mb-3 border rounded p-2 bg-light">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <h6 class="fw-bold m-0 small text-dark">Title Chain Documents / Site Plan</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this)" {% if not buckets.get('title_chain') %}disabled title="No files uploaded"{% endif %}>⚡ Extract Chain</button>
+                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this, {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}true{% else %}false{% endif %})" {% if not buckets.get('title_chain') %}disabled title="No files uploaded"{% endif %}>
+                                        {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}
+                                            ⚡ Re-generate Chain Narrative
+                                        {% else %}
+                                            ⚡ Extract Chain
+                                        {% endif %}
+                                    </button>
                                 </div>
                                 <p class="text-muted small mb-1" style="font-size: 0.75rem;">Extracts site plan dimensions.</p>
                                 <div class="drop-zone mb-2" onclick="document.getElementById('titleFiles').click()" style="padding: 10px; min-height: 40px;">
@@ -492,7 +504,15 @@
                         </div>
                         {% else %}
                         <!-- Original Generic Upload for RM -->
-                        <h5 class="card-title section-title mt-4">3. Upload KYC Documents</h5>
+                        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+                            <h5 class="card-title section-title my-0">3. Upload KYC Documents</h5>
+                            {% if files and files|length > 0 %}
+                            <div>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none me-2 fw-bold" onclick="toggleAllFiles(true)" style="font-size: 0.72rem; color: #0d6efd;">Select All</button>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold" onclick="toggleAllFiles(false)" style="font-size: 0.72rem; color: #dc3545;">Deselect All</button>
+                            </div>
+                            {% endif %}
+                        </div>
                         <div id="dropZone" class="drop-zone mb-2" onclick="document.getElementById('docFiles').click()">
                             <span class="drop-zone-text text-muted small">Drag & Drop Aadhaar/PAN Here or Click to Upload</span>
                             <input type="file" id="docFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleFileSelect(this)" onclick="event.stopPropagation()">
@@ -500,7 +520,10 @@
                         <ul class="list-group list-group-flush" id="fileList">
                             {% for f in files %}
                             <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
+                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
+                                    <input type="checkbox" class="form-check-input me-2 file-select-checkbox" data-filename="{{ f | basename }}" checked>
+                                    <span class="text-truncate">{{ f | basename }}</span>
+                                </div>
                                 <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file"></button>
                             </li>
                             {% endfor %}
@@ -579,6 +602,7 @@
                                                     data-n="{{ ua.get('n','') }}"
                                                     data-id="{{ ua.get('id','') }}"
                                                     data-a="{{ ua.get('a','') }}"
+                                                    data-dob="{{ ua.get('dob','') }}"
                                                     data-r="{{ ua.get('r','') }}"
                                                     data-rn="{{ ua.get('rn','') }}"
                                                     data-adr="{{ ua.get('adr','') }}"
@@ -1144,6 +1168,7 @@
                                             <div class="d-flex justify-content-between"><label class="small">PAN Card</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.pan" {% if 'bs.' ~ loop.index0 ~ '.pan' in verified_fields %}checked{% endif %}></div>
                                             <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_pan" value="{{ b.get('pan','') }}">
                                         </div>
+                                        <input type="hidden" id="field_bs_{{ loop.index0 }}_dob" value="{{ b.get('dob','') }}">
                                     </div>
                                 </div>
                             </div>
@@ -1171,6 +1196,18 @@
                                         <div class="col-6">
                                             <div class="d-flex justify-content-between"><label class="small">Tenure</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.t" {% if 'ls.' ~ loop.index0 ~ '.t' in verified_fields %}checked{% endif %}></div>
                                             <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_t" value="{{ l.get('t','') }}">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">EMI Amount</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.emi" {% if 'ls.' ~ loop.index0 ~ '.emi' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_emi" value="{{ l.get('emi','') }}">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">Interest Rate</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.r_rate" {% if 'ls.' ~ loop.index0 ~ '.r_rate' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_r_rate" value="{{ l.get('r_rate','') }}">
+                                        </div>
+                                        <div class="col-12">
+                                            <div class="d-flex justify-content-between"><label class="small">EMI Words</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.emi_w" {% if 'ls.' ~ loop.index0 ~ '.emi_w' in verified_fields %}checked{% endif %}></div>
+                                            <textarea class="form-control form-control-sm" rows="2" id="field_ls_{{ loop.index0 }}_emi_w">{{ l.get('emi_w','') }}</textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -1203,6 +1240,14 @@
                                         <div class="col-3">
                                             <div class="d-flex justify-content-between"><label class="small">West</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.w" {% if 'ps.' ~ loop.index0 ~ '.w' in verified_fields %}checked{% endif %}></div>
                                             <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_w" value="{{ p.get('w','') }}">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">Latitude</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.lat" {% if 'ps.' ~ loop.index0 ~ '.lat' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_lat" value="{{ p.get('lat','') }}">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">Longitude</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.lng" {% if 'ps.' ~ loop.index0 ~ '.lng' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_lng" value="{{ p.get('lng','') }}">
                                         </div>
                                     </div>
                                 </div>
@@ -1243,6 +1288,11 @@
                                             <div class="d-flex justify-content-between"><label class="small">Aadhar/ID</label><input class="verify-check" type="checkbox" data-path="bsign.id" {% if 'bsign.id' in verified_fields %}checked{% endif %}></div>
                                             <input class="form-control form-control-sm" id="field_bsign_id" value="{{ sig.get('id','') }}">
                                         </div>
+                                        <div class="col-12">
+                                            <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="bsign.adr" {% if 'bsign.adr' in verified_fields %}checked{% endif %}></div>
+                                            <textarea class="form-control form-control-sm" rows="2" id="field_bsign_adr">{{ sig.get('adr','') }}</textarea>
+                                        </div>
+                                        <input type="hidden" id="field_bsign_dob" value="{{ sig.get('dob','') }}">
                                     </div>
                                 </div>
                             </div>
@@ -1250,7 +1300,7 @@
                             <!-- Witnesses (RM) -->
                             <h6 class="section-title mt-3 rm-only-section">Witnesses</h6>
                             {% for w in data.get('ws', []) %}
-                            <div class="card mb-2 rm-only-section">
+                            <div class="card mb-2 rm-only-section witness-card">
                                 <div class="card-body">
                                     <h6 class="text-muted">Witness {{ loop.index }}</h6>
                                     <div class="row g-2">
@@ -1266,10 +1316,19 @@
                                             <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.rn" {% if 'ws.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}></div>
                                             <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}">
                                         </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.a" {% if 'ws.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_a" value="{{ w.get('a','') }}">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="d-flex justify-content-between"><label class="small">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.id" {% if 'ws.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                            <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_id" value="{{ w.get('id','') }}">
+                                        </div>
                                         <div class="col-12">
                                             <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.adr" {% if 'ws.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
                                             <textarea class="form-control form-control-sm" rows="2" id="field_ws_{{ loop.index0 }}_adr">{{ w.get('adr','') }}</textarea>
                                         </div>
+                                        <input type="hidden" id="field_ws_{{ loop.index0 }}_dob" value="{{ w.get('dob','') }}">
                                     </div>
                                 </div>
                             </div>
@@ -1917,20 +1976,8 @@
         .then(r => r.json())
         .then(resp => {
             if (resp.success) {
-                const list = document.getElementById('fileList');
-                resp.new_files.forEach(name => {
-                    let exists = false;
-                    for (let li of list.children) {
-                        if (li.textContent === name) { exists = true; break; }
-                    }
-                    if (!exists) {
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item small text-truncate';
-                        li.textContent = name;
-                        list.appendChild(li);
-                    }
-                });
                 document.getElementById('statusMsg').textContent = 'Files uploaded successfully.';
+                setTimeout(() => location.reload(), 300);
             } else {
                 alert('Upload failed: ' + resp.error);
             }
@@ -3206,6 +3253,14 @@
         // Fetch template dynamically from loaded system templates
         let template = window.CHAIN_TEMPLATES_JS[selectedKey] || window.CHAIN_TEMPLATES_JS["TRANSFER_PLOT"] || "{prefix}{executant} ने उक्त सम्पत्ति {claimant} को दिनांक {date} को हस्तान्तरित कर दी।";
         
+        if (selectedKey === "DEATH_HEIRS_WITH_SPOUSE") {
+            if (wifeName && wifeDeathDate) {
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनकी पत्नी {wife_name} का स्वर्गवास दिनांक {wife_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {wife_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।";
+            } else if (husbandName && husbandDeathDate) {
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।";
+            }
+        }
+        
         // Retrieve and format property details
         const propDetails = getPropertyDetails();
         const fullAddress = generateFullPropertyAddressJS(propDetails, propertyType);
@@ -3637,7 +3692,7 @@
             const wCards = document.querySelectorAll('#verificationContent .witness-card');
             wCards.forEach((card, i) => {
                 const w = {};
-                ['n', 'n_en', 'r', 'rn', 'rn_en', 'adr', 'adr_en', 'id'].forEach(k => {
+                ['n', 'n_en', 'r', 'rn', 'rn_en', 'adr', 'adr_en', 'id', 'a', 'dob'].forEach(k => {
                     const el = document.getElementById(`field_ws_${i}_${k}`);
                     if (el) w[k] = el.value || '';
                 });
@@ -3716,7 +3771,7 @@
             bCards.forEach(card => {
                 if (card.textContent.includes('Borrower')) {
                     const b = {};
-                    ['s','n','a','r','rn','adr','id','pan'].forEach(k => {
+                    ['s','n','a','dob','r','rn','adr','id','pan'].forEach(k => {
                         const el = document.getElementById(`field_bs_${bIdx}_${k}`);
                         if (el) b[k] = el.value || '';
                     });
@@ -3729,7 +3784,7 @@
             bCards.forEach(card => {
                 if (card.textContent.includes('Loan')) {
                     const l = {};
-                    ['n','a','w','t'].forEach(k => {
+                    ['n','a','w','t','emi','emi_w','r_rate'].forEach(k => {
                         const el = document.getElementById(`field_ls_${lIdx}_${k}`);
                         if (el) l[k] = el.value || '';
                     });
@@ -3742,7 +3797,7 @@
             bCards.forEach(card => {
                 if (card.textContent.includes('Property')) {
                     const p = {};
-                    ['adr', 'adr_en', 'area', 'area_unit', 'n', 's', 'e', 'w'].forEach(k => {
+                    ['adr', 'adr_en', 'area', 'area_unit', 'n', 's', 'e', 'w','lat','lng'].forEach(k => {
                         const el = document.getElementById(`field_ps_${pIdx}_${k}`);
                         if (el) p[k] = el.value || '';
                     });
@@ -3755,7 +3810,7 @@
             bCards.forEach(card => {
                 if (card.textContent.includes('Witness')) {
                     const w = {};
-                    ['n','r','rn','adr'].forEach(k => {
+                    ['n','r','rn','adr','a','dob'].forEach(k => {
                         const el = document.getElementById(`field_ws_${wIdx}_${k}`);
                         if (el) w[k] = el.value || '';
                     });
@@ -3764,7 +3819,7 @@
                 }
             });
 
-            ['s','n','a','r','rn','pan','id'].forEach(k => {
+            ['s','n','a','dob','r','rn','pan','id','adr'].forEach(k => {
                 const el = document.getElementById(`field_bsign_${k}`);
                 if (el) data.bsign[k] = el.value || '';
             });
@@ -3808,6 +3863,12 @@
         .catch(e => alert('Save failed: ' + e));
     }
 
+    function toggleAllFiles(checked) {
+        document.querySelectorAll('.file-select-checkbox').forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
     function startAI() {
         const btn = document.getElementById('startAiBtn');
         if (btn) {
@@ -3816,6 +3877,8 @@
         }
         document.getElementById('statusMsg').textContent = 'AI is extracting details from documents...';
 
+        const selectedFiles = Array.from(document.querySelectorAll('.file-select-checkbox:checked')).map(cb => cb.getAttribute('data-filename'));
+        
         saveCase(() => {
             fetch(`/case/${CASE_ID}/ai`, {
                 method: 'POST',
@@ -3829,7 +3892,8 @@
                     sellers_count: document.getElementById('sellersSelect')?.value || '1',
                     buyers_count: document.getElementById('buyersSelect')?.value || '1',
                     property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
-                    model: document.getElementById('modelSelect').value
+                    model: document.getElementById('modelSelect').value,
+                    selected_files: selectedFiles
                 })
             })
             .then(r => r.json())
@@ -3855,12 +3919,12 @@
         });
     }
 
-    function startAIForBucket(bucket, btn) {
+    function startAIForBucket(bucket, btn, isRegenerate = false) {
         const oldText = btn.textContent;
         btn.disabled = true;
-        btn.textContent = '⏳ Extracting...';
+        btn.textContent = isRegenerate ? '⏳ Re-generating...' : '⏳ Extracting...';
         const statusMsg = document.getElementById('statusMsg');
-        if (statusMsg) statusMsg.textContent = `AI is extracting details from ${bucket} documents...`;
+        if (statusMsg) statusMsg.textContent = isRegenerate ? `AI is re-generating narrative from ${bucket} documents...` : `AI is extracting details from ${bucket} documents...`;
 
         saveCase(() => {
             fetch(`/case/${CASE_ID}/ai`, {
@@ -3876,7 +3940,8 @@
                     buyers_count: document.getElementById('buyersSelect')?.value || '1',
                     property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
                     model: document.getElementById('modelSelect').value,
-                    bucket: bucket
+                    bucket: bucket,
+                    regenerate: isRegenerate
                 })
             })
             .then(r => r.json())
@@ -3918,6 +3983,7 @@
             const name = row.getAttribute('data-n');
             const id = row.getAttribute('data-id');
             const age = row.getAttribute('data-a');
+            const dob = row.getAttribute('data-dob');
             const relation = row.getAttribute('data-r');
             const relName = row.getAttribute('data-rn');
             const address = row.getAttribute('data-adr');
@@ -4015,6 +4081,9 @@
                     const aInput = document.getElementById(`field_bs_${bIdx}_a`);
                     if (aInput) aInput.value = age;
                     
+                    const dobInput = document.getElementById(`field_bs_${bIdx}_dob`);
+                    if (dobInput) dobInput.value = dob || "";
+                    
                     const rInput = document.getElementById(`field_bs_${bIdx}_r`);
                     if (rInput) rInput.value = relation;
                     
@@ -4047,6 +4116,9 @@
                     const adrText = document.getElementById(`field_ws_${wIdx}_adr`);
                     if (adrText) adrText.value = address;
 
+                    const dobInput = document.getElementById(`field_ws_${wIdx}_dob`);
+                    if (dobInput) dobInput.value = dob || "";
+
                     ['n','r','rn','adr'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="ws.${wIdx}.${k}"]`);
                         if (cb) cb.checked = true;
@@ -4063,6 +4135,9 @@
                     const aInput = document.getElementById('field_bsign_a');
                     if (aInput) aInput.value = age;
                     
+                    const dobInput = document.getElementById('field_bsign_dob');
+                    if (dobInput) dobInput.value = dob || "";
+                    
                     const rInput = document.getElementById('field_bsign_r');
                     if (rInput) rInput.value = relation;
                     
@@ -4072,7 +4147,10 @@
                     const idInput = document.getElementById('field_bsign_id');
                     if (idInput) idInput.value = id;
 
-                    ['s','n','a','r','rn','id'].forEach(k => {
+                    const adrText = document.getElementById('field_bsign_adr');
+                    if (adrText) adrText.value = address || "";
+
+                    ['s','n','a','r','rn','id','adr'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="bsign.${k}"]`);
                         if (cb) cb.checked = true;
                     });

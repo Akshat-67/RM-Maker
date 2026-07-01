@@ -140,11 +140,8 @@ def determine_template_key(evt, is_flat_property):
                 return "ALLOTMENT_PLOT" if has_dep else "ALLOTMENT_PLOT_NO_DEPOSIT"
                 
     # 10. SALE DEED
-    if event_type == "SALE_DEED" or "sale" in doc_name or "transfer" in doc_name or "विक्रय" in doc_name or "बैनामा" in doc_name or "इकरारनामा" in doc_name:
-        if evt.get("share_fraction") or "share" in src_text or "हिस्सा" in src_text:
-            return "PART_SALE"
-        else:
-            return "SALE_DEED_FLAT" if is_flat_property else "SALE_DEED_PLOT"
+    if event_type == "SALE_DEED" or "sale" in doc_name or "transfer" in doc_name or "विक्रय" in doc_name or "बैनामा" in doc_name:
+        return "SALE_DEED_FLAT" if is_flat_property else "SALE_DEED_PLOT"
             
     # Default Fallback
     if is_flat_property:
@@ -158,6 +155,17 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
     using a strict template engine.
     Returns a list of paragraphs.
     """
+    # 1. Name cleaning helper for robust claimant/deceased matching
+    def clean_name_for_matching(name):
+        if not name:
+            return ""
+        n = str(name).lower()
+        # Remove common prefixes and suffixes
+        n = re.sub(r"\b(mr|mrs|miss|dr|shri|smt|late|स्व|स्वर्गीय|श्रीमती|श्री|मि|मिस्टर|मुसम्मात|मु|पत्नी|पुत्र|पुत्री)\b", "", n)
+        # Remove parentheses, dots, commas, spaces
+        n = re.sub(r"[\(\)\.\,\-\s]", "", n)
+        return n
+
     # Normalize input title_chain so both database keys and UI keys are fully populated on each event
     normalized_chain = []
     if title_chain and isinstance(title_chain, list):
@@ -214,16 +222,41 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
             normalized_chain.append(c)
         title_chain = normalized_chain
 
-    # 1. Name cleaning helper for robust claimant/deceased matching
-    def clean_name_for_matching(name):
-        if not name:
-            return ""
-        n = str(name).lower()
-        # Remove common prefixes and suffixes
-        n = re.sub(r"\b(mr|mrs|miss|dr|shri|smt|late|स्व|स्वर्गीय|श्रीमती|श्री|मि|मिस्टर|मुसम्मात|मु|पत्नी|पुत्र|पुत्री)\b", "", n)
-        # Remove parentheses, dots, commas, spaces
-        n = re.sub(r"[\(\)\.\,\-\s]", "", n)
-        return n
+    # Deduplicate title chain events
+    if title_chain:
+        unique_events = []
+        for evt in title_chain:
+            is_dup = False
+            evt_type = str(evt.get("event_type") or "").strip().upper()
+            exec_clean = clean_name_for_matching(evt.get("executant_name"))
+            claim_clean = clean_name_for_matching(evt.get("claimant_name"))
+            date_str = str(evt.get("reg_date") or evt.get("date") or "").strip().replace("-", ".")
+            
+            for u_evt in unique_events:
+                u_evt_type = str(u_evt.get("event_type") or "").strip().upper()
+                u_exec_clean = clean_name_for_matching(u_evt.get("executant_name"))
+                u_claim_clean = clean_name_for_matching(u_evt.get("claimant_name"))
+                u_date_str = str(u_evt.get("reg_date") or u_evt.get("date") or "").strip().replace("-", ".")
+                
+                if evt_type == u_evt_type and exec_clean == u_exec_clean and claim_clean == u_claim_clean:
+                    if date_str and u_date_str:
+                        if date_str == u_date_str:
+                            is_dup = True
+                            # Merge details
+                            for k, v in evt.items():
+                                if v and not u_evt.get(k):
+                                    u_evt[k] = v
+                            break
+                    else:
+                        is_dup = True
+                        for k, v in evt.items():
+                            if v and not u_evt.get(k):
+                                u_evt[k] = v
+                        break
+            if not is_dup:
+                unique_events.append(evt)
+        title_chain = unique_events
+
 
     # Determine if the main property is a flat or plot at the top
     is_flat = False
@@ -312,10 +345,18 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
     # 1. Filter out the current transaction and redundant deeds from the chain
     filtered_chain = []
     
-    # Extract buyer names from context if available
-    buyer_names = []
+    # Extract and clean buyer/seller names from context for robust matching
+    buyer_names_cleaned = []
     if context and context.get("bs"):
-        buyer_names = [b.get("n", "").strip().lower() for b in context["bs"] if b.get("n")]
+        for b in context["bs"]:
+            if b.get("n"): buyer_names_cleaned.append(clean_name_for_matching(b.get("n")))
+            if b.get("n_en"): buyer_names_cleaned.append(clean_name_for_matching(b.get("n_en")))
+            
+    seller_names_cleaned = []
+    if context and context.get("ss"):
+        for s in context["ss"]:
+            if s.get("n"): seller_names_cleaned.append(clean_name_for_matching(s.get("n")))
+            if s.get("n_en"): seller_names_cleaned.append(clean_name_for_matching(s.get("n_en")))
 
     # Helper to calculate a temp date key for identifying the latest unregistered events
     def get_temp_date_key(e):
@@ -353,18 +394,29 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
     # Perform the filtering
     for evt in title_chain:
         claimant = evt.get("claimant_name", "").strip().lower()
+        executant = evt.get("executant_name", "").strip().lower()
         doc_name = str(evt.get("document_name") or evt.get("deed_type") or "").strip().lower()
         evt_type = str(evt.get("event_type") or "").strip().upper()
         
         is_current = False
         
-        # Heuristic A: Claimant matches current buyer
-        if claimant and buyer_names:
-            for bn in buyer_names:
-                if bn and (bn in claimant or claimant in bn):
+        # Robust Heuristic A: Claimant matches current buyer
+        if claimant and buyer_names_cleaned:
+            clean_claimant = clean_name_for_matching(claimant)
+            for bn in buyer_names_cleaned:
+                if bn and (bn in clean_claimant or clean_claimant in bn):
                     is_current = True
                     break
                     
+        # Robust Heuristic A2: Executant matches current seller AND Claimant matches current buyer
+        if not is_current and executant and claimant and seller_names_cleaned and buyer_names_cleaned:
+            clean_exec = clean_name_for_matching(executant)
+            clean_claimant = clean_name_for_matching(claimant)
+            exec_matches = any(sn and (sn in clean_exec or clean_exec in sn) for sn in seller_names_cleaned)
+            buyer_matches = any(bn and (bn in clean_claimant or clean_claimant in bn) for bn in buyer_names_cleaned)
+            if exec_matches and buyer_matches:
+                is_current = True
+
         # Heuristic B: Document name explicitly contains proposed/draft/agreement terms
         proposed_terms = ["proposed", "प्रस्तावित", "draft", "विक्रय समझौता", "agreement to sale", "इकरारनामा", "अनुबंध"]
         if not is_current:
@@ -454,11 +506,12 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
     healed_chain = []
     construction_placed = False
     
-    for evt in other_evts:
+    for idx_evt, evt in enumerate(other_evts):
         src_txt = str(evt.get("source_text", "")).lower()
         doc_n = str(evt.get("document_name", "")).lower()
         is_flat_sale = (
-            "flat" in src_txt or "unit" in src_txt or "apartment" in src_txt
+            (idx_evt > 0 and evt.get("event_type") in ("SALE_DEED", "TRANSFER"))
+            or "flat" in src_txt or "unit" in src_txt or "apartment" in src_txt
             or "फ्लैट" in src_txt or "फ्लेट" in src_txt or "यूनिट" in src_txt or "अपार्टमेंट" in src_txt or "अपार्टमेन्ट" in src_txt
             or "फ्लेट" in doc_n or "फ्लैट" in doc_n
         )
@@ -723,6 +776,8 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                 
                 if formatted_heirs:
                     claimant = ", ".join(formatted_heirs)
+                    evt["claimant_name"] = claimant
+                    evt["b"] = claimant
         # Dynamic heirs formatting for HAK_TYAG events
         if event_type == "HAK_TYAG" and executant:
             raw_parts = re.split(r'[,，\n]|(?:\s+एवं\s+|\s+तथा\s+|\s+और\s+)', executant)
@@ -791,6 +846,8 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                 
                 if formatted_parts:
                     executant = ", ".join(formatted_parts)
+                    evt["executant_name"] = executant
+                    evt["s"] = executant
         
         # Format claimant parentage for HAK_TYAG
         if event_type == "HAK_TYAG" and claimant:
@@ -833,6 +890,8 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                         claimant_clean = claimant_clean.replace("Mr.", "श्री")
                 
                 claimant = f"{claimant_clean} पुत्र स्व. {parent_name}" if relation_term == "पुत्र" else f"{claimant_clean} पुत्री स्व. {parent_name}"
+                evt["claimant_name"] = claimant
+                evt["b"] = claimant
 
         prefix = "यह कि सर्वप्रथम " if idx == 0 else "तत्पश्चात् "
         
@@ -1071,13 +1130,31 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         # --- Template Key Selection (Method A + Method B Fallback) ---
         tpl_key = determine_template_key(evt, is_flat)
             
-        template = CHAIN_TEMPLATES[tpl_key]
+        # Dynamically select detailed spouse death template if details are present
+        if tpl_key == "DEATH_HEIRS_WITH_SPOUSE":
+            if wife_name and wife_death_date:
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनकी पत्नी {wife_name} का स्वर्गवास दिनांक {wife_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {wife_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+            elif husband_name and husband_death_date:
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+            else:
+                template = CHAIN_TEMPLATES[tpl_key]
+        else:
+            template = CHAIN_TEMPLATES[tpl_key]
+
         formatted_para = template.format(**ctx)
         
         # Clean up double spaces or dangling commas
         formatted_para = re.sub(r'\s+,\s+', ', ', formatted_para)
         formatted_para = re.sub(r'\s+', ' ', formatted_para).strip()
-        
+
         paragraphs.append(formatted_para)
+
+    # Set paragraph_text on each event in the deduplicated chain
+    for idx, evt in enumerate(filtered_chain):
+        evt["paragraph_text"] = paragraphs[idx]
+
+    # In-place modify the input title_chain list so the caller gets the deduplicated list with paragraphs
+    title_chain.clear()
+    title_chain.extend(filtered_chain)
 
     return paragraphs
