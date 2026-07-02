@@ -26,13 +26,10 @@ def prune_sd_data(data):
         else:
             data["bs"] = data.get("buyers", [])
 
-    if "chain" in data or "title_chain" in data:
-        c_score = get_list_completeness(data.get("chain"))
-        tc_score = get_list_completeness(data.get("title_chain"))
-        if tc_score >= c_score:
-            data["chain"] = data.get("title_chain", [])
-        else:
-            data["title_chain"] = data.get("chain", [])
+    if "title_chain" in data:
+        data["chain"] = data["title_chain"]
+    elif "chain" in data:
+        data["title_chain"] = data["chain"]
         
     cleaned = {}
     
