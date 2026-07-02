@@ -1,26 +1,13 @@
 /**
  * LegalDoc Automator Pro - Design System Core Components
- * Standardized component modifiers and styles mapped directly to design tokens.
+ * Maps the application's forms, tables, buttons, cards, and tabs to design tokens.
  */
 
-/* --- Card Primitive --- */
-.ds-card {
-    background-color: var(--theme-bg-surface);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
-    padding: var(--space-4);
-    transition: var(--transition-all);
-}
-.ds-card:hover {
-    box-shadow: var(--shadow-md);
-}
+/* ==========================================================================
+   1. Buttons & Interactive Controls
+   ========================================================================== */
 
-/* --- Button Component --- */
-.ds-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.btn {
     font-family: var(--font-sans);
     font-size: var(--font-size-body);
     font-weight: var(--font-weight-medium);
@@ -33,185 +20,269 @@
     line-height: 1.25;
     text-decoration: none;
 }
-.ds-btn:focus-visible {
-    outline: 2px solid var(--theme-accent);
-    outline-offset: 2px;
-}
 
-.ds-btn-primary {
-    background-color: var(--theme-primary);
-    color: #ffffff;
-}
-.ds-btn-primary:hover {
-    background-color: var(--theme-primary-hover);
-}
-
-.ds-btn-secondary {
-    background-color: var(--theme-secondary);
-    color: #ffffff;
-}
-.ds-btn-secondary:hover {
-    background-color: var(--theme-secondary-hover);
-}
-
-.ds-btn-outline {
-    background-color: transparent;
-    border-color: var(--theme-border);
-    color: var(--theme-text-primary);
-}
-.ds-btn-outline:hover {
-    background-color: var(--color-slate-100);
-    border-color: var(--color-slate-300);
-}
-
-.ds-btn-success {
-    background-color: var(--theme-success);
-    color: #ffffff;
-}
-.ds-btn-success:hover {
-    background-color: var(--theme-success-hover);
-}
-
-.ds-btn-danger {
-    background-color: var(--theme-error);
-    color: #ffffff;
-}
-.ds-btn-danger:hover {
-    background-color: var(--theme-error-hover);
-}
-
-/* Size Variants */
-.ds-btn-sm {
-    padding: var(--space-1.5) var(--space-3);
-    font-size: var(--font-size-caption);
-}
-.ds-btn-lg {
-    padding: var(--space-3) var(--space-6);
-    font-size: var(--font-size-subtitle);
-}
-
-/* --- Input Fields --- */
-.ds-input, .ds-select, .ds-textarea {
-    width: 100%;
-    font-family: var(--font-sans);
-    font-size: var(--font-size-body);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-md);
-    background-color: #ffffff;
-    color: var(--theme-text-primary);
-    transition: var(--transition-all);
-}
-.ds-input:focus, .ds-select:focus, .ds-textarea:focus {
+.btn:focus, .btn:focus-visible {
     outline: none;
-    border-color: var(--theme-accent);
-    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
-}
-.ds-input::placeholder {
-    color: var(--theme-text-muted);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25) !important;
 }
 
-/* Legacy Input Mode (DevLys / Kruti Dev) */
-.ds-input-legacy {
+/* Primary Button Override */
+.btn-primary {
+    background-color: var(--theme-primary) !important;
+    border-color: var(--theme-primary) !important;
+    color: #ffffff !important;
+}
+.btn-primary:hover {
+    background-color: var(--theme-primary-hover) !important;
+    border-color: var(--theme-primary-hover) !important;
+}
+
+/* Secondary / Brand Button Override */
+.btn-info {
+    background-color: var(--theme-secondary) !important;
+    border-color: var(--theme-secondary) !important;
+    color: #ffffff !important;
+}
+.btn-info:hover {
+    background-color: var(--theme-secondary-hover) !important;
+    border-color: var(--theme-secondary-hover) !important;
+}
+
+/* Success Button Override */
+.btn-success {
+    background-color: var(--theme-success) !important;
+    border-color: var(--theme-success) !important;
+    color: #ffffff !important;
+}
+.btn-success:hover {
+    background-color: var(--theme-success-hover) !important;
+    border-color: var(--theme-success-hover) !important;
+}
+
+/* Danger Button Override */
+.btn-outline-danger {
+    color: var(--theme-error) !important;
+    border-color: var(--theme-error) !important;
+    background-color: transparent !important;
+}
+.btn-outline-danger:hover {
+    background-color: var(--theme-error) !important;
+    color: #ffffff !important;
+}
+
+/* Outline Secondary */
+.btn-outline-secondary {
+    border-color: var(--theme-border) !important;
+    color: var(--theme-text-primary) !important;
+}
+.btn-outline-secondary:hover {
+    background-color: var(--color-slate-100) !important;
+    border-color: var(--color-slate-300) !important;
+}
+
+/* Small Buttons */
+.btn-sm, .btn-xs {
+    padding: var(--space-1) var(--space-3) !important;
+    font-size: var(--font-size-caption) !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Remove button icons background styling */
+.btn-icon-danger {
+    background: none !important;
+    border: none !important;
+    color: var(--theme-error) !important;
+    transition: var(--transition-all) !important;
+}
+.btn-icon-danger:hover {
+    background-color: var(--color-rose-50) !important;
+    border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   2. Input Fields & Form Controls
+   ========================================================================== */
+
+.form-control, .form-select, textarea {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body) !important;
+    padding: var(--space-2) var(--space-3) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-md) !important;
+    background-color: #ffffff !important;
+    color: var(--theme-text-primary) !important;
+    transition: var(--transition-all) !important;
+}
+
+.form-control:focus, .form-select:focus, textarea:focus {
+    outline: none !important;
+    border-color: var(--theme-accent) !important;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
+}
+
+.form-control::placeholder {
+    color: var(--theme-text-muted) !important;
+}
+
+/* Hindi Mode / Legacy Inputs */
+.hindi-legacy-input, .hindi-mode {
     font-family: var(--font-hindi) !important;
-    font-size: 1.05rem !important;
+    font-size: var(--font-size-body) !important;
     background-color: var(--theme-input-bg-legacy) !important;
 }
-.ds-input-legacy:focus {
+
+.hindi-legacy-input:focus, .hindi-mode:focus {
     background-color: #ffffff !important;
-    border-color: var(--theme-warning);
-    box-shadow: 0 0 0 3px rgba(234, 158, 11, 0.15);
+    border-color: var(--theme-warning) !important;
+    box-shadow: 0 0 0 3px rgba(234, 158, 11, 0.15) !important;
 }
 
-/* --- Badges & Status Indicators --- */
-.ds-badge {
-    display: inline-flex;
-    align-items: center;
-    font-size: var(--font-size-caption);
-    font-weight: var(--font-weight-semibold);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    line-height: 1;
-}
-.ds-badge-rm {
-    background-color: var(--color-sky-50);
-    color: var(--color-sky-700);
-    border: 1px solid rgba(2, 132, 199, 0.15);
-}
-.ds-badge-sd {
-    background-color: var(--theme-input-bg-legacy);
-    color: var(--color-amber-600);
-    border: 1px solid rgba(234, 158, 11, 0.15);
-}
-.ds-badge-success {
-    background-color: var(--color-emerald-50);
-    color: var(--color-emerald-600);
-}
-.ds-badge-danger {
-    background-color: var(--color-rose-50);
-    color: var(--color-rose-600);
-}
-
-/* --- Tab Navigation --- */
-.ds-tabs {
+/* Bilingual spacing rows */
+.bilingual-row {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
-    border-bottom: 1px solid var(--theme-border);
-    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
 }
-.ds-tab-btn {
-    background: none;
-    border: none;
-    font-family: var(--font-sans);
-    font-size: var(--font-size-body);
-    font-weight: var(--font-weight-medium);
-    color: var(--theme-text-secondary);
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-md);
-    cursor: pointer;
+
+.transliterate-btn {
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--theme-bg-page);
     transition: var(--transition-all);
 }
-.ds-tab-btn:hover {
-    background-color: var(--color-slate-100);
-    color: var(--theme-text-primary);
-}
-.ds-tab-btn.active {
-    background-color: var(--theme-secondary);
-    color: #ffffff;
-    box-shadow: var(--shadow-sm);
+.transliterate-btn:hover {
+    background-color: var(--color-slate-200);
+    border-color: var(--color-slate-400);
 }
 
-/* --- Data Grid Tables --- */
-.ds-table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-md);
+/* ==========================================================================
+   3. Cards & Containers
+   ========================================================================== */
+
+.card {
+    background-color: var(--theme-bg-surface) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: var(--transition-all) !important;
 }
-.ds-table {
+
+.card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+.card-header {
+    background-color: var(--color-slate-50) !important;
+    border-bottom: 1px solid var(--theme-border) !important;
+    padding: var(--space-3) var(--space-4) !important;
+}
+
+/* ==========================================================================
+   4. Tables & Data Grids
+   ========================================================================== */
+
+.table, .grid-table, .case-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: collapse !important;
     font-size: var(--font-size-body);
-    text-align: left;
 }
-.ds-table th {
-    background-color: var(--color-slate-100);
-    color: var(--theme-text-secondary);
-    font-weight: var(--font-weight-semibold);
-    font-size: var(--font-size-caption);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 2px solid var(--theme-border);
+
+.table thead th, .grid-table th {
+    background-color: var(--color-slate-100) !important;
+    color: var(--theme-text-secondary) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    font-size: var(--font-size-caption) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding: var(--space-3) var(--space-4) !important;
+    border-bottom: 2px solid var(--theme-border) !important;
 }
-.ds-table td {
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--theme-border);
-    vertical-align: middle;
+
+.table tbody td, .grid-table td {
+    padding: var(--space-2) var(--space-4) !important;
+    border-bottom: 1px solid var(--theme-border) !important;
+    vertical-align: middle !important;
+    background-color: transparent !important;
 }
-.ds-table tbody tr:last-child td {
-    border-bottom: none;
+
+.table tbody tr:hover, .grid-table tbody tr:hover {
+    background-color: var(--color-slate-50) !important;
 }
-.ds-table tbody tr:hover {
-    background-color: var(--color-slate-50);
+
+/* ==========================================================================
+   5. Badges & Labels
+   ========================================================================== */
+
+.badge {
+    font-size: var(--font-size-caption) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    padding: 4px 8px !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.badge-type-rm {
+    background-color: var(--color-sky-50) !important;
+    color: var(--color-sky-700) !important;
+    border: 1px solid rgba(2, 132, 199, 0.15) !important;
+}
+
+.badge-type-sd {
+    background-color: var(--theme-input-bg-legacy) !important;
+    color: var(--color-amber-600) !important;
+    border: 1px solid rgba(234, 158, 11, 0.15) !important;
+}
+
+/* ==========================================================================
+   6. Tabs & Pills
+   ========================================================================== */
+
+.nav-pills .nav-link {
+    color: var(--theme-text-secondary) !important;
+    background-color: var(--color-slate-100) !important;
+    border-radius: var(--radius-md) !important;
+    font-size: var(--font-size-body) !important;
+    padding: var(--space-2) var(--space-4) !important;
+    transition: var(--transition-all) !important;
+}
+
+.nav-pills .nav-link:hover {
+    background-color: var(--color-slate-200) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.nav-pills .nav-link.active {
+    color: #ffffff !important;
+    background-color: var(--theme-secondary) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* ==========================================================================
+   7. Drag-and-Drop Upload Zones
+   ========================================================================== */
+
+.drop-zone {
+    border: 2px dashed var(--theme-border) !important;
+    border-radius: var(--radius-lg) !important;
+    background-color: var(--theme-bg-surface) !important;
+    transition: var(--transition-all) !important;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    background-color: var(--color-sky-50) !important;
+    border-color: var(--theme-accent) !important;
+}
+
+/* ==========================================================================
+   8. Timeline Nodes
+   ========================================================================== */
+
+.timeline-node-dot {
+    border: 3px solid var(--theme-border) !important;
+    transition: var(--transition-all) !important;
+}
+
+.timeline-node.active .timeline-node-dot {
+    border-color: var(--theme-secondary) !important;
+    background-color: var(--theme-secondary) !important;
 }
