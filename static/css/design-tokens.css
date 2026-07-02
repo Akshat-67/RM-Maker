@@ -1,0 +1,120 @@
+/**
+ * LegalDoc Automator Pro - Design Tokens System
+ * Global theme custom properties representing the foundation of the design system.
+ */
+
+:root {
+    /* --- Brand Color Palette (Slate & Sky) --- */
+    --color-slate-50: #f8fafc;
+    --color-slate-100: #f1f5f9;
+    --color-slate-200: #e2e8f0;
+    --color-slate-300: #cbd5e1;
+    --color-slate-400: #94a3b8;
+    --color-slate-500: #64748b;
+    --color-slate-700: #334155;
+    --color-slate-800: #1e293b;
+    --color-slate-900: #0f172a;
+
+    --color-sky-50: #f0f9ff;
+    --color-sky-500: #0ea5e9;
+    --color-sky-600: #0284c7;
+    --color-sky-700: #0369a1;
+
+    --color-amber-50: #fffbeb;
+    --color-amber-500: #f59e0b;
+    --color-amber-600: #d97706;
+
+    --color-emerald-50: #ecfdf5;
+    --color-emerald-500: #10b981;
+    --color-emerald-600: #059669;
+
+    --color-rose-50: #fff1f2;
+    --color-rose-500: #f43f5e;
+    --color-rose-600: #e11d48;
+
+    /* --- Contextual UI Variables --- */
+    --theme-primary: var(--color-slate-900);
+    --theme-primary-hover: var(--color-slate-800);
+    --theme-secondary: var(--color-sky-600);
+    --theme-secondary-hover: var(--color-sky-700);
+    --theme-accent: var(--color-sky-500);
+
+    --theme-success: var(--color-emerald-500);
+    --theme-success-hover: var(--color-emerald-600);
+    --theme-warning: var(--color-amber-500);
+    --theme-warning-hover: var(--color-amber-600);
+    --theme-error: var(--color-rose-500);
+    --theme-error-hover: var(--color-rose-600);
+
+    --theme-bg-page: var(--color-slate-50);
+    --theme-bg-surface: #ffffff;
+    --theme-border: var(--color-slate-200);
+
+    --theme-text-primary: var(--color-slate-900);
+    --theme-text-secondary: var(--color-slate-500);
+    --theme-text-muted: var(--color-slate-400);
+
+    --theme-input-bg-legacy: var(--color-amber-50);
+
+    /* --- Typography System --- */
+    --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-hindi: 'Mangal', 'Segoe UI Devanagari', 'Arial Unicode MS', sans-serif;
+    --font-mono: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+
+    /* Type Scale */
+    --font-size-display: 2.25rem;     /* 36px */
+    --font-size-h1: 1.875rem;          /* 30px */
+    --font-size-h2: 1.5rem;             /* 24px */
+    --font-size-title: 1.25rem;         /* 20px */
+    --font-size-subtitle: 1.05rem;      /* 16.8px */
+    --font-size-body: 0.95rem;          /* 15.2px */
+    --font-size-caption: 0.75rem;       /* 12px */
+
+    /* Font Weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* --- Spacing Scale (4px Grid) --- */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* --- Border Radius Scale --- */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-full: 9999px;
+
+    /* --- Elevation & Shadows --- */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -2px rgba(15, 23, 42, 0.05);
+
+    /* --- Transition & Motion --- */
+    --transition-duration-fast: 150ms;
+    --transition-duration-normal: 250ms;
+    --transition-easing-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-all: all var(--transition-duration-normal) var(--transition-easing-fluid);
+
+    /* --- Z-Index Scale --- */
+    --z-index-dropdown: 1000;
+    --z-index-sticky: 1020;
+    --z-index-fixed: 1030;
+    --z-index-modal: 1050;
+    --z-index-popover: 1060;
+    --z-index-tooltip: 1070;
+
+    /* --- Breakpoints --- */
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+}
