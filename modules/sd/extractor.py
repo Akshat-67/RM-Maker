@@ -594,8 +594,6 @@ class SDDataExtractor:
                         print(f"[Pre-filter Warning] Failed to pre-filter legal report PDF {path}: {pdf_err}")
                 
                 # Fallback to default raw file extraction logic
-                import mimetypes
-                from google.genai import types
                 mime_type, _ = mimetypes.guess_type(path)
                 if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
                     with open(path, 'rb') as f:
