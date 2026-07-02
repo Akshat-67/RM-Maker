@@ -366,3 +366,60 @@
     border-color: var(--theme-secondary) !important;
     background-color: var(--theme-secondary) !important;
 }
+
+/* ==========================================================================
+   9. Dialogs, Modals & Workflows
+   ========================================================================== */
+
+.modal-content {
+    background-color: var(--theme-bg-surface) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    overflow: hidden;
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--theme-border) !important;
+    background-color: var(--color-slate-50) !important;
+    padding: var(--space-4) var(--space-6) !important;
+}
+
+.modal-title {
+    font-size: var(--font-size-title) !important;
+    font-weight: var(--font-weight-bold) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.modal-body {
+    padding: var(--space-6) !important;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--theme-border) !important;
+    background-color: var(--color-slate-50) !important;
+    padding: var(--space-3) var(--space-6) !important;
+}
+
+/* Frosted glass backdrop blur */
+.modal-backdrop.show {
+    background-color: rgba(15, 23, 42, 0.4) !important;
+    backdrop-filter: blur(8px) !important;
+}
+
+/* Spinner and Progress Workflows */
+.spinner-border {
+    color: var(--theme-secondary) !important;
+}
+
+.progress-bar-container, .progress {
+    height: 6px !important;
+    background-color: var(--color-slate-200) !important;
+    border-radius: var(--radius-full) !important;
+    overflow: hidden !important;
+}
+
+.progress-bar-fill, .progress-bar {
+    background-color: var(--theme-secondary) !important;
+    border-radius: var(--radius-full) !important;
+}
