@@ -15,6 +15,33 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Link defaults */
+a {
+    color: var(--theme-accent);
+    text-decoration: none;
+    transition: var(--transition-all);
+}
+a:hover {
+    color: var(--color-blue-600);
+    text-decoration: underline;
+}
+
+/* Custom Scrollbars for Premium Dark Aesthetic */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--theme-bg-page);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--theme-border);
+    border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-zinc-700);
+}
+
 /* --- Layout Primitives (Flex/Grid) --- */
 .l-flex {
     display: flex;
@@ -176,4 +203,48 @@ body {
 .text-success { color: var(--theme-success); }
 .text-warning { color: var(--theme-warning); }
 .text-error { color: var(--theme-error); }
-.text-brand { color: var(--theme-secondary); }
+.text-brand { color: var(--theme-accent); }
+
+/* ==========================================================================
+   High-Contrast Dark Theme Form & Input Overrides
+   ========================================================================== */
+body .form-control, 
+body .form-select, 
+body textarea {
+    background-color: var(--theme-bg-page) !important;
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-border) !important;
+}
+
+body .form-control:hover, 
+body .form-select:hover, 
+body textarea:hover {
+    border-color: var(--color-zinc-500) !important;
+}
+
+body .form-control:focus, 
+body .form-select:focus, 
+body textarea:focus {
+    background-color: var(--theme-bg-surface) !important;
+    color: var(--theme-text-primary) !important;
+    border-color: var(--theme-accent) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+
+body .hindi-legacy-input:focus, 
+body .hindi-mode:focus {
+    background-color: var(--theme-bg-surface) !important;
+    border-color: var(--theme-warning) !important;
+    color: var(--theme-text-primary) !important;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25) !important;
+}
+
+/* Button overrides to ensure high readability */
+body .btn-primary {
+    color: var(--color-zinc-950) !important;
+    font-weight: var(--font-weight-semibold) !important;
+}
+
+body .btn-icon-danger:hover {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+}
