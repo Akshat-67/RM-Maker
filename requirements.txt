@@ -10,3 +10,5 @@ tkinterdnd2
 pytest
 python-dotenv
 flask-sqlalchemy
+pypdf
+reportlab
