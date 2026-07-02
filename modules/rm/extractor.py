@@ -92,10 +92,57 @@ class RMDataExtractor:
         res = re.sub(pattern, '', res, flags=re.IGNORECASE).strip()
         return res
 
+    def _filter_relevant_pages(self, pages_text, min_pages_threshold=8, score_threshold=2):
+        """Pre-filters pages of text-searchable PDFs based on high-relevance title flow keywords."""
+        total_pages = len(pages_text)
+        if total_pages <= min_pages_threshold:
+            return [text for _, text in pages_text], list(range(1, total_pages + 1))
+
+        primary_keywords = [
+            "loan", "sanction", "mortgage", "borrower", "guarantor", "interest rate", 
+            "property", "sanction letter", "mortgage deed", "loan amount", "rate of interest"
+        ]
+        secondary_keywords = [
+            "aadhaar", "pan", "co-applicant", "schedule", "address", "signatory", "witness"
+        ]
+
+        page_scores = []
+        total_extracted_len = 0
+        for page_num, text in pages_text:
+            total_extracted_len += len(text)
+            score = 0
+            text_lower = text.lower()
+            
+            for kw in primary_keywords:
+                if kw in text_lower:
+                    score += 3
+            for kw in secondary_keywords:
+                if kw in text_lower:
+                    score += 1
+            page_scores.append((page_num, score, text))
+
+        if total_extracted_len < 200:
+            return None, None
+
+        selected_indices = set()
+        for idx, (page_num, score, _) in enumerate(page_scores):
+            if score >= score_threshold:
+                selected_indices.add(idx)
+                if idx + 1 < total_pages: selected_indices.add(idx + 1)
+                if idx - 1 >= 0: selected_indices.add(idx - 1)
+
+        selected_indices = sorted(list(selected_indices))
+        if not selected_indices:
+            return [text for _, text in pages_text], list(range(1, total_pages + 1))
+
+        selected_texts = [page_scores[i][2] for i in selected_indices]
+        selected_page_nums = [page_scores[i][0] for i in selected_indices]
+        return selected_texts, selected_page_nums
+
     def extract_with_ai(self, file_paths, selected_model, bank_name="", expected_borrowers=None,
                         expected_loans=None, expected_witnesses=2, borrower_hints="", witness_hints="",
                         current_data=None, **kwargs):
-        """Extract data from files using Google Gemini API."""
+        """Extract data from files using Google Gemini API with PDF page pre-filtering."""
         if not self.api_keys:
             return {"error": "Gemini API Keys Missing"}
 
@@ -103,7 +150,30 @@ class RMDataExtractor:
         for path in file_paths:
             ext = os.path.splitext(path)[1].lower()
             mime_type, _ = mimetypes.guess_type(path)
-            if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+            if ext == '.pdf':
+                try:
+                    import pypdf
+                    pages_text = []
+                    reader = pypdf.PdfReader(path)
+                    for idx, page in enumerate(reader.pages):
+                        text = page.extract_text() or ""
+                        pages_text.append((idx + 1, text))
+                    
+                    selected_texts, selected_pages = self._filter_relevant_pages(pages_text)
+                    if selected_texts is not None:
+                        combined_filtered_text = f"--- PDF Page-Filtered Content ({os.path.basename(path)}) ---\n"
+                        for p_num, p_text in zip(selected_pages, selected_texts):
+                            combined_filtered_text += f"\n--- PAGE {p_num} ---\n{p_text}\n"
+                        contents.append(types.Part.from_text(text=combined_filtered_text))
+                        print(f"[Pre-filter] Successfully filtered {os.path.basename(path)} to pages {selected_pages}")
+                        continue
+                except Exception as pdf_err:
+                    print(f"[Pre-filter Warning] Failed to pre-filter PDF {path}: {pdf_err}")
+
+                with open(path, 'rb') as f:
+                    raw = f.read()
+                contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+            elif ext in ['.jpg', '.jpeg', '.png']:
                 with open(path, 'rb') as f:
                     raw = f.read()
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
