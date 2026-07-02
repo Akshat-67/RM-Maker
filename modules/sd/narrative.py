@@ -139,7 +139,12 @@ def determine_template_key(evt, is_flat_property):
             else:
                 return "ALLOTMENT_PLOT" if has_dep else "ALLOTMENT_PLOT_NO_DEPOSIT"
                 
-    # 10. SALE DEED
+    # 10. PARTITION AND SALE
+    if "partition" in doc_name or "विभाजन" in doc_name or "विभाजित" in src_text or "विभाजित" in doc_name:
+        if "विक्रय" in doc_name or "sale" in doc_name or "बैनामा" in doc_name:
+            return "PARTITION_SALE"
+
+    # 11. SALE DEED
     if event_type == "SALE_DEED" or "sale" in doc_name or "transfer" in doc_name or "विक्रय" in doc_name or "बैनामा" in doc_name:
         return "SALE_DEED_FLAT" if is_flat_property else "SALE_DEED_PLOT"
             
@@ -642,6 +647,9 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         claimant = evt.get("claimant_name", "")
         amount = evt.get("consideration_amount", "")
         is_reg = str(evt.get("is_registered", "true")).lower() == "true"
+        # Omit registration details if core reg_no is missing
+        if is_reg and not str(evt.get("reg_no", "")).strip():
+            is_reg = False
         reg_office = evt.get("reg_office", "")
         reg_date = evt.get("reg_date", "")
         def coerce_book_number(val):
@@ -713,6 +721,65 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         will_type = evt.get("will_type", "नोटेरीशुदा") or "नोटेरीशुदा"
         death_date = evt.get("death_date", "")
         extra_deaths_text = evt.get("extra_deaths_text", "")
+
+        # Phase 2 variables
+        src_text_val = str(evt.get("source_text", ""))
+        
+        # 1. Parsing parent_plots, parent_area, divided_area for partition deeds
+        parent_plots = evt.get("parent_plots", "") or evt.get("parent_property_info", "") or ""
+        if not parent_plots:
+            # Look for patterns like "प्लाट न- 19 व प्लाट न- 20" or "प्लाट नम्बर 19 व 20"
+            m = re.search(r'(प्लाट\s*(?:न[०-९\-\s]*|नम्बर)\s*\d+(?:\s*(?:व|तथा|और)\s*(?:प्लाट\s*(?:न[०-९\-\s]*|नम्बर)\s*)?\d+)?)', src_text_val)
+            if m:
+                parent_plots = m.group(1).strip()
+                
+        parent_area = evt.get("parent_area", "")
+        if not parent_area:
+            # Look for "क्षेत्रफल 400 वर्गगज"
+            m = re.search(r'(क्षेत्रफल\s*\d+(?:\.\d+)?\s*(?:वर्गगज|वर्गमीटर|वर्ग\s*फीट|oxZxqt|वर्ग\s*मीटर))', src_text_val)
+            if m:
+                parent_area = m.group(1).strip()
+                
+        divided_area = evt.get("divided_area", "")
+        if not divided_area:
+            # Look for "विभाजित क्षेत्रफल 200 वर्गगज" or "विभाजित हिस्सा 200 वर्गगज"
+            m = re.search(r'(विभाजित\s*(?:क्षेत्रफल|हिस्सा)\s*\d+(?:\.\d+)?\s*(?:वर्गगज|वर्गमीटर|वर्ग\s*फीट|oxZxqt|वर्ग\s*मीटर))', src_text_val)
+            if m:
+                divided_area = m.group(1).strip()
+
+        # 2. Parsing plot_ref, area, unit_details for construction deeds
+        plot_ref = evt.get("plot_ref", "") or (f"प्लाट न- {property_details.get('plot_no', '')}" if property_details and property_details.get('plot_no') else "")
+        if not evt.get("plot_ref") and not plot_ref:
+            # Look for plot reference like "प्लाट न- 159"
+            m = re.search(r'(प्लाट\s*(?:न[०-९\-\s]*|नम्बर)\s*\d+)', src_text_val)
+            if m:
+                plot_ref = m.group(1).strip()
+                
+        area = evt.get("area", "") or (f"{property_details.get('land_area', '')} {property_details.get('unit', '')}" if property_details else "")
+        if not evt.get("area") and (not area or "183.33" in area):
+            # Look for area
+            m = re.search(r'(क्षेत्रफल\s*\d+(?:\.\d+)?\s*(?:वर्गगज|वर्गमीटर|वर्ग\s*फीट|oxZxqt|वर्ग\s*मीटर))', src_text_val)
+            if m:
+                area = m.group(1).strip().replace("क्षेत्रफल", "").strip()
+
+        unit_details = evt.get("unit_details", "") or evt.get("unit_number", "") or ""
+        if not unit_details:
+            # Look for patterns like "आवासीय छः यूनिटो व बेसमेन्ट" or "छः यूनिटो व बेसमेन्ट" or "अपार्टमेन्ट/यूनिट्स/फ्लेट्स"
+            m = re.search(r'(आवासीय\s*[अ-ज्ञ\d]+\s*यूनिटो(?:\s*व\s*बेसमेन्ट)?|[अ-ज्ञ\d]+\s*यूनिटो(?:\s*व\s*बेसमेन्ट)?|अपार्टमेन्ट/यूनिट्स/फ्लेट्स|छः\s*यूनिटो\s*व\s*बेसमेन्ट)', src_text_val)
+            if m:
+                unit_details = m.group(1).strip()
+            else:
+                unit_details = "आवासीय छः यूनिटो व बेसमेन्ट"
+
+        # 3. society_reg_no
+        society_reg_no = evt.get("society_reg_no", "")
+        if not society_reg_no:
+            # Look for pattern like "पंजीयन क्रमांक 2632/एल" or "पंजीयन क्रमांक 2632/L"
+            m = re.search(r'(?:पंजीयन\s*(?:क्रमांक|नम्बर|क्र\.)\s*([०-९\d]+(?:\s*/\s*[A-Za-zअ-ज्ञ]+)?))', src_text_val)
+            if m:
+                society_reg_no = m.group(1).strip()
+            else:
+                society_reg_no = reg_no if event_type == "ALLOTMENT" else ""
 
         # Count heirs and calculate share_fraction dynamically if missing
         if not share_fraction and event_type == "DEATH":
@@ -907,11 +974,11 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                 is_female = True
 
         if is_joint:
-            owner_suffix = "संयुक्तरूप से मालिक, स्वामी व अधिकारी हुए।"
+            owner_suffix = "के संयुक्तरूप से मालिक स्वामी काबिज व अधिकारी हुए।"
         elif is_female:
-            owner_suffix = "एकमात्र मालिक, स्वामी व अधिकारी हुई।"
+            owner_suffix = "की एकमात्र मालिक स्वामी काबिज व अधिकारी हुई।"
         else:
-            owner_suffix = "एकमात्र मालिक, स्वामी व अधिकारी हुए।"
+            owner_suffix = "का एकमात्र मालिक स्वामी काबिज व अधिकारी हुआ।"
 
         # --- Prepare context variables for template ---
         ctx = {
@@ -969,6 +1036,15 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
             "death_date": death_date,
             "extra_deaths_text": extra_deaths_text,
             
+            # Phase 2 variables
+            "society_reg_no": society_reg_no,
+            "parent_plots": parent_plots,
+            "parent_area": parent_area,
+            "divided_area": divided_area,
+            "plot_ref": plot_ref,
+            "area": area,
+            "unit_details": unit_details,
+            
             # Micro-level property detail placeholders
             "east_to_west": property_details.get("length_ew", "") if property_details else "",
             "north_to_south": property_details.get("length_ns", "") if property_details else "",
@@ -992,10 +1068,10 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
             "conv_reg_add_book": evt.get("conv_reg_add_book", ""),
             "conv_reg_add_vol": evt.get("conv_reg_add_vol", ""),
             "conv_reg_add_serial": evt.get("conv_reg_add_serial", ""),
-            "conv_reg_add_page_start": "",
-            "conv_reg_add_page_end": "",
-            "reg_add_page_start": "",
-            "reg_add_page_end": ""
+            "conv_reg_add_page_start": evt.get("conv_reg_add_page_start", ""),
+            "conv_reg_add_page_end": evt.get("conv_reg_add_page_end", ""),
+            "reg_add_page_start": evt.get("reg_add_page_start", ""),
+            "reg_add_page_end": evt.get("reg_add_page_end", "")
         }
         
         # Additional logic for Allotment document numbers
@@ -1059,19 +1135,24 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                     else:
                         office_phrase = f"कार्यालय {office_clean} के यहां "
                 else:
-                    if "उप-पंजीयक कार्यालय" in office_clean or "उप पंजीयक कार्यालय" in office_clean:
+                    if "कार्यालय, उप पंजीयक" in office_clean or "कार्यालय उप पंजीयक" in office_clean:
                         office_phrase = f"{office_clean} के यहां "
-                    elif "उप-पंजीयक" in office_clean or "उप पंजीयक" in office_clean:
-                        t = office_clean.replace("उप-पंजीयक", "उप-पंजीयक कार्यालय").replace("उप पंजीयक", "उप-पंजीयक कार्यालय")
+                    elif "उप-पंजीयक कार्यालय" in office_clean or "उप पंजीयक कार्यालय" in office_clean:
+                        # Reorder to firm style: "कार्यालय, उप पंजीयक"
+                        t = office_clean.replace("उप-पंजीयक कार्यालय", "कार्यालय, उप पंजीयक").replace("उप पंजीयक कार्यालय", "कार्यालय, उप पंजीयक")
                         office_phrase = f"{t} के यहां "
+                    elif "उप-पंजीयक" in office_clean or "उप पंजीयक" in office_clean:
+                        # Extract sub-registrar name and format as firm style
+                        t = office_clean.replace("उप-पंजीयक", "").replace("उप पंजीयक", "").strip()
+                        office_phrase = f"कार्यालय, उप पंजीयक {t} के यहां "
                     elif "कार्यालय" in office_clean:
                         office_phrase = f"{office_clean} के यहां "
                     else:
-                        office_phrase = f"उप-पंजीयक कार्यालय {office_clean} के यहां "
+                        office_phrase = f"कार्यालय, उप पंजीयक {office_clean} के यहां "
                 
                 # Cleanup any duplicates
-                office_phrase = office_phrase.replace("कार्यालय कार्यालय", "कार्यालय")
-                office_phrase = office_phrase.replace("उप-पंजीयक कार्यालय उप-पंजीयक कार्यालय", "उप-पंजीयक कार्यालय")
+                office_phrase = office_phrase.replace("कार्यालय, कार्यालय", "कार्यालय")
+                office_phrase = office_phrase.replace("कार्यालय, उप पंजीयक कार्यालय, उप पंजीयक", "कार्यालय, उप पंजीयक")
             else:
                 office_phrase = ""
             
@@ -1098,10 +1179,14 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
                     reg_add_page_start = normalized_page
                     reg_add_page_end = normalized_page
             
-            ctx["reg_add_page_start"] = reg_add_page_start
-            ctx["reg_add_page_end"] = reg_add_page_end
-            ctx["conv_reg_add_page_start"] = reg_add_page_start  # Fallback
-            ctx["conv_reg_add_page_end"] = reg_add_page_end      # Fallback
+            if not ctx.get("reg_add_page_start"):
+                ctx["reg_add_page_start"] = reg_add_page_start
+            if not ctx.get("reg_add_page_end"):
+                ctx["reg_add_page_end"] = reg_add_page_end
+            if not ctx.get("conv_reg_add_page_start"):
+                ctx["conv_reg_add_page_start"] = reg_add_page_start  # Fallback
+            if not ctx.get("conv_reg_add_page_end"):
+                ctx["conv_reg_add_page_end"] = reg_add_page_end      # Fallback
                     
             # Additional book details
             if reg_add_book and reg_add_vol:
@@ -1141,11 +1226,30 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         else:
             template = CHAIN_TEMPLATES[tpl_key]
 
+        if not is_reg:
+            template = re.sub(
+                r'[,，\s]*(?:जिसका पंजीयन|जिसके\s+[^，,]+?\s+का\s+पंजीयन|उक्त\s+[^，,]+?\s+(?:का|के)\s+पंजीयन|जिसमें से परपेचुअल लीज डीड का पंजीयन)[^।]+(?:किया गया|चस्पा किया गया|चस्पा हुई)[\s।]*',
+                '। ',
+                template
+            )
+            ctx["document_name_str"] = ctx["document_name_str"].replace("पंजीकृत ", "")
+
         formatted_para = template.format(**ctx)
         
         # Clean up double spaces or dangling commas
         formatted_para = re.sub(r'\s+,\s+', ', ', formatted_para)
+        # Clean duplicate office prefixes
+        formatted_para = formatted_para.replace("कार्यालय कार्यालय", "कार्यालय")
+        formatted_para = formatted_para.replace("कार्यालय, कार्यालय", "कार्यालय")
         formatted_para = re.sub(r'\s+', ' ', formatted_para).strip()
+
+        # Enforce prefix based on index
+        if idx == 0:
+            formatted_para = re.sub(r'^(यह कि\s+)?(सर्वप्रथम|तत्पश्चात्)\s*', '', formatted_para)
+            formatted_para = "यह कि सर्वप्रथम " + formatted_para
+        else:
+            formatted_para = re.sub(r'^(यह कि\s+)?(सर्वप्रथम|तत्पश्चात्)\s*', '', formatted_para)
+            formatted_para = "यह कि तत्पश्चात् " + formatted_para
 
         paragraphs.append(formatted_para)
 
@@ -1153,8 +1257,8 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
     for idx, evt in enumerate(filtered_chain):
         evt["paragraph_text"] = paragraphs[idx]
 
-    # In-place modify the input title_chain list so the caller gets the deduplicated list with paragraphs
-    title_chain.clear()
-    title_chain.extend(filtered_chain)
+    # Do not mutate the input title_chain list in-place so the user's manually defined cards are preserved in the DB.
+    # title_chain.clear()
+    # title_chain.extend(filtered_chain)
 
     return paragraphs
