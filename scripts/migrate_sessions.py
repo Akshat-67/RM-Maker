@@ -35,6 +35,10 @@ def migrate_json_to_sqlite(cases_dir, db_uri):
                 if db.session.get(Case, case_id):
                     continue
                 
+                data_dict = sess.get("data", {})
+                if "buckets" in sess:
+                    data_dict["buckets"] = sess["buckets"]
+
                 case = Case(
                     id=case_id,
                     doc_type=sess.get("doc_type", "RM"),
@@ -51,7 +55,7 @@ def migrate_json_to_sqlite(cases_dir, db_uri):
                     processed_files=json.dumps(sess.get("processed_files", [])),
                     files=json.dumps(sess.get("files", [])),
                     legal_report_files=json.dumps(sess.get("legal_report_files", [])),
-                    data=json.dumps(sess.get("data", {})),
+                    data=json.dumps(data_dict),
                     last_updated=float(sess.get("last_updated", 0.0))
                 )
                 db.session.add(case)
