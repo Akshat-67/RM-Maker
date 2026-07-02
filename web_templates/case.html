@@ -71,8 +71,8 @@
             letter-spacing: 0.3px;
         }
         #verificationContent .hindi-mode {
-            font-family: 'Mangal', 'Arial Unicode MS', sans-serif;
-            font-size: 15px; /* Slightly reduced for better balance */
+            font-family: 'Mangal', 'Segoe UI Devanagari', 'Arial Unicode MS', sans-serif;
+            font-size: 15px;
             line-height: 1.6;
         }
         #verificationContent .card-body {
@@ -83,38 +83,39 @@
         }
         #verificationContent label {
             font-weight: 600;
-            color: #495057;
+            color: var(--color-zinc-400);
             margin-bottom: 0.25rem;
             font-size: 0.85rem;
         }
 
         /* Workspace Tab Styling */
         .nav-pills .nav-link {
-            color: #4b5563;
-            background-color: #f3f4f6;
-            border: 1px solid transparent;
+            color: var(--color-zinc-400);
+            background-color: var(--color-zinc-900);
+            border: 1px solid var(--color-zinc-800);
             transition: all 0.2s ease-in-out;
             border-radius: 8px;
             font-size: 0.95rem;
             margin-right: 0.5rem;
         }
         .nav-pills .nav-link:hover {
-            background-color: #e5e7eb;
-            color: #1f2937;
+            background-color: var(--color-zinc-800);
+            color: var(--color-zinc-100);
         }
         .nav-pills .nav-link.active {
             color: #ffffff;
-            background-color: #0284c7; /* Sky 600 - premium blue */
-            box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.2), 0 2px 4px -1px rgba(2, 132, 199, 0.1);
+            background-color: var(--theme-accent);
+            border-color: var(--theme-accent);
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
         }
 
         /* Timeline Styling */
         .timeline-track-wrapper {
             position: relative;
             padding: 1.5rem 1rem;
-            background: #f8fafc;
+            background: var(--color-zinc-950);
             border-radius: 12px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--theme-border);
             margin-bottom: 1.25rem;
             overflow-x: auto;
         }
@@ -124,7 +125,7 @@
             left: 3.5rem;
             right: 3.5rem;
             height: 4px;
-            background-color: #cbd5e1;
+            background-color: var(--color-zinc-800);
             z-index: 1;
         }
         .timeline-nodes-container {
@@ -153,38 +154,38 @@
             width: 2.5rem;
             height: 2.5rem;
             border-radius: 50%;
-            background-color: #ffffff;
-            border: 3px solid #cbd5e1;
+            background-color: var(--color-zinc-900);
+            border: 3px solid var(--color-zinc-800);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            color: #64748b;
+            color: var(--color-zinc-400);
             transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
             margin-bottom: 0.5rem;
         }
         .timeline-node-index {
             font-size: 0.85rem;
         }
         .timeline-node.active .timeline-node-dot {
-            border-color: #0284c7;
-            background-color: #0284c7;
+            border-color: var(--theme-accent);
+            background-color: var(--theme-accent);
             color: #ffffff;
-            box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.25);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
         }
         .timeline-node.pulsing .timeline-node-dot {
             animation: pulse-border 2s infinite;
         }
         @keyframes pulse-border {
             0% {
-                box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.4);
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
             }
             70% {
-                box-shadow: 0 0 0 6px rgba(2, 132, 199, 0);
+                box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
             }
             100% {
-                box-shadow: 0 0 0 0 rgba(2, 132, 199, 0);
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
             }
         }
         .timeline-node-content {
@@ -194,14 +195,14 @@
         .timeline-node-title {
             font-size: 0.75rem;
             font-weight: 700;
-            color: #334155;
+            color: var(--color-zinc-200);
             margin-bottom: 0.1rem;
             line-height: 1.2;
         }
         .timeline-node-date {
             font-size: 0.65rem;
             font-weight: 600;
-            color: #64748b;
+            color: var(--color-zinc-500);
         }
 
         /* Split Pane Layout */
@@ -211,7 +212,7 @@
         }
         .chain-editor-pane {
             flex: 1;
-            min-width: 0; /* prevent overflow */
+            min-width: 0;
         }
         .chain-preview-pane {
             width: 390px;
@@ -227,8 +228,8 @@
         }
         
         .active-link-card {
-            border-left: 4px solid #0284c7 !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03) !important;
+            border-left: 4px solid var(--theme-accent) !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2) !important;
         }
         
         .sticky-top-preview {
@@ -250,9 +251,9 @@
             <div class="sidebar-content">
                 <div class="sidebar-section">
                     <div class="sidebar-section-label">Active Workspace</div>
-                    <div class="p-2 border rounded border-secondary bg-dark text-white mb-2">
+                    <div class="p-2 border border-zinc-800 rounded bg-zinc-900 text-zinc-100 mb-2">
                         <div class="fw-bold text-truncate" style="font-size: 0.85rem;" id="sidebarBorrowerName">Loading borrower...</div>
-                        <code class="text-muted" style="font-size: 0.72rem;">ID: {{ case_id }}</code>
+                        <code class="text-zinc-500" style="font-size: 0.72rem;">ID: {{ case_id }}</code>
                     </div>
                 </div>
 
@@ -297,9 +298,9 @@
                     <span class="breadcrumb-separator">/</span>
                     <span class="breadcrumb-active">{{ case_id }}</span>
                 </div>
-                <div class="header-actions">
-                    <span class="badge bg-secondary fs-6 me-2">{{ doc_type }} Case Mode</span>
-                    <button class="btn btn-outline-primary btn-sm me-2" onclick="saveCase()">💾 Save Workspace</button>
+                <div class="header-actions d-flex align-items-center gap-2">
+                    <span class="badge {{ 'badge-type-rm' if doc_type == 'RM' else 'badge-type-sd' }}">{{ doc_type }} Case Mode</span>
+                    <button class="btn btn-primary btn-sm" onclick="saveCase()">💾 Save Workspace</button>
                     <a href="/" class="btn btn-outline-secondary btn-sm">Close Case</a>
                 </div>
             </header>
@@ -632,7 +633,7 @@
                             
                             <!-- Interactive Aadhaar Role Mapping Panel -->
                             {% if data.get('unassigned_aadhars') %}
-                            <div class="card border-warning mb-4 shadow-sm bg-light">
+                            <div class="card border-warning mb-4 shadow-sm bg-zinc-950">
                                 <div class="card-header bg-warning text-dark fw-bold d-flex align-items-center">
                                     <span class="fs-5 me-2">📋</span> Unassigned Aadhaar Cards Found
                                 </div>
@@ -1294,7 +1295,7 @@
                             <!-- Borrowers (RM) -->
                             <h6 class="section-title rm-only-section">Borrowers</h6>
                             {% for b in data.get('bs', []) %}
-                            <div class="card mb-2 rm-only-section">
+                            <div class="card mb-2 rm-only-section borrower-card">
                                 <div class="card-body">
                                     <h6 class="text-muted">Borrower {{ loop.index }}</h6>
                                     <div class="row g-2">
@@ -1339,7 +1340,7 @@
                             <!-- Loans (RM) -->
                             <h6 class="section-title mt-3 rm-only-section">Loan Accounts</h6>
                             {% for l in data.get('ls', []) %}
-                            <div class="card mb-2 rm-only-section">
+                            <div class="card mb-2 rm-only-section loan-card">
                                 <div class="card-body">
                                     <h6 class="text-muted">Loan {{ loop.index }}</h6>
                                     <div class="row g-2">
@@ -1379,7 +1380,7 @@
                             <!-- Properties (RM) -->
                             <h6 class="section-title mt-3 rm-only-section">Property Schedules</h6>
                             {% for p in data.get('ps', []) %}
-                            <div class="card mb-2 rm-only-section">
+                            <div class="card mb-2 rm-only-section property-card">
                                 <div class="card-body">
                                     <h6 class="text-muted">Property {{ loop.index }}</h6>
                                     <div class="row g-2">
@@ -1418,7 +1419,7 @@
 
                             <!-- Bank Signatory (RM) -->
                             <h6 class="section-title mt-3 rm-only-section">Bank Signatory</h6>
-                            <div class="card mb-2 rm-only-section">
+                            <div class="card mb-2 rm-only-section bsign-card">
                                 <div class="card-body">
                                     <div class="row g-2">
                                         {% set sig = data.get('bsign', {}) %}
