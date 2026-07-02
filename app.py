@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, abort
 import os
 import json
 import time
 import shutil
 import re
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
 from utils.helpers import parse_relation_text, normalize_relation_prefix, convert_hindi_digits_to_english
 from modules.rm.extractor import RMDataExtractor
 from modules.sd.extractor import SDDataExtractor
@@ -12,11 +13,19 @@ from modules.rm.processor import RMTemplateProcessor
 from modules.sd.processor import SDTemplateProcessor
 from modules.sd.narrative import generate_chain_narrative
 from utils.config import DEFAULT_GEMINI_API_KEYS
+from models.case import Case, db
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
+db_path = os.path.abspath(os.path.join("cases", "cases.db")).replace("\\", "/")
+app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
 
 @app.after_request
 def after_request(response):
@@ -45,6 +54,30 @@ BTN_DANGER = "#EF4444"
 BORDER_COLOR = "#E2E8F0"
 TEXT_PRIMARY = "#1E293B"
 TEXT_SECONDARY = "#64748B"
+
+# --- Case ID Sanitization ---
+def sanitize_case_id(case_id):
+    """Sanitize case_id to prevent path traversal attacks.
+
+    Returns the sanitized case_id or raises a 400 error if invalid.
+    """
+    sanitized = secure_filename(str(case_id))
+    if sanitized != str(case_id) or ".." in sanitized or "/" in sanitized or "\\" in sanitized:
+        abort(400, "Invalid case identifier")
+    return sanitized
+
+@app.before_request
+def block_path_traversal():
+    # Check raw request uri or path info for traversal attempts (e.g. contains '..' or '\')
+    raw_uri = request.environ.get('REQUEST_URI', '')
+    raw_path_info = request.environ.get('PATH_INFO', '')
+    if '..' in raw_uri or '..' in raw_path_info or '\\' in raw_uri or '\\' in raw_path_info:
+        abort(400, "Invalid path")
+
+@app.url_value_preprocessor
+def preprocess_url_values(endpoint, values):
+    if values and 'case_id' in values:
+        values['case_id'] = sanitize_case_id(values['case_id'])
 
 # --- Template Discovery (from old app.py) ---
 def discover_templates():
@@ -127,14 +160,48 @@ template_map, sd_template_map, bank_folders = discover_templates()
 
 # --- Session Management ---
 def list_cases():
+    cases_db = Case.query.order_by(Case.last_updated.desc()).all()
     cases = []
-    if not os.path.exists(CASES_DIR): return []
-    for d in os.listdir(CASES_DIR):
-        path = os.path.join(CASES_DIR, d, "session.json")
-        try:
-            with open(path, "r") as f: cases.append(json.load(f))
-        except: pass
-    return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
+    for case in cases_db:
+        data_dict = json.loads(case.data or "{}")
+        
+        # Calculate borrower_name for backward compatibility in templates/dashboard
+        doc_type = case.doc_type or "RM"
+        if doc_type == "SD":
+            sellers_list = data_dict.get("ss", [{}])
+            s_name = sellers_list[0].get("n") if (sellers_list and isinstance(sellers_list, list) and isinstance(sellers_list[0], dict)) else ""
+            s_name = s_name.strip() if s_name and s_name.strip() else "New Case"
+            
+            buyers_list = data_dict.get("bs", [{}])
+            b_name = buyers_list[0].get("n") if (buyers_list and isinstance(buyers_list, list) and isinstance(buyers_list[0], dict)) else ""
+            b_name = b_name.strip() if b_name and b_name.strip() else "New Case"
+            
+            borrower_name = f"SD: {s_name} -> {b_name}"
+        else:
+            buyers_list = data_dict.get("bs", [{}])
+            borrower_name = buyers_list[0].get("n", "New Case") if (buyers_list and isinstance(buyers_list, list) and isinstance(buyers_list[0], dict)) else "New Case"
+
+        cases.append({
+            "id": case.id,
+            "borrower_name": borrower_name,
+            "doc_type": case.doc_type,
+            "bank": case.bank,
+            "borrower_count": str(case.borrower_count),
+            "loan_count": str(case.loan_count),
+            "properties_count": str(case.properties_count),
+            "sellers_count": str(case.sellers_count),
+            "buyers_count": str(case.buyers_count),
+            "chain_scenario": case.chain_scenario,
+            "selected_template": case.selected_template,
+            "property_type": case.property_type,
+            "verified_fields": json.loads(case.verified_fields or "[]"),
+            "processed_files": json.loads(case.processed_files or "[]"),
+            "files": json.loads(case.files or "[]"),
+            "legal_report_files": json.loads(case.legal_report_files or "[]"),
+            "data": data_dict,
+            "last_updated": case.last_updated
+        })
+    return cases
 
 def sync_template_keys_to_property_type(chain_list, property_type):
     if not chain_list or not isinstance(chain_list, list):
@@ -165,28 +232,67 @@ def sync_template_keys_to_property_type(chain_list, property_type):
                 evt["template_key"] = key_map[old_key]
 
 def load_case_session(case_id):
-    path = os.path.join(CASES_DIR, case_id, "session.json")
-    if not os.path.exists(path): return None
-    with open(path, "r", encoding="utf-8") as f:
-        sess = json.load(f)
-    # Auto-correct doc_type if it was incorrectly mutated or set to RM
+    case_id = sanitize_case_id(case_id)
+    case = db.session.get(Case, case_id)
+    if not case:
+        return None
+        
+    # Reconstruct the expected session dict structure
+    sess = {
+        "id": case.id,
+        "doc_type": case.doc_type,
+        "bank": case.bank,
+        "borrower_count": str(case.borrower_count),
+        "loan_count": str(case.loan_count),
+        "properties_count": str(case.properties_count),
+        "sellers_count": str(case.sellers_count),
+        "buyers_count": str(case.buyers_count),
+        "chain_scenario": case.chain_scenario,
+        "selected_template": case.selected_template,
+        "property_type": case.property_type,
+        "verified_fields": json.loads(case.verified_fields or "[]"),
+        "processed_files": json.loads(case.processed_files or "[]"),
+        "files": json.loads(case.files or "[]"),
+        "legal_report_files": json.loads(case.legal_report_files or "[]"),
+        "data": json.loads(case.data or "{}"),
+        "last_updated": case.last_updated
+    }
+    
+    # Calculate borrower_name for backward compatibility in templates/dashboard
+    data_dict = sess["data"]
+    doc_type = sess.get("doc_type", "RM")
+    if doc_type == "SD":
+        sellers_list = data_dict.get("ss", [{}])
+        s_name = sellers_list[0].get("n") if (sellers_list and isinstance(sellers_list, list) and isinstance(sellers_list[0], dict)) else ""
+        s_name = s_name.strip() if s_name and s_name.strip() else "New Case"
+        
+        buyers_list = data_dict.get("bs", [{}])
+        b_name = buyers_list[0].get("n") if (buyers_list and isinstance(buyers_list, list) and isinstance(buyers_list[0], dict)) else ""
+        b_name = b_name.strip() if b_name and b_name.strip() else "New Case"
+        
+        sess["borrower_name"] = f"SD: {s_name} -> {b_name}"
+    else:
+        buyers_list = data_dict.get("bs", [{}])
+        sess["borrower_name"] = buyers_list[0].get("n", "New Case") if (buyers_list and isinstance(buyers_list, list) and isinstance(buyers_list[0], dict)) else "New Case"
+        
+    # Auto-correct doc_type
     if sess.get("doc_type") == "RM":
         sel_temp = sess.get("selected_template", "")
         if "SD-" in sel_temp or "sale_deed" in sel_temp.lower():
             sess["doc_type"] = "SD"
+            
     if "data" in sess:
         sess["data"] = convert_hindi_digits_to_english(sess["data"])
         if isinstance(sess["data"], dict):
             property_type = sess.get("property_type", "Plot")
             sess["data"]["property_type"] = property_type
             
-            # Universal bidirectional synchronization between long and short keys for title chain
+            # Universal bidirectional synchronization
             for key_list_name in ["title_chain", "chain"]:
                 chain_list = sess["data"].get(key_list_name, [])
                 sync_template_keys_to_property_type(chain_list, property_type)
                 for evt in chain_list:
                     if isinstance(evt, dict):
-                        # Sync long keys (AI-extracted) to short keys (UI inputs)
                         if "executant_name" in evt and not evt.get("s"):
                             evt["s"] = evt["executant_name"]
                         if "claimant_name" in evt and not evt.get("b"):
@@ -208,7 +314,7 @@ def load_case_session(case_id):
                         if "reg_add_page" in evt and not evt.get("add_page"):
                             evt["add_page"] = evt["reg_add_page"]
                             
-                        # Reverse sync short keys to long keys
+                        # Reverse sync
                         if evt.get("s") and not evt.get("executant_name"):
                             evt["executant_name"] = evt["s"]
                         if evt.get("b") and not evt.get("claimant_name"):
@@ -224,14 +330,12 @@ def load_case_session(case_id):
                         if evt.get("r_no") and not evt.get("reg_no"):
                             evt["reg_no"] = evt["r_no"]
             
-            # Property details key synchronization
             for p in sess["data"].get("ps", []):
                 if isinstance(p, dict):
                     if "land_area" in p and not p.get("area"):
                         p["area"] = p["land_area"]
                     if "unit" in p and not p.get("area_unit"):
                         p["area_unit"] = p["unit"]
-                        
                     # Reverse sync
                     if p.get("area") and not p.get("land_area"):
                         p["land_area"] = p["area"]
@@ -248,24 +352,22 @@ def prune_case_data(data, doc_type):
         return prune_rm_data(data)
 
 def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None):
+    case_id = sanitize_case_id(case_id)
     os.makedirs(os.path.join(CASES_DIR, case_id), exist_ok=True)
     
-    # Load existing to preserve fields if not explicitly passed
+    # Load existing first to merge fields
     existing = load_case_session(case_id) or {}
-    if doc_type is None:
-        doc_type = existing.get("doc_type", "RM")
-    if sellers_count is None:
-        sellers_count = existing.get("sellers_count", "1")
-    if buyers_count is None:
-        buyers_count = existing.get("buyers_count", "1")
-    if chain_scenario is None:
-        chain_scenario = existing.get("chain_scenario", "")
-    if selected_template is None:
-        selected_template = existing.get("selected_template", "")
-    if property_type is None:
-        property_type = existing.get("property_type", "Plot")
-
-    # Merge incoming data with existing session data to preserve rich AI-extracted fields
+    
+    if doc_type is None: doc_type = existing.get("doc_type", "RM")
+    if sellers_count is None: sellers_count = existing.get("sellers_count", "1")
+    if buyers_count is None: buyers_count = existing.get("buyers_count", "1")
+    if chain_scenario is None: chain_scenario = existing.get("chain_scenario", "")
+    if selected_template is None: selected_template = existing.get("selected_template", "")
+    if property_type is None: property_type = existing.get("property_type", "Plot")
+    if processed_files is None: processed_files = existing.get("processed_files", [])
+    if legal_report_files is None: legal_report_files = existing.get("legal_report_files", [])
+    
+    # Merge logic
     existing_data = existing.get("data", {})
     merged_data = data.copy()
     
@@ -298,48 +400,35 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
     for key_list_name in ["title_chain", "chain"]:
         if key_list_name in merged_data:
             sync_template_keys_to_property_type(merged_data[key_list_name], property_type)
-                 
+            
     pruned_data = prune_case_data(merged_data, doc_type)
-
-    if doc_type == "SD":
-        sellers_list = pruned_data.get("ss", [{}])
-        s_name = sellers_list[0].get("n") if sellers_list else ""
-        s_name = s_name.strip() if s_name and s_name.strip() else "New Case"
+    if pruned_data:
+        pruned_data = convert_hindi_digits_to_english(pruned_data)
         
-        b_name = pruned_data.get("bs", [{}])[0].get("n") if pruned_data.get("bs") else ""
-        b_name = b_name.strip() if b_name and b_name.strip() else "New Case"
+    case = db.session.get(Case, case_id)
+    if not case:
+        case = Case(id=case_id)
+        db.session.add(case)
         
-        display_name = f"SD: {s_name} -> {b_name}"
-    else:
-        display_name = pruned_data.get("bs", [{}])[0].get("n", "New Case") if pruned_data.get("bs") else "New Case"
-
-    session = {
-        "id": case_id,
-        "borrower_name": display_name,
-        "bank": bank,
-        "borrower_count": borrower_count,
-        "loan_count": loan_count,
-        "properties_count": properties_count or "1",
-        "last_updated": time.time(),
-        "data": pruned_data,
-        "verified_fields": list(verified_fields),
-        "files": files,
-        "processed_files": processed_files or [],
-        "watch_folder": None, # Not applicable for web
-        "doc_type": doc_type,
-        "sellers_count": sellers_count or "1",
-        "buyers_count": buyers_count or "1",
-        "chain_scenario": chain_scenario or "",
-        "selected_template": selected_template or "",
-        "property_type": property_type or "Plot",
-        "legal_report_files": legal_report_files if legal_report_files is not None else existing.get("legal_report_files", []),
-        "buckets": buckets if buckets is not None else existing.get("buckets", {})
-    }
-    if "data" in session and session["data"]:
-        session["data"] = convert_hindi_digits_to_english(session["data"])
-    path = os.path.join(CASES_DIR, case_id, "session.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(session, f, ensure_ascii=False)
+    case.doc_type = doc_type
+    case.bank = bank
+    case.borrower_count = int(borrower_count) if str(borrower_count).isdigit() else 1
+    case.loan_count = int(loan_count) if str(loan_count).isdigit() else 1
+    case.properties_count = int(properties_count) if str(properties_count).isdigit() else 1
+    case.sellers_count = int(sellers_count) if str(sellers_count).isdigit() else 1
+    case.buyers_count = int(buyers_count) if str(buyers_count).isdigit() else 1
+    case.chain_scenario = chain_scenario
+    case.selected_template = selected_template
+    case.property_type = property_type
+    
+    case.verified_fields = json.dumps(list(verified_fields))
+    case.processed_files = json.dumps(processed_files)
+    case.files = json.dumps(files)
+    case.legal_report_files = json.dumps(legal_report_files)
+    case.data = json.dumps(pruned_data)
+    case.last_updated = time.time()
+    
+    db.session.commit()
 
 # --- Smart Merge Utility ---
 def smart_merge(old, new, verified_fields, path=""):
