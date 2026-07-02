@@ -7,73 +7,15 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
-    .kpi-card {
-        border-left: 4px solid var(--theme-secondary);
-        background-color: var(--theme-bg-surface);
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-sm);
-        transition: var(--transition-all);
+    /* Table hover overrides for clean dark mode interaction */
+    .case-table tbody tr:hover td {
+        background-color: rgba(255, 255, 255, 0.02) !important;
     }
-    .kpi-card:hover {
-        box-shadow: var(--shadow-md);
-        transform: translateY(-1px);
-    }
-    .kpi-card .kpi-value {
-        font-size: var(--font-size-display);
-        font-weight: var(--font-weight-bold);
-        color: var(--theme-text-primary);
-        letter-spacing: -0.02em;
-        line-height: 1.2;
-        margin-top: var(--space-1);
-    }
-    .kpi-card .kpi-label {
-        color: var(--theme-text-secondary);
-        font-size: var(--font-size-caption);
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        font-weight: var(--font-weight-semibold);
-    }
-    .kpi-card.kpi-success { border-left-color: var(--theme-success); }
-    .kpi-card.kpi-info    { border-left-color: var(--theme-secondary); }
-    
-    .filter-bar {
-        background-color: var(--theme-bg-surface);
-        border: 1px solid var(--theme-border);
-        border-radius: var(--radius-md);
-        padding: var(--space-4) var(--space-6);
-        box-shadow: var(--shadow-sm);
-    }
-    .case-table thead th {
-        background-color: var(--color-slate-100);
-        color: var(--theme-text-secondary);
-        font-weight: var(--font-weight-semibold);
-        text-transform: uppercase;
-        font-size: var(--font-size-caption);
-        letter-spacing: 0.05em;
-        border-bottom: 2px solid var(--theme-border);
-    }
-    .case-table tbody tr:hover {
-        background-color: var(--color-slate-50);
-    }
-    .badge-type-rm {
-        background-color: var(--color-sky-50);
-        color: var(--color-sky-700);
-        border: 1px solid rgba(2, 132, 199, 0.15);
-    }
-    .badge-type-sd {
-        background-color: var(--theme-input-bg-legacy);
-        color: var(--color-amber-600);
-        border: 1px solid rgba(234, 158, 11, 0.15);
-    }
-    .empty-state {
-        text-align: center;
-        padding: var(--space-12) var(--space-4);
-        color: var(--theme-text-secondary);
-    }
-    .empty-state .empty-icon {
-        font-size: 3rem;
-        margin-bottom: var(--space-3);
-        opacity: 0.8;
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
     }
   </style>
 </head>
@@ -135,7 +77,7 @@
       <main class="app-content">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h4 class="section-title mb-0">Case Dashboard</h4>
-          <small class="text-muted">{{ cases|length }} case{{ '' if cases|length == 1 else 's' }} on file</small>
+          <small class="text-zinc-500">{{ cases|length }} case{{ '' if cases|length == 1 else 's' }} on file</small>
         </div>
 
         <!-- KPI Strip -->
@@ -143,40 +85,34 @@
         {% set sd_count = cases|selectattr('doc_type', 'equalto', 'SD')|list|length %}
         <div class="row g-3 mb-4">
           <div class="col-12 col-md-4">
-            <div class="card shadow-sm border-0 kpi-card">
-              <div class="card-body">
-                <div class="kpi-label">Total Cases</div>
-                <div class="kpi-value">{{ cases|length }}</div>
-              </div>
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Total Cases</div>
+              <div class="text-3xl font-bold mt-1 text-zinc-50">{{ cases|length }}</div>
             </div>
           </div>
           <div class="col-12 col-md-4">
-            <div class="card shadow-sm border-0 kpi-card kpi-success">
-              <div class="card-body">
-                <div class="kpi-label">Registered Mortgage</div>
-                <div class="kpi-value">{{ rm_count }}</div>
-              </div>
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Registered Mortgage</div>
+              <div class="text-3xl font-bold mt-1 text-emerald-500">{{ rm_count }}</div>
             </div>
           </div>
           <div class="col-12 col-md-4">
-            <div class="card shadow-sm border-0 kpi-card kpi-info">
-              <div class="card-body">
-                <div class="kpi-label">Sale Deeds</div>
-                <div class="kpi-value">{{ sd_count }}</div>
-              </div>
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Sale Deeds</div>
+              <div class="text-3xl font-bold mt-1 text-blue-500">{{ sd_count }}</div>
             </div>
           </div>
         </div>
 
         <!-- Filter Bar -->
-        <div class="filter-bar mb-3">
+        <div class="border border-zinc-800 bg-zinc-900/30 p-3 rounded-lg mb-3 shadow-sm">
           <div class="row g-2 align-items-end">
             <div class="col-12 col-md-6">
-              <label class="form-label small text-muted mb-1">Search</label>
+              <label class="form-label small text-zinc-400 mb-1">Search</label>
               <input id="searchInput" type="search" class="form-control" placeholder="Search case id, borrower, bank..." autofocus />
             </div>
             <div class="col-6 col-md-3">
-              <label for="bankFilter" class="form-label small text-muted mb-1">Bank</label>
+              <label for="bankFilter" class="form-label small text-zinc-400 mb-1">Bank</label>
               <select id="bankFilter" class="form-select">
                 <option value="">All banks</option>
                 {% for bank in cases|selectattr('bank')|map(attribute='bank')|unique|sort %}
@@ -185,7 +121,7 @@
               </select>
             </div>
             <div class="col-6 col-md-2">
-              <label class="form-label small text-muted mb-1">Sort by</label>
+              <label class="form-label small text-zinc-400 mb-1">Sort by</label>
               <select id="sortSelect" class="form-select">
                 <option value="updated_desc">Updated (newest)</option>
                 <option value="updated_asc">Updated (oldest)</option>
@@ -201,18 +137,18 @@
         </div>
 
         <!-- Cases Table -->
-        <div class="card shadow-sm border-0">
-          <div class="table-responsive">
+        <div class="border border-zinc-800 bg-zinc-900/20 rounded-lg overflow-hidden shadow-sm">
+          <div class="table-responsive border-0 mb-0 shadow-none">
             <table class="table case-table align-middle mb-0">
               <thead>
                 <tr>
-                  <th scope="col">Case ID</th>
+                  <th scope="col" class="ps-4">Case ID</th>
                   <th scope="col">Borrower/First Party</th>
                   <th scope="col">Bank</th>
                   <th scope="col">Type</th>
                   <th scope="col">Status</th>
                   <th scope="col">Updated</th>
-                  <th scope="col" class="text-end">Actions</th>
+                  <th scope="col" class="text-end pe-4">Actions</th>
                 </tr>
               </thead>
               <tbody id="casesTbody">
@@ -224,21 +160,22 @@
                     data-type="{{ case.doc_type|default('RM', true)|e }}"
                     data-updated="{{ case.last_updated|default(0) }}"
                   >
-                    <td><code class="text-muted">{{ case.id }}</code></td>
-                    <td>{{ case.borrower_name|default('—', true) }}</td>
-                    <td>{{ case.bank|default('—', true) if case.doc_type != 'SD' else '—' }}</td>
+                    <td class="ps-4"><code class="text-zinc-400 font-monospace">{{ case.id }}</code></td>
+                    <td class="fw-medium text-zinc-200">{{ case.borrower_name|default('—', true) }}</td>
+                    <td class="text-zinc-300">{{ case.bank|default('—', true) if case.doc_type != 'SD' else '—' }}</td>
                     <td>
                       <span class="badge {{ 'badge-type-rm' if case.doc_type == 'RM' else 'badge-type-sd' }}">
                         {{ case.doc_type|default('RM') }}
                       </span>
                     </td>
                     <td>
-                      <span class="badge bg-{{ case.status_color|default('secondary') }}">
-                        {{ case.status_text|default('New') }}
-                      </span>
+                      <div class="d-inline-flex align-items-center gap-2">
+                        <span class="status-dot bg-{{ case.status_color|default('secondary') }}"></span>
+                        <span class="text-zinc-300 small">{{ case.status_text|default('New') }}</span>
+                      </div>
                     </td>
-                    <td><small class="text-muted">{{ case.updated|default('—', true) }}</small></td>
-                    <td class="text-end">
+                    <td><small class="text-zinc-500">{{ case.updated|default('—', true) }}</small></td>
+                    <td class="text-end pe-4">
                       <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('view_case', case_id=case.id) }}" class="btn btn-sm btn-outline-primary">Open</a>
                         <button class="btn btn-sm btn-outline-danger" onclick="deleteCase('{{ case.id }}')">Delete</button>
@@ -247,13 +184,15 @@
                   </tr>
                 {% else %}
                   <tr id="emptyRow">
-                    <td colspan="6">
-                      <div class="empty-state">
-                        <div class="empty-icon">📂</div>
-                        <h5 class="mb-2">No cases yet</h5>
-                        <p class="text-muted mb-3">Create your first case to get started.</p>
-                        <a href="{{ url_for('new_case', doc_type='RM') }}" class="btn btn-success">+ New RM Case</a>
-                        <a href="{{ url_for('new_case', doc_type='SD') }}" class="btn btn-info text-white">+ New SD Case</a>
+                    <td colspan="7" class="text-center py-5">
+                      <div class="text-center py-4">
+                        <div class="fs-2 mb-2">📂</div>
+                        <h6 class="text-zinc-300 mb-1">No cases yet</h6>
+                        <p class="text-zinc-500 small mb-3">Create your first case to get started.</p>
+                        <div class="d-flex justify-content-center gap-2">
+                          <a href="{{ url_for('new_case', doc_type='RM') }}" class="btn btn-success btn-sm">+ New RM Case</a>
+                          <a href="{{ url_for('new_case', doc_type='SD') }}" class="btn btn-info btn-sm text-white">+ New SD Case</a>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -261,10 +200,10 @@
               </tbody>
             </table>
           </div>
-          <div id="noResults" class="empty-state d-none">
-            <div class="empty-icon">🔍</div>
-            <p class="text-muted mb-0">No cases match your filters.</p>
-            <button class="btn btn-outline-secondary btn-sm mt-2" onclick="document.getElementById('resetFilters').click()">Clear filters</button>
+          <div id="noResults" class="text-center py-5 d-none">
+            <div class="fs-2 mb-2">🔍</div>
+            <p class="text-zinc-400 mb-0">No cases match your filters.</p>
+            <button class="btn btn-outline-secondary btn-sm mt-3" onclick="document.getElementById('resetFilters').click()">Clear filters</button>
           </div>
         </div>
       </main>
@@ -357,7 +296,7 @@
       gsap.defaults({ overwrite: "auto" });
       
       // KPI metrics cards fade-in stagger
-      gsap.from(".kpi-card", {
+      gsap.from(".rounded-lg", {
         y: 20,
         opacity: 0,
         duration: 0.6,
@@ -366,7 +305,7 @@
       });
 
       // Filter bar fade-in
-      gsap.from(".filter-bar", {
+      gsap.from(".border-zinc-800", {
         y: 15,
         opacity: 0,
         duration: 0.5,
