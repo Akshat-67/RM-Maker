@@ -567,7 +567,54 @@ class SDDataExtractor:
         # 2. Legal - Extract Property and Chain only (Primary Source)
         if buckets.get("legal"):
             legal_prompt = self._build_legal_prompt()
-            legal_res = self._run_gemini_extraction(buckets["legal"], selected_model, legal_prompt)
+            # Apply PDF prefiltering to legal report
+            legal_files = buckets["legal"]
+            filtered_contents = []
+            for path in legal_files:
+                ext = os.path.splitext(path)[1].lower()
+                if ext == '.pdf':
+                    try:
+                        import pypdf
+                        pages_text = []
+                        reader = pypdf.PdfReader(path)
+                        for idx, page in enumerate(reader.pages):
+                            text = page.extract_text() or ""
+                            pages_text.append((idx + 1, text))
+                        
+                        selected_texts, selected_pages = self._filter_relevant_pages(pages_text)
+                        if selected_texts is not None:
+                            combined_filtered_text = f"--- Legal Report Page-Filtered Content ({os.path.basename(path)}) ---\n"
+                            for p_num, p_text in zip(selected_pages, selected_texts):
+                                combined_filtered_text += f"\n--- PAGE {p_num} ---\n{p_text}\n"
+                            from google.genai import types
+                            filtered_contents.append(types.Part.from_text(text=combined_filtered_text))
+                            print(f"[Pre-filter] Successfully filtered legal report {os.path.basename(path)} to pages {selected_pages}")
+                            continue
+                    except Exception as pdf_err:
+                        print(f"[Pre-filter Warning] Failed to pre-filter legal report PDF {path}: {pdf_err}")
+                
+                # Fallback to default raw file extraction logic
+                import mimetypes
+                from google.genai import types
+                mime_type, _ = mimetypes.guess_type(path)
+                if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+                    with open(path, 'rb') as f:
+                        raw = f.read()
+                    filtered_contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+                elif ext == '.txt':
+                    with open(path, 'r', encoding='utf-8') as f:
+                        filtered_contents.append(types.Part.from_text(text=f.read()))
+                elif ext == '.docx':
+                    try:
+                        import docx
+                        doc = docx.Document(path)
+                        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                        filtered_contents.append(types.Part.from_text(text=text))
+                    except Exception as e:
+                        print(f"Error reading docx {path}: {e}")
+                        pass
+
+            legal_res = self._call_gemini(selected_model, filtered_contents, legal_prompt)
             if legal_res and not legal_res.get("error"):
                 merged_data = self._merge_legal_results(merged_data, legal_res, file_paths=buckets["legal"])
 
