@@ -239,15 +239,73 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark px-4">
-        <span class="navbar-brand mb-0 h1">LegalDoc Automator Pro</span>
-        <div class="d-flex">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
-            <button class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
-        </div>
-    </nav>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-header">
+                <a href="/" class="sidebar-logo">
+                    <span>⚖️</span> LegalDoc Automator
+                </a>
+            </div>
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-label">Active Workspace</div>
+                    <div class="p-2 border rounded border-secondary bg-dark text-white mb-2">
+                        <div class="fw-bold text-truncate" style="font-size: 0.85rem;" id="sidebarBorrowerName">Loading borrower...</div>
+                        <code class="text-muted" style="font-size: 0.72rem;">ID: {{ case_id }}</code>
+                    </div>
+                </div>
 
-    <div class="container-fluid mt-3 px-3">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-label">Navigation</div>
+                    <a href="/" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">📊</span> Case Dashboard
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-label">Actions</div>
+                    <a href="{{ url_for('new_case', doc_type='RM') }}" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">➕</span> New RM Case
+                    </a>
+                    <a href="{{ url_for('new_case', doc_type='SD') }}" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">➕</span> New SD Case
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-label">Legal Tools</div>
+                    <a href="{{ url_for('devlys_to_unicode_route') }}" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">🔠</span> DevLys Converter
+                    </a>
+                    <a href="{{ url_for('template_builder') }}" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">🛠</span> Template Builder
+                    </a>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                LegalDoc Automator Pro v2.0
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="app-main">
+            <header class="app-header">
+                <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+                <div class="header-breadcrumbs">
+                    <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
+                    <span class="breadcrumb-separator">/</span>
+                    <a href="/" class="breadcrumb-item-link">Cases</a>
+                    <span class="breadcrumb-separator">/</span>
+                    <span class="breadcrumb-active">{{ case_id }}</span>
+                </div>
+                <div class="header-actions">
+                    <span class="badge bg-secondary fs-6 me-2">{{ doc_type }} Case Mode</span>
+                    <button class="btn btn-outline-primary btn-sm me-2" onclick="saveCase()">💾 Save Workspace</button>
+                    <a href="/" class="btn btn-outline-secondary btn-sm">Close Case</a>
+                </div>
+            </header>
+
+            <main class="app-content">
+                <div class="container-fluid px-0">
         <div class="row g-3">
             <!-- LEFT PANEL: Settings -->
             <div class="col-lg-4 col-xl-3">
@@ -4612,9 +4670,39 @@
             }
         })
         .catch(err => alert('Failed to delete file: ' + err));
+            </div>
+        </main>
+    </div>
+  </div>
+  
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) {
+        sidebar.classList.toggle('show');
+      }
     }
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    // Dynamically update borrower name in sidebar on load
+    document.addEventListener("DOMContentLoaded", function() {
+        const borrowerInput = document.getElementById("field_borrower_name_0") || 
+                              document.getElementById("field_buyer_name_0") ||
+                              document.getElementById("field_seller_name_0");
+        const sidebarLabel = document.getElementById("sidebarBorrowerName");
+        if (borrowerInput && sidebarLabel) {
+            function updateName() {
+                const val = borrowerInput.value.trim();
+                if (val) {
+                    sidebarLabel.textContent = val;
+                } else {
+                    sidebarLabel.textContent = "Case File";
+                }
+            }
+            borrowerInput.addEventListener("input", updateName);
+            updateName();
+        }
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

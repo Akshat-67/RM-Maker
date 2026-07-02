@@ -1,0 +1,210 @@
+/**
+ * LegalDoc Automator Pro - Global Application Shell & Sidebar Styling
+ * Implements the professional enterprise-grade three-section dashboard layout.
+ */
+
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+}
+
+/* --- Sidebar Styling --- */
+.app-sidebar {
+    width: 250px;
+    background-color: var(--color-slate-900);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--color-slate-800);
+    flex-shrink: 0;
+    transition: transform var(--transition-duration-normal) var(--transition-easing-fluid);
+    z-index: var(--z-index-sticky);
+}
+
+.sidebar-header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--color-slate-800);
+}
+
+.sidebar-logo {
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-bold);
+    color: #ffffff;
+    text-decoration: none;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4) var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.sidebar-section-label {
+    font-size: 0.68rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-slate-500);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding-left: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.sidebar-nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-slate-400);
+    text-decoration: none;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-md);
+    transition: var(--transition-all);
+}
+
+.sidebar-nav-link:hover {
+    color: #ffffff;
+    background-color: var(--color-slate-800);
+}
+
+.sidebar-nav-link.active {
+    color: #ffffff;
+    background-color: var(--theme-secondary);
+}
+
+.sidebar-nav-icon {
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.sidebar-footer {
+    padding: var(--space-4);
+    border-top: 1px solid var(--color-slate-800);
+    font-size: var(--font-size-caption);
+    color: var(--color-slate-500);
+}
+
+/* --- Main Layout Container --- */
+.app-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background-color: var(--theme-bg-page);
+}
+
+/* --- Header Styling --- */
+.app-header {
+    height: 60px;
+    background-color: var(--theme-bg-surface);
+    border-bottom: 1px solid var(--theme-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-6);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-index-sticky);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Breadcrumbs */
+.header-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+    color: var(--theme-text-secondary);
+}
+
+.breadcrumb-item-link {
+    color: var(--theme-text-secondary);
+    text-decoration: none;
+    transition: var(--transition-all);
+}
+
+.breadcrumb-item-link:hover {
+    color: var(--theme-text-primary);
+}
+
+.breadcrumb-separator {
+    color: var(--theme-text-muted);
+    font-size: 0.8rem;
+}
+
+.breadcrumb-active {
+    color: var(--theme-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* --- Content Container --- */
+.app-content {
+    flex: 1;
+    padding: var(--space-6);
+    overflow-y: auto;
+}
+
+/* --- Mobile Menu Trigger --- */
+.mobile-menu-trigger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--theme-text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    margin-right: var(--space-4);
+}
+
+/* --- Responsive Adaptations --- */
+@media (max-width: 992px) {
+    .mobile-menu-trigger {
+        display: block;
+    }
+    
+    .app-sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(-100%);
+        box-shadow: var(--shadow-lg);
+    }
+    
+    .app-sidebar.show {
+        transform: translateX(0);
+    }
+    
+    .app-header {
+        padding: 0 var(--space-4);
+    }
+    
+    .app-content {
+        padding: var(--space-4);
+    }
+}

@@ -18,27 +18,61 @@
   </style>
 </head>
 <body class="bg-light">
-  <nav class="navbar navbar-dark bg-dark mb-4">
-    <div class="container-fluid px-4">
-      <a class="navbar-brand h1 mb-0" href="{{ url_for('dashboard') }}">LegalDoc Automator Pro</a>
-      <div class="d-flex gap-2 align-items-center">
-        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
-        <div class="dropdown">
-          <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="toolsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            🛠 Tools
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="toolsDropdown">
-            <li><a class="dropdown-item" href="{{ url_for('devlys_to_unicode_route') }}">🔠 Convert DevLys DOCX to Unicode</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('template_builder') }}">🛠 Template Builder</a></li>
-          </ul>
-        </div>
-        <button id="uploadBtn" class="btn btn-primary btn-sm px-3">Upload DOCX</button>
-        <button id="saveBtn" class="btn btn-success btn-sm px-3" disabled>Generate Master</button>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <a href="/" class="sidebar-logo">
+          <span>⚖️</span> LegalDoc Automator
+        </a>
       </div>
-    </div>
-  </nav>
+      <div class="sidebar-content">
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Navigation</div>
+          <a href="/" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">📊</span> Case Dashboard
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Actions</div>
+          <a href="{{ url_for('new_case', doc_type='RM') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">➕</span> New RM Case
+          </a>
+          <a href="{{ url_for('new_case', doc_type='SD') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">➕</span> New SD Case
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Legal Tools</div>
+          <a href="{{ url_for('devlys_to_unicode_route') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">🔠</span> DevLys Converter
+          </a>
+          <a href="{{ url_for('template_builder') }}" class="sidebar-nav-link active">
+            <span class="sidebar-nav-icon">🛠</span> Template Builder
+          </a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        LegalDoc Automator Pro v2.0
+      </div>
+    </aside>
 
-  <main class="container-fluid px-4">
+    <!-- Main Content Area -->
+    <div class="app-main">
+      <header class="app-header">
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <div class="header-breadcrumbs">
+          <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
+          <span class="breadcrumb-separator">/</span>
+          <span class="breadcrumb-active">Template Builder</span>
+        </div>
+        <div class="header-actions">
+          <button id="uploadBtn" class="btn btn-primary btn-sm px-3">Upload DOCX</button>
+          <button id="saveBtn" class="btn btn-success btn-sm px-3" disabled>Generate Master</button>
+        </div>
+      </header>
+
+      <main class="app-content">
     <div class="row g-3 builder-container">
       <!-- Left Panel: Mode & Fields -->
       <div class="col-md-3">
@@ -459,6 +493,17 @@
         saveBtn.textContent = 'Generate Master';
       }
     };
+      </main>
+    </div>
+  </div>
+  
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) {
+        sidebar.classList.toggle('show');
+      }
+    }
   </script>
 </body>
 </html>
