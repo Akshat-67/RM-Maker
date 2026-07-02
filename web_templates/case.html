@@ -941,11 +941,17 @@
                                                         <button type="button" class="btn btn-sm btn-outline-secondary fw-bold" id="btnNextChainLink" onclick="selectChainLink(activeChainIndex + 1)">
                                                             Next Link →
                                                         </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="sortChainLinksChronologically()" title="Sort all links chronologically by date">
+                                                            📅 Sort by Date
+                                                        </button>
                                                     </div>
                                                     <span class="small fw-bold text-dark fs-6" id="timelineIndexIndicator" style="font-family: sans-serif;">
                                                         Link 1 of 1
                                                     </span>
                                                     <div class="d-flex gap-2">
+                                                        <button type="button" class="btn btn-sm btn-outline-success fw-bold" id="saveChainBtn" onclick="saveTitleChain()" title="Save all changes to the title chain instantly">
+                                                            💾 Save Title Chain
+                                                        </button>
                                                         <button type="button" class="btn btn-sm btn-outline-danger fw-bold" id="btnRemoveCurrentLink" onclick="removeActiveChainCard()">
                                                             ✖ Remove Current Link
                                                         </button>
@@ -957,14 +963,20 @@
                                             </div>
                                         </div>
                                         
-                                        <div class="chain-split-container">
+                                                        <div class="chain-split-container">
                                             <!-- Left Column: Spacious Active Card Editor -->
                                             <div class="chain-editor-pane">
                                                 <div id="chainCardsContainer">
-                                                    {% for c in data.get('chain', []) %}
+                                                    {% for c in data.get('title_chain', []) %}
                                                     <div class="card mb-3 shadow-sm border-0 chain-card" id="chain-card-{{ loop.index0 }}">
                                                         <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                                                            <span class="fw-bold text-secondary">Link #{{ loop.index }} - <span id="card-title-text-{{ loop.index0 }}">{{ c.get('event_type','SALE_DEED') }}</span></span>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <span class="fw-bold text-secondary">Link #{{ loop.index }} - <span id="card-title-text-{{ loop.index0 }}">{{ c.get('event_type','SALE_DEED') }}</span></span>
+                                                                <div class="btn-group btn-group-xs ms-2">
+                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard({{ loop.index0 }}, -1)" title="Move Up">▲</button>
+                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard({{ loop.index0 }}, 1)" title="Move Down">▼</button>
+                                                                </div>
+                                                            </div>
                                                             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="removeChainCard({{ loop.index0 }})">✖ Remove</button>
                                                         </div>
                                                         <div class="card-body">
@@ -1087,6 +1099,98 @@
                                                                 <div class="col-md-4 spec-field-docno-{{ loop.index0 }}" style="display: none;">
                                                                     <label class="small fw-bold">Deed / Document Number</label>
                                                                     <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_document_number" value="{{ c.get('document_number','') }}" placeholder="e.g. D-2341" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Society Allotment Inputs -->
+                                                            <div class="row g-2 mb-2 spec-field-receipt-{{ loop.index0 }}" style="display: none;">
+                                                                <div class="col-md-6">
+                                                                    <label class="small fw-bold">Receipt Number</label>
+                                                                    <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_receipt_no" value="{{ c.get('receipt_no','') }}" placeholder="Receipt No" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <label class="small fw-bold">Receipt Date</label>
+                                                                    <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_receipt_date" value="{{ c.get('receipt_date','') }}" placeholder="Receipt Date" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Demise / Succession Inputs -->
+                                                            <div class="row g-2 mb-2 spec-field-death-{{ loop.index0 }}" style="display: none;">
+                                                                <div class="col-md-6">
+                                                                    <label class="small fw-bold">Date of Demise / Death</label>
+                                                                    <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_death_date" value="{{ c.get('death_date','') }}" placeholder="Date of Demise" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <label class="small fw-bold">Spouse Name (Hindi)</label>
+                                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_chain_{{ loop.index0 }}_wife_name" value="{{ c.get('wife_name','') }}" placeholder="Spouse Name" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- RHB Lease Deed Allotment Inputs -->
+                                                            <div class="spec-field-rhb-{{ loop.index0 }}" style="display: none;">
+                                                                <div class="row g-2 mb-2">
+                                                                    <div class="col-md-4">
+                                                                        <label class="small fw-bold">Possession Letter No</label>
+                                                                        <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_possession_no" value="{{ c.get('possession_no','') }}" placeholder="Possession Letter No" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <label class="small fw-bold">Possession Date</label>
+                                                                        <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_possession_date" value="{{ c.get('possession_date','') }}" placeholder="Possession Date" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <label class="small fw-bold">No Dues Certificate Date</label>
+                                                                        <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_nodues_date" value="{{ c.get('nodues_date','') }}" placeholder="No Dues Date" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                    </div>
+                                                                </div>
+                                                                <div class="row g-2 mb-2">
+                                                                    <div class="col-md-6">
+                                                                        <label class="small fw-bold">Perpetual Lease Date</label>
+                                                                        <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_lease_date" value="{{ c.get('lease_date','') }}" placeholder="Perpetual Lease Date" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="small fw-bold">Conveyance Deed Date</label>
+                                                                        <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conveyance_date" value="{{ c.get('conveyance_date','') }}" placeholder="Conveyance Date" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                    </div>
+                                                                </div>
+                                                                <!-- Conveyance Registration Sub-section -->
+                                                                <div class="border rounded p-2 bg-light mb-2">
+                                                                    <span class="small fw-bold text-primary d-block mb-1">Conveyance Deed Registration Details</span>
+                                                                    <div class="row g-2 mb-1">
+                                                                        <div class="col-md-2">
+                                                                            <label class="small fw-bold">Book</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_book" value="{{ c.get('conv_reg_book','1') }}" placeholder="01" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Volume</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_vol" value="{{ c.get('conv_reg_vol','') }}" placeholder="Volume" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Page</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_page" value="{{ c.get('conv_reg_page','') }}" placeholder="Page" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-4">
+                                                                            <label class="small fw-bold">Registry No</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_no" value="{{ c.get('conv_reg_no','') }}" placeholder="Registry No" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="row g-2">
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Add Book</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_add_book" value="{{ c.get('conv_reg_add_book','1') }}" placeholder="Add Book" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Add Vol</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_add_vol" value="{{ c.get('conv_reg_add_vol','') }}" placeholder="Add Vol" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Add Page Start</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_add_page_start" value="{{ c.get('conv_reg_add_page_start','') }}" placeholder="Start Page" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                        <div class="col-md-3">
+                                                                            <label class="small fw-bold">Add Page End</label>
+                                                                            <input class="form-control form-control-sm" id="field_chain_{{ loop.index0 }}_conv_reg_add_page_end" value="{{ c.get('conv_reg_add_page_end','') }}" placeholder="End Page" oninput="compileCardPreview({{ loop.index0 }})" autocomplete="off">
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                  
@@ -2516,6 +2620,28 @@
         }
     }
 
+    function saveTitleChain() {
+        const btn = document.getElementById('saveChainBtn');
+        if (!btn) return;
+        
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<span>⏳ Saving...</span>';
+        btn.disabled = true;
+        
+        saveCase((resp) => {
+            btn.disabled = false;
+            if (resp && resp.success) {
+                btn.innerHTML = '<span>✅ Saved!</span>';
+                setTimeout(() => {
+                    btn.innerHTML = oldText;
+                }, 1500);
+            } else {
+                btn.innerHTML = oldText;
+                alert('Save failed: ' + ((resp && resp.error) || 'Unknown error'));
+            }
+        });
+    }
+
     function removeActiveChainCard() {
         const container = document.getElementById('chainCardsContainer');
         if (!container) return;
@@ -2537,7 +2663,7 @@
     // --- Visual Title Chain Card Functions (Option 1) ---
     // Globally defined, loaded dynamically from the backend API
     window.PROPERTY_DETAILS_JS = {{ data.get('ps', [{}])[0] | tojson }};
-    window.INITIAL_CHAIN_DATA_JS = {{ data.get('chain', []) | tojson }};
+    window.INITIAL_CHAIN_DATA_JS = {{ data.get('title_chain', []) | tojson }};
     window.CHAIN_TEMPLATES_JS = {};
     window.CHAIN_TEMPLATE_METADATA_JS = {};
 
@@ -2723,6 +2849,7 @@
         
         if (hiddenInput) {
             hiddenInput.value = key;
+            hiddenInput.setAttribute("data-saved-value", key);
         }
         if (labelSpan) {
             labelSpan.textContent = label;
@@ -2740,6 +2867,7 @@
         }
         
         onCardEventChange(idx);
+        compileCardPreview(idx);
     }
 
     function filterTemplateDropdown(idx) {
@@ -2831,6 +2959,9 @@
         const specProj = document.querySelector(`.spec-field-project-${idx}`);
         const specDocName = document.querySelector(`.spec-field-docname-${idx}`);
         const specDocNo = document.querySelector(`.spec-field-docno-${idx}`);
+        const specReceipt = document.querySelector(`.spec-field-receipt-${idx}`);
+        const specDeath = document.querySelector(`.spec-field-death-${idx}`);
+        const specRHB = document.querySelector(`.spec-field-rhb-${idx}`);
 
         // Resolve generic event category from template metadata
         const meta = (window.CHAIN_TEMPLATE_METADATA_JS && window.CHAIN_TEMPLATE_METADATA_JS[val]) || {};
@@ -2841,6 +2972,9 @@
         if (specProj) specProj.style.display = (cat === 'CONSTRUCTION') ? 'block' : 'none';
         if (specDocName) specDocName.style.display = (cat === 'ALLOTMENT' || cat === 'TRANSFER') ? 'block' : 'none';
         if (specDocNo) specDocNo.style.display = (cat === 'ALLOTMENT' || cat === 'TRANSFER' || cat === 'WILL') ? 'block' : 'none';
+        if (specReceipt) specReceipt.style.display = (val === 'ALLOTMENT_SOCIETY') ? 'block' : 'none';
+        if (specDeath) specDeath.style.display = (cat === 'DEATH') ? 'block' : 'none';
+        if (specRHB) specRHB.style.display = (val === 'LEASE_DEED') ? 'block' : 'none';
 
         compileCardPreview(idx);
     }
@@ -3135,12 +3269,12 @@
         
         // Dynamic fallback logic
         const docNo = docNoInput || initialEvent.document_number || initialEvent.doc_no || '';
-        const receiptNo = initialEvent.receipt_no || '';
-        const receiptDate = initialEvent.receipt_date || '';
+        const receiptNo = document.getElementById(`field_chain_${idx}_receipt_no`)?.value || initialEvent.receipt_no || '';
+        const receiptDate = document.getElementById(`field_chain_${idx}_receipt_date`)?.value || initialEvent.receipt_date || '';
         const khataNo = initialEvent.khata_no || '';
         const khasraNo = initialEvent.khasra_no || '';
         const rakba = initialEvent.rakba || '';
-        const wifeName = initialEvent.wife_name || '';
+        const wifeName = document.getElementById(`field_chain_${idx}_wife_name`)?.value || initialEvent.wife_name || '';
         const wifeDeathDate = initialEvent.wife_death_date || '';
         const husbandName = initialEvent.husband_name || '';
         const husbandDeathDate = initialEvent.husband_death_date || '';
@@ -3150,21 +3284,23 @@
         const parentPropertyInfo = initialEvent.parent_property_info || '';
         const ownerName = initialEvent.owner_name || '';
         const willType = initialEvent.will_type || 'नोटेरीशुदा';
-        const deathDate = initialEvent.death_date || '';
+        const deathDate = document.getElementById(`field_chain_${idx}_death_date`)?.value || initialEvent.death_date || '';
         const extraDeathsText = initialEvent.extra_deaths_text || '';
         
-        const possessionNo = initialEvent.possession_no || '';
-        const possessionDate = initialEvent.possession_date || '';
-        const noduesDate = initialEvent.nodues_date || '';
-        const leaseDate = initialEvent.lease_date || '';
-        const conveyanceDate = initialEvent.conveyance_date || '';
+        const possessionNo = document.getElementById(`field_chain_${idx}_possession_no`)?.value || initialEvent.possession_no || '';
+        const possessionDate = document.getElementById(`field_chain_${idx}_possession_date`)?.value || initialEvent.possession_date || '';
+        const noduesDate = document.getElementById(`field_chain_${idx}_nodues_date`)?.value || initialEvent.nodues_date || '';
+        const leaseDate = document.getElementById(`field_chain_${idx}_lease_date`)?.value || initialEvent.lease_date || '';
+        const conveyanceDate = document.getElementById(`field_chain_${idx}_conveyance_date`)?.value || initialEvent.conveyance_date || '';
         const regAddSerial = initialEvent.reg_add_serial || '';
-        const convRegBook = initialEvent.conv_reg_book || '';
-        const convRegVol = initialEvent.conv_reg_vol || '';
-        const convRegPage = initialEvent.conv_reg_page || '';
-        const convRegNo = initialEvent.conv_reg_no || '';
-        const convRegAddBook = initialEvent.conv_reg_add_book || '';
-        const convRegAddVol = initialEvent.conv_reg_add_vol || '';
+        const convRegBook = document.getElementById(`field_chain_${idx}_conv_reg_book`)?.value || initialEvent.conv_reg_book || '';
+        const convRegVol = document.getElementById(`field_chain_${idx}_conv_reg_vol`)?.value || initialEvent.conv_reg_vol || '';
+        const convRegPage = document.getElementById(`field_chain_${idx}_conv_reg_page`)?.value || initialEvent.conv_reg_page || '';
+        const convRegNo = document.getElementById(`field_chain_${idx}_conv_reg_no`)?.value || initialEvent.conv_reg_no || '';
+        const convRegAddBook = document.getElementById(`field_chain_${idx}_conv_reg_add_book`)?.value || initialEvent.conv_reg_add_book || '';
+        const convRegAddVol = document.getElementById(`field_chain_${idx}_conv_reg_add_vol`)?.value || initialEvent.conv_reg_add_vol || '';
+        const convRegAddPageStart = document.getElementById(`field_chain_${idx}_conv_reg_add_page_start`)?.value || initialEvent.conv_reg_add_page_start || '';
+        const convRegAddPageEnd = document.getElementById(`field_chain_${idx}_conv_reg_add_page_end`)?.value || initialEvent.conv_reg_add_page_end || '';
         const convRegAddSerial = initialEvent.conv_reg_add_serial || '';
 
         let prefix = (idx === 0) ? "यह कि सर्वप्रथम " : "तत्पश्चात् ";
@@ -3259,6 +3395,9 @@
             } else if (husbandName && husbandDeathDate) {
                 template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।";
             }
+        }
+        if (!isReg) {
+            template = template.replace(/[,，\s]*(?:जिसका पंजीयन|उक्त\s+[^\s，,]+(?:का|के)\s+पंजीयन|जिसमें से परपेचुअल लीज डीड का पंजीयन)[^।]+(?:किया गया|चस्पा किया गया|चस्पा हुई)[\s।]*/g, '। ');
         }
         
         // Retrieve and format property details
@@ -3379,6 +3518,15 @@
         // Dynamically replace any other curly brace placeholders with blank lines
         formatted = formatted.replace(/\{[a-zA-Z0-9_]+\}/g, "_______________");
 
+        // Enforce prefix based on index
+        if (idx === 0) {
+            formatted = formatted.replace(/^(यह कि\s+)?(सर्वप्रथम|तत्पश्चात्)\s*/, '');
+            formatted = "यह कि सर्वप्रथम " + formatted;
+        } else {
+            formatted = formatted.replace(/^(यह कि\s+)?(सर्वप्रथम|तत्पश्चात्)\s*/, '');
+            formatted = "यह कि तत्पश्चात् " + formatted;
+        }
+
         formatted = formatted.replace(/\s+,\s/g, ', ').replace(/\s+/g, ' ').trim();
         
         const textarea = document.getElementById(`field_chain_${idx}_paragraph_text`);
@@ -3428,7 +3576,13 @@
         
         card.innerHTML = `
             <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                <span class="fw-bold text-secondary">Link #${idx + 1} - <span id="card-title-text-${idx}">SALE_DEED</span></span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-secondary">Link #${idx + 1} - <span id="card-title-text-${idx}">SALE_DEED</span></span>
+                    <div class="btn-group btn-group-xs ms-2">
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard(${idx}, -1)" title="Move Up">▲</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard(${idx}, 1)" title="Move Down">▼</button>
+                    </div>
+                </div>
                 <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="removeChainCard(${idx})">✖ Remove</button>
             </div>
             <div class="card-body">
@@ -3551,6 +3705,98 @@
                     </div>
                 </div>
 
+                <!-- Society Allotment Inputs -->
+                <div class="row g-2 mb-2 spec-field-receipt-${idx}" style="display: none;">
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Receipt Number</label>
+                        <input class="form-control form-control-sm" id="field_chain_${idx}_receipt_no" placeholder="Receipt No" oninput="compileCardPreview(${idx})" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Receipt Date</label>
+                        <input class="form-control form-control-sm" id="field_chain_${idx}_receipt_date" placeholder="Receipt Date" oninput="compileCardPreview(${idx})" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Demise / Succession Inputs -->
+                <div class="row g-2 mb-2 spec-field-death-${idx}" style="display: none;">
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Date of Demise / Death</label>
+                        <input class="form-control form-control-sm" id="field_chain_${idx}_death_date" placeholder="Date of Demise" oninput="compileCardPreview(${idx})" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold">Spouse Name (Hindi)</label>
+                        <input class="form-control form-control-sm hindi-legacy-input" id="field_chain_${idx}_wife_name" placeholder="Spouse Name" oninput="compileCardPreview(${idx})" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- RHB Lease Deed Allotment Inputs -->
+                <div class="spec-field-rhb-${idx}" style="display: none;">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Possession Letter No</label>
+                            <input class="form-control form-control-sm" id="field_chain_${idx}_possession_no" placeholder="Possession Letter No" oninput="compileCardPreview(${idx})" autocomplete="off">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Possession Date</label>
+                            <input class="form-control form-control-sm" id="field_chain_${idx}_possession_date" placeholder="Possession Date" oninput="compileCardPreview(${idx})" autocomplete="off">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold">No Dues Certificate Date</label>
+                            <input class="form-control form-control-sm" id="field_chain_${idx}_nodues_date" placeholder="No Dues Date" oninput="compileCardPreview(${idx})" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Perpetual Lease Date</label>
+                            <input class="form-control form-control-sm" id="field_chain_${idx}_lease_date" placeholder="Perpetual Lease Date" oninput="compileCardPreview(${idx})" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Conveyance Deed Date</label>
+                            <input class="form-control form-control-sm" id="field_chain_${idx}_conveyance_date" placeholder="Conveyance Date" oninput="compileCardPreview(${idx})" autocomplete="off">
+                        </div>
+                    </div>
+                    <!-- Conveyance Registration Sub-section -->
+                    <div class="border rounded p-2 bg-light mb-2">
+                        <span class="small fw-bold text-primary d-block mb-1">Conveyance Deed Registration Details</span>
+                        <div class="row g-2 mb-1">
+                            <div class="col-md-2">
+                                <label class="small fw-bold">Book</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_book" value="1" placeholder="01" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Volume</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_vol" placeholder="Volume" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Page</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_page" placeholder="Page" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="small fw-bold">Registry No</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_no" placeholder="Registry No" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Add Book</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_add_book" value="1" placeholder="Add Book" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Add Vol</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_add_vol" placeholder="Add Vol" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Add Page Start</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_add_page_start" placeholder="Start Page" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">Add Page End</label>
+                                <input class="form-control form-control-sm" id="field_chain_${idx}_conv_reg_add_page_end" placeholder="End Page" oninput="compileCardPreview(${idx})" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Hidden elements to preserve card-level compilation and backward compatibility -->
                 <input type="hidden" id="field_chain_${idx}_is_manual" value="false">
                 <textarea id="field_chain_${idx}_paragraph_text" style="display: none;"></textarea>
@@ -3570,24 +3816,51 @@
         const card = document.getElementById(`chain-card-${idx}`);
         if (card) card.remove();
         
+        reindexAllChainCards();
+        
+        // Re-select active link after re-indexing
+        const container = document.getElementById('chainCardsContainer');
+        const totalCards = container ? container.querySelectorAll('.chain-card').length : 0;
+        let newIndex = activeChainIndex;
+        if (newIndex >= totalCards) {
+            newIndex = totalCards - 1;
+        }
+        if (newIndex < 0) newIndex = 0;
+        selectChainLink(newIndex);
+    }
+
+    function reindexAllChainCards() {
         const container = document.getElementById('chainCardsContainer');
         if (!container) return;
         
         const cards = container.querySelectorAll('.chain-card');
         cards.forEach((c, i) => {
             c.id = `chain-card-${i}`;
-            const headerText = c.querySelector('.card-header span');
-            if (headerText) {
-                const titleTextSpan = c.querySelector(`span[id^="card-title-text-"]`);
-                const prevTitle = titleTextSpan ? titleTextSpan.textContent : "SALE_DEED";
-                headerText.innerHTML = `Link #${i + 1} - <span id="card-title-text-${i}">${prevTitle}</span>`;
+            
+            // Update card title and index label
+            const headerTitleContainer = c.querySelector('.card-header .fw-bold.text-secondary') || c.querySelector('.card-header span');
+            const titleTextSpan = c.querySelector('span[id^="card-title-text-"]');
+            const prevTitle = titleTextSpan ? titleTextSpan.textContent : "SALE_DEED";
+            
+            if (headerTitleContainer) {
+                headerTitleContainer.innerHTML = `Link #${i + 1} - <span id="card-title-text-${i}">${prevTitle}</span>`;
             }
             
-            const removeBtn = c.querySelector('.card-header button');
+            // Update Up/Down/Remove buttons
+            const removeBtn = c.querySelector('.card-header button[onclick^="removeChainCard"]');
             if (removeBtn) {
                 removeBtn.setAttribute('onclick', `removeChainCard(${i})`);
             }
+            const upBtn = c.querySelector('.btn-move-up');
+            if (upBtn) {
+                upBtn.setAttribute('onclick', `moveChainCard(${i}, -1)`);
+            }
+            const downBtn = c.querySelector('.btn-move-down');
+            if (downBtn) {
+                downBtn.setAttribute('onclick', `moveChainCard(${i}, 1)`);
+            }
             
+            // Update input elements
             const inputs = c.querySelectorAll('input, select, textarea');
             inputs.forEach(input => {
                 const oldId = input.id;
@@ -3596,6 +3869,7 @@
                     input.id = newId;
                 }
                 
+                // Update dropdown and dynamic triggers
                 const onchange = input.getAttribute('onchange');
                 if (onchange) {
                     const newChange = onchange.replace(/\d+/, i);
@@ -3608,12 +3882,37 @@
                 }
             });
             
+            // Update dropdown container ID
+            const dropdownContainer = c.querySelector('.dropdown');
+            if (dropdownContainer) {
+                dropdownContainer.id = `field_chain_${i}_dropdown_container`;
+            }
+            const dropdownBtn = c.querySelector('.dropdown button');
+            if (dropdownBtn) {
+                dropdownBtn.id = `field_chain_${i}_event_type_btn`;
+                dropdownBtn.setAttribute('aria-labelledby', `field_chain_${i}_event_type_btn`);
+            }
+            const dropdownMenu = c.querySelector('.dropdown-menu');
+            if (dropdownMenu) {
+                dropdownMenu.setAttribute('aria-labelledby', `field_chain_${i}_event_type_btn`);
+            }
+            const searchInput = c.querySelector('.dropdown-menu input[type="text"]');
+            if (searchInput) {
+                searchInput.id = `field_chain_${i}_search_input`;
+                searchInput.setAttribute('oninput', `filterTemplateDropdown(${i})`);
+                searchInput.setAttribute('onkeydown', `handleDropdownKeydown(event, ${i})`);
+            }
+            const optionsList = c.querySelector('.dropdown-menu div[id$="_options_list"]');
+            if (optionsList) {
+                optionsList.id = `field_chain_${i}_options_list`;
+            }
+            
             const toggleLabel = c.querySelector('.form-check-label');
             if (toggleLabel) {
                 toggleLabel.setAttribute('for', `field_chain_${i}_is_manual`);
             }
             
-            const wrapperClasses = ['reg-field', 'spec-field-amount', 'spec-field-share', 'spec-field-project', 'spec-field-docname'];
+            const wrapperClasses = ['reg-field', 'spec-field-amount', 'spec-field-share', 'spec-field-project', 'spec-field-docname', 'spec-field-docno', 'spec-field-receipt', 'spec-field-rhb', 'spec-field-death'];
             wrapperClasses.forEach(cls => {
                 const wrappers = c.querySelectorAll(`[class*="${cls}-"]`);
                 wrappers.forEach(w => {
@@ -3628,15 +3927,68 @@
         });
         
         compileAllCardsAndMerge();
+        updateChainTimeline();
+    }
+
+    function moveChainCard(idx, direction) {
+        const container = document.getElementById('chainCardsContainer');
+        if (!container) return;
+        const cards = Array.from(container.querySelectorAll('.chain-card'));
+        const targetIdx = idx + direction;
         
-        // Re-select active link after re-indexing
-        let newIndex = activeChainIndex;
-        const totalCards = container.querySelectorAll('.chain-card').length;
-        if (newIndex >= totalCards) {
-            newIndex = totalCards - 1;
+        if (targetIdx < 0 || targetIdx >= cards.length) return; // Boundary check
+        
+        const cardA = cards[idx];
+        const cardB = cards[targetIdx];
+        
+        if (direction === -1) {
+            // Move cardA before cardB
+            container.insertBefore(cardA, cardB);
+        } else {
+            // Move cardA after cardB
+            container.insertBefore(cardB, cardA);
         }
-        if (newIndex < 0) newIndex = 0;
-        selectChainLink(newIndex);
+        
+        reindexAllChainCards();
+        selectChainLink(targetIdx);
+    }
+
+    function parseIndianDate(dateStr) {
+        if (!dateStr) return new Date(0);
+        const cleaned = dateStr.replace(/[^\d\-\/\.]/g, '').trim();
+        const parts = cleaned.split(/[\-\/\.]/);
+        if (parts.length === 3) {
+            const d = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const y = parseInt(parts[2], 10);
+            if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+                return new Date(y, m, d);
+            }
+        }
+        const parsed = Date.parse(dateStr);
+        return isNaN(parsed) ? new Date(0) : new Date(parsed);
+    }
+
+    function sortChainLinksChronologically() {
+        const container = document.getElementById('chainCardsContainer');
+        if (!container) return;
+        const cards = Array.from(container.querySelectorAll('.chain-card'));
+        if (cards.length <= 1) return;
+        
+        cards.sort((a, b) => {
+            const idxA = a.id.match(/chain-card-(\d+)/)[1];
+            const idxB = b.id.match(/chain-card-(\d+)/)[1];
+            
+            const dateStrA = document.getElementById(`field_chain_${idxA}_d`)?.value || '';
+            const dateStrB = document.getElementById(`field_chain_${idxB}_d`)?.value || '';
+            
+            return parseIndianDate(dateStrA) - parseIndianDate(dateStrB);
+        });
+        
+        cards.forEach(card => container.appendChild(card));
+        
+        reindexAllChainCards();
+        selectChainLink(0);
     }
 
     // --- Sparkle AI Transliteration fetcher ---
@@ -3650,6 +4002,7 @@
                 buyers: [],
                 ps: [],
                 ws: [],
+                title_chain: [],
                 chain: [],
                 payments: [],
                 chain_text: document.getElementById('field_chain_text')?.value || ''
@@ -3745,8 +4098,28 @@
                         share_fraction: document.getElementById(`field_chain_${i}_share_fraction`)?.value || '',
                         project_name: document.getElementById(`field_chain_${i}_project_name`)?.value || '',
                         paragraph_text: document.getElementById(`field_chain_${i}_paragraph_text`)?.value || '',
-                        is_manual: document.getElementById(`field_chain_${i}_is_manual`)?.checked ? 'true' : 'false'
+                        is_manual: document.getElementById(`field_chain_${i}_is_manual`)?.checked ? 'true' : 'false',
+                        
+                        // New fields
+                        receipt_no: document.getElementById(`field_chain_${i}_receipt_no`)?.value || '',
+                        receipt_date: document.getElementById(`field_chain_${i}_receipt_date`)?.value || '',
+                        death_date: document.getElementById(`field_chain_${i}_death_date`)?.value || '',
+                        wife_name: document.getElementById(`field_chain_${i}_wife_name`)?.value || '',
+                        possession_no: document.getElementById(`field_chain_${i}_possession_no`)?.value || '',
+                        possession_date: document.getElementById(`field_chain_${i}_possession_date`)?.value || '',
+                        nodues_date: document.getElementById(`field_chain_${i}_nodues_date`)?.value || '',
+                        lease_date: document.getElementById(`field_chain_${i}_lease_date`)?.value || '',
+                        conveyance_date: document.getElementById(`field_chain_${i}_conveyance_date`)?.value || '',
+                        conv_reg_book: document.getElementById(`field_chain_${i}_conv_reg_book`)?.value || '',
+                        conv_reg_vol: document.getElementById(`field_chain_${i}_conv_reg_vol`)?.value || '',
+                        conv_reg_page: document.getElementById(`field_chain_${i}_conv_reg_page`)?.value || '',
+                        conv_reg_no: document.getElementById(`field_chain_${i}_conv_reg_no`)?.value || '',
+                        conv_reg_add_book: document.getElementById(`field_chain_${i}_conv_reg_add_book`)?.value || '',
+                        conv_reg_add_vol: document.getElementById(`field_chain_${i}_conv_reg_add_vol`)?.value || '',
+                        conv_reg_add_page_start: document.getElementById(`field_chain_${i}_conv_reg_add_page_start`)?.value || '',
+                        conv_reg_add_page_end: document.getElementById(`field_chain_${i}_conv_reg_add_page_end`)?.value || ''
                     };
+                    data.title_chain.push(c);
                     data.chain.push(c);
                 }
             });
