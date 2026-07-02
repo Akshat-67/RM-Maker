@@ -3,6 +3,7 @@ import os
 import base64
 import mimetypes
 import json
+from utils.config import get_nvidia_api_key
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -192,6 +193,7 @@ class RMDataExtractor:
         3. DATES & BOUNDARIES: Extract exactly as printed.
         4. AADHAAR & PAN CARDS: Extract details from uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars'. DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
         4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
+        4c. MULTI-IMAGE AADHAAR PAIRING: If the front side (containing photo, name, DOB, Aadhaar ID) and back side (containing relation phrase and address) of an Aadhaar card are separate image files or separate pages, you MUST pair them together as a single person. Combine them into a single dictionary inside 'unassigned_aadhars' (containing name, age, dob, relation_text, adr, and id). DO NOT create separate entries for the front and back of the same card, and DO NOT leave the relation_text/adr empty if the back side is present in the uploaded files.
         5. DOB & AGE: Extract the actual Date of Birth (DOB) as printed (e.g. '20/02/1993' or '1993' if only year is printed) into 'dob' field, and calculate numeric age as of 2026 from YOB/DOB into 'a' field (e.g. '33').
         6. SALUTATIONS: Separate salutations from names. Use 's' field for 'Mr./Ms./Mrs.' and DO NOT prefix the name in the 'n' field or relative name in the 'relation_text' field with any salutation. Use 'Mr.' (with one dot) for males, 'Mrs.' for females.
         7. ADDRESS & RELATIONS: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
@@ -419,7 +421,7 @@ class RMDataExtractor:
             print(f"[DIRECT] Routing request directly to NVIDIA NIM: {model_name}")
             try:
                 import requests
-                nvidia_key = "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"
+                nvidia_key = get_nvidia_api_key()
                 nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
                 headers = {
                     "Authorization": f"Bearer {nvidia_key}",
@@ -497,7 +499,7 @@ class RMDataExtractor:
         print("[FAILOVER] Gemini exhausted. Attempting fallback to NVIDIA NIM Llama 3.1 8B...")
         try:
             import requests
-            nvidia_key = "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"
+            nvidia_key = get_nvidia_api_key()
             nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {nvidia_key}",

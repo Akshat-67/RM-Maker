@@ -3,6 +3,7 @@ import os
 import base64
 import mimetypes
 import json
+from utils.config import get_nvidia_api_key
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -372,7 +373,7 @@ class SDDataExtractor:
 
         MAP TO SPECIFIC TEMPLATE KEYS:
         Classify each event and populate its matching template fields:
-        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY).
+        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY), and "reg_no" (registration/serial number of the allotment letter, e.g. "2781/एल." or "2781/L" if present in the text).
         2. DEATH_HEIRS_WITH_SPOUSE: Demise of owner and spouse. Requires: "wife_name", "wife_death_date" (DD.MM.YYYY), "share_fraction" (fraction/percentage, e.g., '1/2' or 'अविभाजित').
         3. DEATH_HEIRS_SINGLE: Demise of single owner. Requires: "share_fraction".
         4. DEATH_DIVIDED: Demise of owner with physical divided portions given to heirs. Requires: "husband_name", "husband_death_date" (DD.MM.YYYY), "east_owner", "west_owner".
@@ -832,9 +833,8 @@ class SDDataExtractor:
         Every title flow is a continuous chain of custody. Ensure that the Claimant (Buyer/Allottee/Heir) of Event N matches the Executant (Seller/Giver/Deceased) of Event N+1. If there is a gap (e.g. Person A acquires the property, but later Person B sells it), carefully search the text to find the bridging event (such as a Will, Death/Succession, Gift, or Power of Attorney) and extract it!
 
         MAP TO SPECIFIC TEMPLATE KEYS:
-        MAP TO SPECIFIC TEMPLATE KEYS:
         Classify each event and populate its matching template fields:
-        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY).
+        1. ALLOTMENT_SOCIETY: Society allotment. Requires: "receipt_no" (receipt number), "receipt_date" (DD.MM.YYYY), and "reg_no" (registration/serial number of the allotment letter, e.g. "2781/एल." or "2781/L" if present in the text).
         2. DEATH_HEIRS_WITH_SPOUSE: Demise of owner and spouse. Requires: "wife_name", "wife_death_date" (DD.MM.YYYY), "share_fraction" (fraction/percentage, e.g., '1/2' or 'अविभाजित').
         3. DEATH_HEIRS_SINGLE: Demise of single owner. Requires: "share_fraction".
         4. DEATH_DIVIDED: Demise of owner with physical divided portions given to heirs. Requires: "husband_name", "husband_death_date" (DD.MM.YYYY), "east_owner", "west_owner".
@@ -1481,7 +1481,7 @@ class SDDataExtractor:
             print(f"[DIRECT] Routing request directly to NVIDIA NIM: {model_name}")
             try:
                 import requests
-                nvidia_key = "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"
+                nvidia_key = get_nvidia_api_key()
                 nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
                 headers = {
                     "Authorization": f"Bearer {nvidia_key}",
@@ -1559,7 +1559,7 @@ class SDDataExtractor:
         print("[FAILOVER] Gemini exhausted. Attempting fallback to NVIDIA NIM Llama 3.1 8B...")
         try:
             import requests
-            nvidia_key = "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"
+            nvidia_key = get_nvidia_api_key()
             nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {nvidia_key}",

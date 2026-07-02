@@ -4,6 +4,7 @@ import json
 import time
 import shutil
 import re
+from dotenv import load_dotenv
 from utils.helpers import parse_relation_text, normalize_relation_prefix, convert_hindi_digits_to_english
 from modules.rm.extractor import RMDataExtractor
 from modules.sd.extractor import SDDataExtractor
@@ -11,6 +12,9 @@ from modules.rm.processor import RMTemplateProcessor
 from modules.sd.processor import SDTemplateProcessor
 from modules.sd.narrative import generate_chain_narrative
 from utils.config import DEFAULT_GEMINI_API_KEYS
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
 
@@ -339,6 +343,80 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
 
 # --- Smart Merge Utility ---
 def smart_merge(old, new, verified_fields, path=""):
+    # Custom chronological index-based merge for title chain (handles empty old case as well)
+    if path in ["title_chain", "chain", "data.title_chain", "data.chain"] and isinstance(new, list):
+        import datetime
+        import re
+        
+        def parse_indian_date_py(date_str):
+            if not date_str:
+                return datetime.datetime.min
+            cleaned = re.sub(r'[^\d\-\/\.]', '', str(date_str)).strip()
+            parts = re.split(r'[\-\/\.]', cleaned)
+            if len(parts) == 3:
+                try:
+                    d = int(parts[0])
+                    m = int(parts[1])
+                    y = int(parts[2])
+                    if y < 100:
+                        y += 2000
+                    return datetime.datetime(y, m, d)
+                except Exception:
+                    pass
+            return datetime.datetime.min
+
+        sorted_new = sorted(
+            [item for item in new if isinstance(item, dict)],
+            key=lambda x: parse_indian_date_py(x.get("date") or x.get("d") or x.get("reg_date"))
+        )
+        
+        if old and isinstance(old, list):
+            existing_cards = [item for item in old if isinstance(item, dict) and any(str(v).strip() for v in item.values())]
+            if existing_cards:
+                result_cards = []
+                for idx, old_card in enumerate(existing_cards):
+                    if idx < len(sorted_new):
+                        new_card = sorted_new[idx]
+                        merged_card = old_card.copy()
+                        
+                        user_template_key = merged_card.get("template_key")
+                        user_event_type = merged_card.get("event_type")
+                        
+                        # Only populate empty fields from the AI data; don't overwrite user-entered values
+                        for nk, nv in new_card.items():
+                            if nk in ("template_key", "event_type"):
+                                continue  # Always preserve user's choice
+                            existing_val = str(merged_card.get(nk, "")).strip()
+                            if not existing_val and nv:
+                                merged_card[nk] = nv
+                        
+                        if user_template_key:
+                            merged_card["template_key"] = user_template_key
+                        if user_event_type:
+                            merged_card["event_type"] = user_event_type
+                            
+                        if "date" in merged_card: merged_card["d"] = merged_card["date"]
+                        if "executant_name" in merged_card: merged_card["s"] = merged_card["executant_name"]
+                        if "claimant_name" in merged_card: merged_card["b"] = merged_card["claimant_name"]
+                        if "reg_book" in merged_card: merged_card["b_no"] = merged_card["reg_book"]
+                        if "reg_vol" in merged_card: merged_card["v_no"] = merged_card["reg_vol"]
+                        if "reg_page" in merged_card: merged_card["p_no"] = merged_card["reg_page"]
+                        if "reg_no" in merged_card: merged_card["r_no"] = merged_card["reg_no"]
+                        if "reg_add_book" in merged_card: merged_card["add_book"] = merged_card["reg_add_book"]
+                        if "reg_add_vol" in merged_card: merged_card["add_vol"] = merged_card["reg_add_vol"]
+                        if "reg_add_page" in merged_card: merged_card["add_page"] = merged_card["reg_add_page"]
+                        
+                        result_cards.append(merged_card)
+                    else:
+                        result_cards.append(old_card)
+                        
+                if len(sorted_new) > len(existing_cards):
+                    for extra_card in sorted_new[len(existing_cards):]:
+                        result_cards.append(extra_card)
+                return result_cards
+
+        return sorted_new
+
     # If old is empty/falsy, take the new value (even if new is empty, this is correct for initialization)
     if not old:
         return new
@@ -354,11 +432,9 @@ def smart_merge(old, new, verified_fields, path=""):
         
     elif isinstance(new, list):
         merged = list(old) if isinstance(old, list) else []
-        
-        # If it is one of our entity lists: 'ls', 'ps', 'unassigned_aadhars', 'sellers', 'buyers', 'ss', 'bs', 'ws', 'title_chain'
-        # We merge them by unique keys rather than index to prevent overwriting during incremental scans
-        if path in ["ls", "ps", "unassigned_aadhars", "sellers", "buyers", "ss", "bs", "ws", "title_chain",
-                    "data.ls", "data.ps", "data.unassigned_aadhars", "data.sellers", "data.buyers", "data.ss", "data.bs", "data.ws", "data.title_chain"]:
+
+        if path in ["ls", "ps", "unassigned_aadhars", "sellers", "buyers", "ss", "bs", "ws",
+                    "data.ls", "data.ps", "data.unassigned_aadhars", "data.sellers", "data.buyers", "data.ss", "data.bs", "data.ws"]:
             if "ls" in path: key_field = "n"
             elif "unassigned" in path: key_field = "id"
             elif "sellers" in path or "buyers" in path or "ss" in path or "bs" in path or "ws" in path: key_field = "n"
@@ -445,6 +521,9 @@ def new_case():
 
 @app.route("/case/<case_id>")
 def view_case(case_id):
+    global template_map, sd_template_map, bank_folders
+    template_map, sd_template_map, bank_folders = discover_templates()
+    
     session = load_case_session(case_id)
     if not session:
         return redirect(url_for("dashboard"))
@@ -594,6 +673,9 @@ def set_provider():
 
 @app.route("/get_template_info")
 def get_template_info():
+    global template_map, sd_template_map, bank_folders
+    template_map, sd_template_map, bank_folders = discover_templates()
+    
     doc_type = request.args.get("doc_type", "RM")
     selected_template = request.args.get("selected_template", "")
     case_id = request.args.get("case_id")
@@ -796,7 +878,9 @@ def save_case(case_id):
                         merged_list.append(ui_item)
                 merged_data[key] = merged_list
 
-    if "chain" in merged_data:
+    if "title_chain" in merged_data:
+        merged_data["chain"] = merged_data["title_chain"]
+    elif "chain" in merged_data:
         merged_data["title_chain"] = merged_data["chain"]
 
     if "ps" in merged_data and isinstance(merged_data["ps"], list):
@@ -1065,6 +1149,15 @@ def run_ai(case_id):
                     
         verified_fields = set(session.get("verified_fields", []))
 
+        # Deep-copy current_data before passing to the extractor.
+        # The extractor mutates its input in-place (e.g. _merge_legal_results replaces title_chain),
+        # which would destroy the user's pre-made chain cards if we passed the same reference.
+        # By deep-copying, smart_merge later receives:
+        #   old = current_data (user's original cards intact)
+        #   new = extracted_data (AI-generated, potentially different chain)
+        import copy
+        extractor_seed = copy.deepcopy(current_data)
+
         if doc_type == "SD":
             buckets = session.get("buckets", {})
             has_bucket_files = any(len(b) > 0 for b in buckets.values())
@@ -1082,7 +1175,7 @@ def run_ai(case_id):
                     buckets, model,
                     expected_sellers=sellers_count, expected_buyers=buyers_count,
                     expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
-                    witness_hints=witness_hints, current_data=current_data,
+                    witness_hints=witness_hints, current_data=extractor_seed,
                     target_bucket=req_data.get("bucket")
                 )
             else:
@@ -1090,7 +1183,7 @@ def run_ai(case_id):
                     files_to_process, model,
                     expected_sellers=sellers_count, expected_buyers=buyers_count,
                     expected_witnesses=2, seller_hints=seller_hints, buyer_hints=buyer_hints,
-                    witness_hints=witness_hints, current_data=current_data
+                    witness_hints=witness_hints, current_data=extractor_seed
                 )
         else:
             extractor = RMDataExtractor(
@@ -1104,7 +1197,7 @@ def run_ai(case_id):
                 files_to_process, model, bank_name=bank,
                 expected_borrowers=borrowers, expected_loans=loans,
                 borrower_hints=borrower_hints, witness_hints=witness_hints,
-                current_data=current_data
+                current_data=extractor_seed
             )
 
         if extracted_data.get("error"):
@@ -1203,6 +1296,9 @@ def run_ai(case_id):
 
 @app.route("/case/<case_id>/generate", methods=["POST"])
 def generate_rm(case_id):
+    global template_map, sd_template_map, bank_folders
+    template_map, sd_template_map, bank_folders = discover_templates()
+    
     session = load_case_session(case_id)
     if not session: return jsonify({"success": False, "error": "Case not found"}), 404
 
@@ -2148,7 +2244,7 @@ def get_recent_cases():
 def split_address(address_str):
     if not address_str:
         return {
-            "house_no": "00",
+            "house_no": "",
             "colony": "",
             "area": "",
             "city": "JAIPUR",
@@ -2157,43 +2253,62 @@ def split_address(address_str):
     
     address_str = address_str.strip()
     
-    pincode_match = re.search(r'\b\d{6}\b', address_str)
-    pincode = pincode_match.group(0) if pincode_match else ""
+    # Strip trailing metadata like "PO: ..., DIST: ..., PC- ..., State - pincode"
+    address_str = re.sub(r',?\s*PO:\s*[^,]+', '', address_str, flags=re.IGNORECASE).strip()
+    address_str = re.sub(r',?\s*PC[\-:\s]+[^,]+', '', address_str, flags=re.IGNORECASE).strip()
+    address_str = re.sub(r',?\s*DIST[:\-]?\s*[^,]+', '', address_str, flags=re.IGNORECASE).strip()
+    
+    pincode_match = re.search(r'[-\s]*\b(\d{6})\b', address_str)
+    pincode = pincode_match.group(1) if pincode_match else ""
     if pincode:
-        address_str = address_str.replace(pincode, "").strip()
+        address_str = address_str[:pincode_match.start()] + address_str[pincode_match.end():]
+        address_str = address_str.strip()
         
+    address_str = re.sub(r'[\s,\.]+$', '', address_str)
+    
+    # Remove state names
+    address_str = re.sub(r',?\s*\b(rajasthan|rj|uttar pradesh|up|madhya pradesh|mp|haryana|gujarat)\b', '', address_str, flags=re.IGNORECASE).strip()
     address_str = re.sub(r'[\s,\.]+$', '', address_str)
     
     city = "JAIPUR"
     city_match = re.search(r'\b(jaipur|sanganer|amer|bagru)\b', address_str, re.IGNORECASE)
     if city_match:
         city = city_match.group(0).upper()
-        address_str = re.sub(r'\b' + city_match.group(0) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
+        # Remove all occurrences of the city name (addresses often repeat it)
+        address_str = re.sub(r',?\s*\b' + re.escape(city_match.group(0)) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
         
-    address_str = re.sub(r'\b(rajasthan|rj)\b', '', address_str, flags=re.IGNORECASE).strip()
     address_str = re.sub(r'[\s,\.]+$', '', address_str)
     
-    house_no = "00"
-    house_match = re.search(r'\b(?:plot|p\.?|h\.?|flat|shop|house|ward)\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+    house_no = ""
+    # Try keyword-based match first: "Plot No. 2", "House No-18", "Flat 3A", etc.
+    # Note: Avoid short abbreviations like "p." or "h." which false-match words (Panchyawala, PC-)
+    house_match = re.search(r'\b(?:plot|flat|shop|house|ward)\s*(?:no\.?|num\.?|[-])?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
     if house_match:
-        house_no = house_match.group(1).upper()
+        house_no = house_match.group(1).lstrip("-").upper()
         address_str = address_str.replace(house_match.group(0), "").strip()
     else:
-        start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
-        if start_match and start_match.group(1).isdigit():
-            house_no = start_match.group(1)
-            address_str = address_str.replace(house_no, "", 1).strip()
+
+        # Fallback: extract leading house number like "113/110", "1/454", "205 D", "29"
+        # Match digits optionally followed by slash/dash + more digits/letters, optionally followed by a space + single letter
+        start_match = re.match(r'^(\d+(?:[/\-]\d+[A-Za-z]?)*(?:\s+[A-Za-z])?)(?:\s*[,\s])', address_str)
+        if not start_match:
+            # Also try without requiring a comma/space after (for addresses that go directly into name)
+            start_match = re.match(r'^(\d+(?:[/\-]\d+[A-Za-z]?)*)\s+', address_str)
+        if start_match:
+            house_no = start_match.group(1).strip().upper()
+            address_str = address_str[start_match.end():].strip()
             
     address_str = re.sub(r'^[\s,\.]+', '', address_str)
     address_str = re.sub(r'[\s,\.]+$', '', address_str)
     
     common_areas = [
-        "Jhotwara", "Mansarovar", "Sodala", "Malviya Nagar", "Vaishali Nagar", 
+        "Jhotwara", "Mansarovar", "Mansrovar", "Sodala", "Malviya Nagar", "Vaishali Nagar", 
         "C-Scheme", "Raja Park", "Adarsh Nagar", "Bani Park", "Shastri Nagar", 
         "Vidhyadhar Nagar", "Pratap Nagar", "Sanganer", "Gopalpura", "Tonk Road", 
         "Jagatpura", "Patrakar Colony", "Nirman Nagar", "Civil Lines", "Ajmer Road", 
         "Sirsi Road", "Kalwar Road", "Agra Road", "Delhi Road", "Amer", "Chomu",
-        "Prithviraj Nagar", "PRN", "Muhana", "Bhakrota", "Bindayaka"
+        "Prithviraj Nagar", "PRN", "Muhana", "Bhakrota", "Bindayaka", "Bhankrota",
+        "Panchyawala", "Jawahar Nagar", "Hathoj"
     ]
     
     area = ""
@@ -2208,13 +2323,13 @@ def split_address(address_str):
     
     if not area:
         parts = [p.strip() for p in address_str.split(",") if p.strip()]
-        if parts:
+        if len(parts) > 1:
             area = parts[-1].upper()
             address_str = ",".join(parts[:-1]).strip()
             
-    colony = address_str.upper() if address_str else "JAIPUR"
+    colony = address_str.upper() if address_str else ""
     if not colony:
-        colony = area
+        colony = area if area else "JAIPUR"
         
     return {
         "house_no": house_no,
