@@ -199,6 +199,7 @@ def list_cases():
             "files": json.loads(case.files or "[]"),
             "legal_report_files": json.loads(case.legal_report_files or "[]"),
             "data": data_dict,
+            "buckets": data_dict.get("buckets", {}),
             "last_updated": case.last_updated
         })
     return cases
@@ -257,6 +258,8 @@ def load_case_session(case_id):
         "data": json.loads(case.data or "{}"),
         "last_updated": case.last_updated
     }
+    
+    sess["buckets"] = sess["data"].get("buckets", {})
     
     # Calculate borrower_name for backward compatibility in templates/dashboard
     data_dict = sess["data"]
@@ -358,6 +361,9 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
     # Load existing first to merge fields
     existing = load_case_session(case_id) or {}
     
+    if buckets is None:
+        buckets = existing.get("buckets", {})
+    
     if doc_type is None: doc_type = existing.get("doc_type", "RM")
     if sellers_count is None: sellers_count = existing.get("sellers_count", "1")
     if buyers_count is None: buyers_count = existing.get("buyers_count", "1")
@@ -404,6 +410,10 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
     pruned_data = prune_case_data(merged_data, doc_type)
     if pruned_data:
         pruned_data = convert_hindi_digits_to_english(pruned_data)
+    else:
+        pruned_data = {}
+        
+    pruned_data["buckets"] = buckets
         
     case = db.session.get(Case, case_id)
     if not case:
