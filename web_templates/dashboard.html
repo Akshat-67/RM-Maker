@@ -7,18 +7,74 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
-    .kpi-card { border-left: 4px solid #1a73e8; }
-    .kpi-card .kpi-value { font-size: 1.75rem; font-weight: 600; color: #1E293B; }
-    .kpi-card .kpi-label { color: #64748B; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .kpi-card.kpi-success { border-left-color: #10B981; }
-    .kpi-card.kpi-info    { border-left-color: #0EA5E9; }
-    .filter-bar { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1rem 1.25rem; }
-    .case-table thead th { background: #F1F5F9; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.04em; border-bottom: 1px solid #E2E8F0; }
-    .case-table tbody tr:hover { background-color: #F8FAFC; }
-    .badge-type-rm { background-color: #DBEAFE; color: #1D4ED8; }
-    .badge-type-sd { background-color: #FEF3C7; color: #92400E; }
-    .empty-state { text-align: center; padding: 4rem 1rem; color: #64748B; }
-    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 0.5rem; opacity: 0.6; }
+    .kpi-card {
+        border-left: 4px solid var(--theme-secondary);
+        background-color: var(--theme-bg-surface);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        transition: var(--transition-all);
+    }
+    .kpi-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+    }
+    .kpi-card .kpi-value {
+        font-size: var(--font-size-display);
+        font-weight: var(--font-weight-bold);
+        color: var(--theme-text-primary);
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        margin-top: var(--space-1);
+    }
+    .kpi-card .kpi-label {
+        color: var(--theme-text-secondary);
+        font-size: var(--font-size-caption);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: var(--font-weight-semibold);
+    }
+    .kpi-card.kpi-success { border-left-color: var(--theme-success); }
+    .kpi-card.kpi-info    { border-left-color: var(--theme-secondary); }
+    
+    .filter-bar {
+        background-color: var(--theme-bg-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-4) var(--space-6);
+        box-shadow: var(--shadow-sm);
+    }
+    .case-table thead th {
+        background-color: var(--color-slate-100);
+        color: var(--theme-text-secondary);
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        font-size: var(--font-size-caption);
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid var(--theme-border);
+    }
+    .case-table tbody tr:hover {
+        background-color: var(--color-slate-50);
+    }
+    .badge-type-rm {
+        background-color: var(--color-sky-50);
+        color: var(--color-sky-700);
+        border: 1px solid rgba(2, 132, 199, 0.15);
+    }
+    .badge-type-sd {
+        background-color: var(--theme-input-bg-legacy);
+        color: var(--color-amber-600);
+        border: 1px solid rgba(234, 158, 11, 0.15);
+    }
+    .empty-state {
+        text-align: center;
+        padding: var(--space-12) var(--space-4);
+        color: var(--theme-text-secondary);
+    }
+    .empty-state .empty-icon {
+        font-size: 3rem;
+        margin-bottom: var(--space-3);
+        opacity: 0.8;
+    }
   </style>
 </head>
 <body>
