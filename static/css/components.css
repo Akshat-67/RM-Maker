@@ -492,3 +492,108 @@
     }
 }
 
+/* --- High-Density Property Inspector Layouts --- */
+@media (min-width: 768px) {
+    /* Auto layout row columns as properties */
+    .seller-card .row, 
+    .buyer-card .row, 
+    .witness-card .row, 
+    .property-card .row,
+    .borrower-card .row,
+    .loan-card .row,
+    .bsign-card .row {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    
+    .seller-card .row > div:not(.col-3), 
+    .buyer-card .row > div:not(.col-3), 
+    .witness-card .row > div:not(.col-3), 
+    .property-card .row > div:not(.col-3),
+    .borrower-card .row > div:not(.col-3),
+    .loan-card .row > div:not(.col-3),
+    .bsign-card .row > div:not(.col-3) {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: var(--space-4) !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Force Label and checkbox wrapper to act as properties descriptor */
+    .seller-card .row > div:not(.col-3) > div:first-child, 
+    .buyer-card .row > div:not(.col-3) > div:first-child, 
+    .witness-card .row > div:not(.col-3) > div:first-child, 
+    .property-card .row > div:not(.col-3) > div:first-child,
+    .borrower-card .row > div:not(.col-3) > div:first-child,
+    .loan-card .row > div:not(.col-3) > div:first-child,
+    .bsign-card .row > div:not(.col-3) > div:first-child {
+        flex: 0 0 200px !important;
+        margin-bottom: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: var(--space-2) !important;
+        text-align: left;
+    }
+    
+    .seller-card .row > div:not(.col-3) > div:first-child label, 
+    .buyer-card .row > div:not(.col-3) > div:first-child label, 
+    .witness-card .row > div:not(.col-3) > div:first-child label, 
+    .property-card .row > div:not(.col-3) > div:first-child label,
+    .borrower-card .row > div:not(.col-3) > div:first-child label,
+    .loan-card .row > div:not(.col-3) > div:first-child label,
+    .bsign-card .row > div:not(.col-3) > div:first-child label {
+        margin-bottom: 0 !important;
+        font-size: 0.72rem !important;
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--theme-text-secondary);
+    }
+
+    .seller-card .row > div:not(.col-3) > .form-control,
+    .seller-card .row > div:not(.col-3) > textarea,
+    .buyer-card .row > div:not(.col-3) > .form-control,
+    .buyer-card .row > div:not(.col-3) > textarea,
+    .witness-card .row > div:not(.col-3) > .form-control,
+    .witness-card .row > div:not(.col-3) > textarea,
+    .property-card .row > div:not(.col-3) > .form-control,
+    .property-card .row > div:not(.col-3) > textarea,
+    .borrower-card .row > div:not(.col-3) > .form-control,
+    .borrower-card .row > div:not(.col-3) > textarea,
+    .loan-card .row > div:not(.col-3) > .form-control,
+    .loan-card .row > div:not(.col-3) > textarea,
+    .bsign-card .row > div:not(.col-3) > .form-control,
+    .bsign-card .row > div:not(.col-3) > textarea {
+        flex: 1 1 auto !important;
+        width: auto !important;
+    }
+}
+
+/* Global Light-Mode Class Overrides for App Container Integration */
+.app-container .bg-light {
+    background-color: var(--color-zinc-900) !important;
+    border-color: var(--color-zinc-800) !important;
+    color: var(--color-zinc-200) !important;
+}
+
+.app-container .border {
+    border-color: var(--color-zinc-800) !important;
+}
+
+.app-container .card-header.bg-light {
+    background-color: var(--color-zinc-950) !important;
+    border-bottom: 1px solid var(--color-zinc-800) !important;
+    color: var(--color-zinc-50) !important;
+}
+
+#sdWorkspaceTabs {
+    border: 1px solid var(--color-zinc-800) !important;
+    background-color: var(--color-zinc-950) !important;
+}
+
+
+
