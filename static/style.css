@@ -26,60 +26,7 @@ body {
     color: var(--theme-primary);
 }
 
-.btn-primary {
-    background-color: var(--theme-secondary);
-    border-color: var(--theme-secondary);
-}
 
-.btn-primary:hover {
-    background-color: var(--theme-secondary-hover);
-    border-color: var(--theme-secondary-hover);
-}
-
-.btn-outline-primary {
-    color: var(--theme-secondary);
-    border-color: var(--theme-secondary);
-}
-
-.btn-outline-primary:hover {
-    background-color: var(--theme-secondary);
-    color: white;
-}
-
-.btn-success {
-    background-color: var(--theme-success);
-    border-color: var(--theme-success);
-}
-
-.btn-success:hover {
-    background-color: var(--theme-success-hover);
-    border-color: var(--theme-success-hover);
-}
-
-.btn-outline-danger {
-    color: var(--theme-error);
-    border-color: var(--theme-error);
-}
-
-.btn-outline-danger:hover {
-    background-color: var(--theme-error);
-    color: white;
-}
-
-.form-control:focus,
-.form-select:focus {
-    border-color: var(--theme-accent);
-    box-shadow: 0 0 0 0.25rem rgba(2, 132, 199, 0.25);
-}
-
-/* Custom styles for verification fields */
-.form-control[id^="field_"] {
-    background-color: var(--theme-input-bg-legacy); /* Light yellow for unverified */
-}
-
-.form-control[id^="field_"]:focus {
-    background-color: #fff;
-}
 
 /* Ensure headers for individual items are not too large */
 .card-body h6.text-muted {
@@ -145,17 +92,18 @@ h6.section-title {
 }
 
 .hindi-legacy-input {
-    font-family: var(--font-sans), var(--font-hindi), sans-serif !important;
+    font-family: var(--font-hindi) !important;
     font-size: var(--font-size-body) !important;
     font-weight: var(--font-weight-medium) !important;
-    background-color: var(--theme-input-bg-legacy) !important; /* Extremely soft warm yellow for Hindi inputs */
+    background-color: rgba(245, 158, 11, 0.05) !important;
+    border: 1px solid rgba(245, 158, 11, 0.2) !important;
     direction: ltr;
 }
 
 .hindi-legacy-input:focus {
-    background-color: #ffffff !important;
-    border-color: var(--theme-warning); /* Soft amber border for active legacy fields */
-    box-shadow: 0 0 0 0.25rem rgba(234, 158, 11, 0.2);
+    background-color: rgba(245, 158, 11, 0.08) !important;
+    border-color: var(--theme-warning) !important;
+    box-shadow: 0 0 0 2px var(--theme-warning) !important;
 }
 
 /* Bilingual side-by-side field columns */
@@ -191,8 +139,8 @@ h6.section-title {
 }
 
 .transliterate-btn:hover {
-    background-color: var(--color-slate-200);
-    border-color: var(--color-slate-400);
+    background-color: var(--color-zinc-800);
+    border-color: var(--color-zinc-700);
     transform: scale(1.05);
 }
 
@@ -200,63 +148,7 @@ h6.section-title {
     transform: scale(0.95);
 }
 
-/* Styled grids for Payments and Title Chain */
-.grid-table {
-    width: 100%;
-    margin-top: var(--space-2);
-    margin-bottom: var(--space-4);
-    border-collapse: collapse;
-    background-color: var(--theme-bg-surface);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
 
-.grid-table th {
-    background-color: var(--color-slate-100);
-    color: var(--theme-text-secondary);
-    font-weight: var(--font-weight-semibold);
-    font-size: var(--font-size-caption);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 8px 12px;
-    border-bottom: 2px solid var(--theme-border);
-    text-align: left;
-}
-
-.grid-table td {
-    padding: 6px 12px;
-    border-bottom: 1px solid var(--theme-border);
-    vertical-align: middle;
-}
-
-.grid-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.grid-table tbody tr:hover {
-    background-color: var(--color-slate-50);
-}
-
-.grid-table .form-control-sm {
-    border-color: var(--theme-border);
-}
-
-.btn-icon-danger {
-    background: none;
-    border: none;
-    color: var(--theme-error);
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    transition: background 0.15s;
-    line-height: 1;
-}
-
-.btn-icon-danger:hover {
-    background-color: var(--color-rose-50);
-}
 
 /* Subtle highlights for verified fields in dynamic toggle layout */
 .verify-check {

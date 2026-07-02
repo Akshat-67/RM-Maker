@@ -12,22 +12,22 @@
 /* --- Sidebar Styling --- */
 .app-sidebar {
     width: 250px;
-    background-color: var(--color-slate-900);
+    background-color: var(--color-zinc-950);
     color: #ffffff;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--color-slate-800);
+    border-right: 1px solid var(--theme-border);
     flex-shrink: 0;
     transition: transform var(--transition-duration-normal) var(--transition-easing-fluid);
     z-index: var(--z-index-sticky);
 }
 
 .sidebar-header {
-    height: 60px;
+    height: 48px;
     display: flex;
     align-items: center;
     padding: 0 var(--space-4);
-    border-bottom: 1px solid var(--color-slate-800);
+    border-bottom: 1px solid var(--theme-border);
 }
 
 .sidebar-logo {
@@ -59,7 +59,7 @@
 .sidebar-section-label {
     font-size: 0.68rem;
     font-weight: var(--font-weight-bold);
-    color: var(--color-slate-500);
+    color: var(--color-zinc-500);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     padding-left: var(--space-3);
@@ -71,7 +71,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
-    color: var(--color-slate-400);
+    color: var(--color-zinc-400);
     text-decoration: none;
     font-size: var(--font-size-body);
     font-weight: var(--font-weight-medium);
@@ -80,13 +80,13 @@
 }
 
 .sidebar-nav-link:hover {
-    color: #ffffff;
-    background-color: var(--color-slate-800);
+    color: var(--color-zinc-50);
+    background-color: var(--color-zinc-800);
 }
 
 .sidebar-nav-link.active {
-    color: #ffffff;
-    background-color: var(--theme-secondary);
+    color: var(--color-zinc-50) !important;
+    background-color: var(--color-zinc-800) !important;
 }
 
 .sidebar-nav-icon {
@@ -97,9 +97,9 @@
 
 .sidebar-footer {
     padding: var(--space-4);
-    border-top: 1px solid var(--color-slate-800);
+    border-top: 1px solid var(--theme-border);
     font-size: var(--font-size-caption);
-    color: var(--color-slate-500);
+    color: var(--color-zinc-500);
 }
 
 /* --- Main Layout Container --- */
@@ -113,17 +113,17 @@
 
 /* --- Header Styling --- */
 .app-header {
-    height: 60px;
+    height: 48px;
     background-color: var(--theme-bg-surface);
     border-bottom: 1px solid var(--theme-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 var(--space-6);
+    padding: 0 var(--space-4);
     position: sticky;
     top: 0;
     z-index: var(--z-index-sticky);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* Breadcrumbs */
