@@ -423,3 +423,55 @@
     background-color: var(--theme-secondary) !important;
     border-radius: var(--radius-full) !important;
 }
+
+/* ==========================================================================
+   10. Micro-Animations & Motion Support
+   ========================================================================== */
+
+/* Drop zone dragover pulse */
+@keyframes border-pulse {
+    0% { border-color: var(--theme-border); }
+    50% { border-color: var(--theme-accent); }
+    100% { border-color: var(--theme-border); }
+}
+
+.drop-zone.dragover {
+    animation: border-pulse 1.5s infinite ease-in-out !important;
+}
+
+/* Skeleton Loading Glow */
+@keyframes skeleton-glow {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.ds-skeleton {
+    background-color: var(--color-slate-200) !important;
+    border-radius: var(--radius-sm) !important;
+    animation: skeleton-glow 1.5s infinite ease-in-out !important;
+}
+
+/* Modal Dialog Scale In */
+.modal.fade .modal-dialog {
+    transform: scale(0.96) translateY(10px) !important;
+    transition: transform var(--transition-duration-normal) var(--transition-easing-fluid) !important;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1) translateY(0) !important;
+}
+
+/* Accessibility: Respect system preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+        animation-delay: -1ms !important;
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        background-attachment: initial !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+    }
+}
+
