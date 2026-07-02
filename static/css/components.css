@@ -227,6 +227,20 @@
    4. Tables & Data Grids
    ========================================================================== */
 
+.table-responsive, .ds-table-wrapper {
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden !important;
+    background-color: var(--theme-bg-surface) !important;
+    margin-bottom: var(--space-4) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.table-responsive .table, .table-responsive .grid-table, .ds-table-wrapper table {
+    margin-bottom: 0 !important;
+    border: none !important;
+}
+
 .table, .grid-table, .case-table {
     width: 100%;
     border-collapse: collapse !important;
@@ -242,6 +256,7 @@
     letter-spacing: 0.05em !important;
     padding: var(--space-3) var(--space-4) !important;
     border-bottom: 2px solid var(--theme-border) !important;
+    border-top: none !important;
 }
 
 .table tbody td, .grid-table td {
@@ -249,10 +264,30 @@
     border-bottom: 1px solid var(--theme-border) !important;
     vertical-align: middle !important;
     background-color: transparent !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.table tbody tr:last-child td, .grid-table tbody tr:last-child td {
+    border-bottom: none !important;
 }
 
 .table tbody tr:hover, .grid-table tbody tr:hover {
     background-color: var(--color-slate-50) !important;
+}
+
+/* Nested Inputs inside Tables */
+.table td .form-control, .grid-table td .form-control,
+.table td .form-select, .grid-table td .form-select {
+    padding: var(--space-1.5) var(--space-2) !important;
+    font-size: var(--font-size-caption) !important;
+    height: auto !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.table-sub-header {
+    font-size: 0.72rem;
+    color: var(--theme-text-muted);
+    margin-top: 2px;
 }
 
 /* ==========================================================================
