@@ -87,6 +87,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     // Set up button event handlers
+    document.getElementById('btnAutoRun').addEventListener('click', () => {
+        if (!activeCaseData) {
+            showMsg('No case data loaded. Select a case first.', 'error');
+            return;
+        }
+        showMsg('Starting auto-run flow...', 'success');
+        sendTabMessage('auto_run_flow', activeCaseData);
+    });
+    
     document.getElementById('btnAutofillDistrict').addEventListener('click', () => {
         sendTabMessage('autofill_district', {});
     });

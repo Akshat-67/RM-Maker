@@ -33,6 +33,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'set_presenter':
                 setPresenter(request.data, sendResponse);
                 break;
+            case 'auto_run_flow':
+                startAutoRunFlow(request.data, sendResponse);
+                break;
             default:
                 sendResponse({ success: false, error: 'Unknown action' });
         }
@@ -42,6 +45,135 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true; // Keep message channel open for async response
 });
+
+// =====================================================================
+// AUTO-RUN: Resume automation on page load if a flow is active
+// =====================================================================
+let isRunningStep = false; // Prevent multiple overlapping triggers
+
+function checkAndResumeFlow() {
+    if (!chrome?.storage?.local) return;
+    
+    chrome.storage.local.get(['autoRunState', 'activeCaseData'], (result) => {
+        let state = result.autoRunState;
+        const caseData = result.activeCaseData;
+        
+        if (!state || !caseData) {
+            // Remove badge if no active flow
+            const badge = document.getElementById('rm-maker-autorun-badge');
+            if (badge) badge.remove();
+            return;
+        }
+        
+        const url = window.location.href;
+        const lowerUrl = url.toLowerCase();
+        
+        // --- SMART RECOVERY & TRANSITION AUTO-ADVANCE ---
+        // If state is stuck in 'awaiting_district_modal' but we are on PropertyValuation, auto-advance state!
+        if (state === 'awaiting_district_modal' && lowerUrl.includes('propertyvaluation') && !lowerUrl.includes('calculateduty')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_property_valuation');
+            state = 'awaiting_property_valuation';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'awaiting_property_valuation' but we are on CalculateDuty page, auto-advance state!
+        if (state === 'awaiting_property_valuation' && lowerUrl.includes('calculateduty')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_calculate_duty');
+            state = 'awaiting_calculate_duty';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'duty_completed' but we are on PropertyDetail page, auto-advance state!
+        if (state === 'duty_completed' && lowerUrl.includes('propertydetail')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_party_detail_navigation');
+            state = 'awaiting_party_detail_navigation';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'awaiting_party_detail_navigation' but we are on Viewparty/PartyAdd page, auto-advance state!
+        if (state === 'awaiting_party_detail_navigation' && (lowerUrl.includes('party/viewparty') || lowerUrl.includes('party/partyadd'))) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_executant_autofill');
+            state = 'awaiting_executant_autofill';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        updateFloatingStatus(state);
+        
+        // Prevent running multiple times on the same page state
+        if (isRunningStep) return;
+        
+        console.log(`[RM-Maker AutoRun] Checking state. State: ${state}, URL: ${url}`);
+        
+        // Switch on state and call handlers
+        switch (state) {
+            case 'awaiting_property_valuation':
+                if (lowerUrl.includes('propertyvaluation') && !lowerUrl.includes('calculateduty')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Document Details step...');
+                    handleDocumentDetailsStep(caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_calculate_duty':
+                if (lowerUrl.includes('propertydetail') || lowerUrl.includes('calculateduty')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Calculate Duty step...');
+                    handleCalculateDutyStep(caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_party_detail_navigation':
+                if (lowerUrl.includes('propertydetail')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Party Detail Navigation step...');
+                    handlePartyDetailNavigationStep();
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_executant_autofill':
+            case 'awaiting_claimant_autofill':
+            case 'awaiting_witness1_autofill':
+            case 'awaiting_witness2_autofill':
+                if (lowerUrl.includes('party/viewparty') || lowerUrl.includes('party/partyadd')) {
+                    isRunningStep = true;
+                    console.log(`[RM-Maker AutoRun] Executing step: ${state}`);
+                    handlePartyAutofillSequence(state, caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            default:
+                break;
+        }
+    });
+}
+
+(function observeUrlChanges() {
+    let lastUrl = window.location.href;
+    
+    // Check URL changes every 500ms
+    setInterval(() => {
+        const currentUrl = window.location.href;
+        if (currentUrl !== lastUrl) {
+            console.log(`[RM-Maker AutoRun] URL changed from ${lastUrl} to ${currentUrl}`);
+            lastUrl = currentUrl;
+            isRunningStep = false; // Reset lock on navigation
+            
+            // Wait 1.5s for page elements to load after route transition
+            setTimeout(() => {
+                checkAndResumeFlow();
+            }, 1500);
+        }
+    }, 500);
+    
+    // Also run immediately on startup
+    setTimeout(() => {
+        checkAndResumeFlow();
+    }, 1500);
+})();
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -319,7 +451,7 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         const cityInput = getField('city');
         const pinInput = getField('pincode');
         
-        setInputValue(houseInput, partyData.address.house_no || "00");
+        setInputValue(houseInput, partyData.address.house_no || "");
         setInputValue(colonyInput, partyData.address.colony || "");
         setInputValue(areaInput, partyData.address.area || "");
         setInputValue(cityInput, partyData.address.city || "JAIPUR");
@@ -396,7 +528,7 @@ async function selectNgSelectOption(ngSelectEl, text) {
     container.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     container.click();
     
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 100));
         const options = Array.from(document.querySelectorAll('.ng-option, [role="option"]'));
         const matchedOption = options.find(opt => {
@@ -406,6 +538,8 @@ async function selectNgSelectOption(ngSelectEl, text) {
         
         if (matchedOption) {
             console.log("[content.js] Found matching ng-select option:", matchedOption.textContent);
+            matchedOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            matchedOption.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
             matchedOption.click();
             matchedOption.dispatchEvent(new Event('change', { bubbles: true }));
             return true;
@@ -422,28 +556,37 @@ async function setSelectValueByText(selectEl, text) {
         return await selectNgSelectOption(selectEl, text);
     }
     
-    const options = Array.from(selectEl.options);
-    const isExactJaipur = text.toUpperCase() === 'JAIPUR';
-    const matchedOption = options.find(opt => {
-        const optText = opt.text.toUpperCase();
-        if (isExactJaipur) {
-            return optText.includes('JAIPUR') || optText.includes('जयपुर');
-        }
-        return optText.includes(text.toUpperCase()) || optText.replace(/\s+/g, '').includes(text.toUpperCase().replace(/\s+/g, ''));
-    });
+    console.log(`[RM-Maker] Selecting option "${text}" in dropdown...`);
     
-    if (matchedOption) {
-        selectEl.value = matchedOption.value;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+    // Wait up to 3 seconds for options to load and the matched option to be present
+    for (let i = 0; i < 30; i++) {
+        const options = Array.from(selectEl.options);
+        const isExactJaipur = text.toUpperCase() === 'JAIPUR';
+        const matchedOption = options.find(opt => {
+            const optText = opt.text.toUpperCase();
+            if (isExactJaipur) {
+                return optText.includes('JAIPUR') || optText.includes('जयपुर');
+            }
+            return optText.includes(text.toUpperCase()) || optText.replace(/\s+/g, '').includes(text.toUpperCase().replace(/\s+/g, ''));
+        });
         
-        // Ensure element has ID and trigger page-context jQuery update
-        if (!selectEl.id) {
-            selectEl.id = 'select_' + Math.random().toString(36).substring(2, 9);
+        if (matchedOption) {
+            console.log(`[RM-Maker] Found option matching "${text}":`, matchedOption.text);
+            selectEl.value = matchedOption.value;
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Ensure element has ID and trigger page-context jQuery update
+            if (!selectEl.id) {
+                selectEl.id = 'select_' + Math.random().toString(36).substring(2, 9);
+            }
+            triggerJQuerySelect(selectEl.id, matchedOption.value);
+            return true;
         }
-        triggerJQuerySelect(selectEl.id, matchedOption.value);
-        return true;
+        await new Promise(r => setTimeout(r, 100)); // Wait 100ms
     }
+    
+    console.error(`[RM-Maker] Failed to locate option matching "${text}" in dropdown.`);
     return false;
 }
 
@@ -457,30 +600,97 @@ function setInputValue(inputEl, value) {
 }
 
 function clickRadioByValueOrLabel(labelText) {
-    const labels = Array.from(document.querySelectorAll('label, span, div'));
-    const matchedLabel = labels.find(l => l.textContent.trim().toUpperCase() === labelText.toUpperCase());
-    if (matchedLabel) {
-        matchedLabel.click();
-        const parent = matchedLabel.parentElement;
-        if (parent) {
-            const radio = parent.querySelector('input[type="radio"]');
-            if (radio) {
-                radio.checked = true;
-                radio.click();
-                radio.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
+    console.log(`[RM-Maker] Attempting to click radio: "${labelText}"`);
+    
+    // Normalize target text
+    const cleanTarget = labelText.replace(/\s+/g, ' ').trim().toUpperCase();
+    
+    // 1. Search actual <label> elements first (most standard way)
+    const labels = Array.from(document.querySelectorAll('label'));
+    let matchedLabel = labels.find(l => {
+        const txt = l.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+        return txt === cleanTarget || txt.includes(cleanTarget);
+    });
+    
+    // 2. Fallback to spans, divs, or inputs
+    if (!matchedLabel) {
+        const otherEls = Array.from(document.querySelectorAll('span, div, input[type="radio"]'));
+        matchedLabel = otherEls.find(el => {
+            if (el.tagName.toUpperCase() === 'INPUT') {
+                return el.value && el.value.toUpperCase() === cleanTarget;
             }
+            const txt = el.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+            // Restrict size to avoid matching large container divs
+            return txt.length < 80 && (txt === cleanTarget || txt.includes(cleanTarget));
+        });
+    }
+    
+    if (matchedLabel) {
+        console.log(`[RM-Maker] Matched element for radio "${labelText}":`, matchedLabel);
+        
+        // Try clicking the matched element directly
+        matchedLabel.click();
+        
+        // Now locate the actual radio input element
+        let radio = null;
+        if (matchedLabel.tagName.toUpperCase() === 'INPUT' && matchedLabel.type === 'radio') {
+            radio = matchedLabel;
+        } else {
+            // Check if it contains a radio input
+            radio = matchedLabel.querySelector('input[type="radio"]');
+            
+            // Check siblings and parent container
+            if (!radio) {
+                const parent = matchedLabel.parentElement;
+                if (parent) {
+                    radio = parent.querySelector('input[type="radio"]');
+                }
+            }
+            // Check closest container
+            if (!radio) {
+                const container = matchedLabel.closest('.radio, .radio-inline, div, td, li');
+                if (container) {
+                    radio = container.querySelector('input[type="radio"]');
+                }
+            }
+        }
+        
+        if (radio) {
+            console.log('[RM-Maker] Clicking associated radio input:', radio);
+            radio.checked = true;
+            radio.click();
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
+            return true;
         }
     }
     
+    // 3. Last resort fallback: Match radio button value directly using common mappings
     const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-    const valueMatch = radios.find(r => r.value && r.value.toUpperCase() === labelText.toUpperCase());
+    let valueMatch = radios.find(r => r.value && r.value.toUpperCase() === cleanTarget);
+    
+    // Contextual value mapping (e.g. "Self (स्वयं)" -> "S", "Urban (शहरी)" -> "U", "Rural (ग्रामीण)" -> "R")
+    if (!valueMatch) {
+        let mappedVal = "";
+        if (cleanTarget.includes("SELF") || cleanTarget.includes("स्वयं")) mappedVal = "S";
+        else if (cleanTarget.includes("URBAN") || cleanTarget.includes("शहरी")) mappedVal = "U";
+        else if (cleanTarget.includes("RURAL") || cleanTarget.includes("ग्रामीण")) mappedVal = "R";
+        
+        if (mappedVal) {
+            valueMatch = radios.find(r => r.value && r.value.toUpperCase() === mappedVal);
+        }
+    }
+    
     if (valueMatch) {
+        console.log('[RM-Maker] Found direct radio value match:', valueMatch);
         valueMatch.checked = true;
         valueMatch.click();
         valueMatch.dispatchEvent(new Event('change', { bubbles: true }));
+        valueMatch.dispatchEvent(new Event('click', { bubbles: true }));
         return true;
     }
+    
+    console.error(`[RM-Maker] Failed to locate radio button for: "${labelText}"`);
     return false;
 }
 
@@ -735,92 +945,114 @@ function autofillLogin(data, sendResponse) {
 
 async function autofillDetails(data, sendResponse) {
     try {
+        console.log('[RM-Maker] Starting autofillDetails...');
         // Select Urban
         clickRadioByValueOrLabel("Urban (शहरी)");
         
         // Select Self
         setTimeout(async () => {
-            clickRadioByValueOrLabel("Self (स्वयं)");
-            
-            // Wait for Self Modal
-            let modalBody = null;
-            for (let i = 0; i < 15; i++) {
-                const modals = Array.from(document.querySelectorAll('.modal-body, ngb-modal-window, .modal-dialog, .modal-content, .modal'));
-                modalBody = modals.find(m => m.offsetWidth > 0 || m.offsetHeight > 0 || m.getBoundingClientRect().width > 0);
-                if (modalBody) break;
-                await new Promise(r => setTimeout(r, 150));
-            }
-            
-            if (!modalBody) {
-                sendResponse({ success: false, error: 'Could not find the category modal window.' });
-                return;
-            }
-            
-            // Find the correct gender card
-            let targetCard = null;
-            for (let i = 0; i < 15; i++) {
-                const elements = Array.from(modalBody.querySelectorAll('*'));
-                const cardCandidates = elements.filter(el => {
-                    const cleanTxt = el.textContent.replace(/\s+/g, '').toUpperCase();
-                    if (data.gender_card === 'JOINT') {
-                        return cleanTxt.includes('संयुक्त') || cleanTxt.includes('JOINT');
-                    } else if (data.gender_card === 'FEMALE_GEN') {
-                        return (cleanTxt.includes('महिला') && cleanTxt.includes('GEN')) || cleanTxt.includes('FEMALE');
-                    } else {
-                        return (cleanTxt.includes('पुरूष') && cleanTxt.includes('GEN')) || (cleanTxt.includes('पुरुष') && cleanTxt.includes('GEN')) || cleanTxt.includes('MALE');
-                    }
-                });
-                
-                if (cardCandidates.length > 0) {
-                    cardCandidates.sort((a, b) => a.textContent.length - b.textContent.length);
-                    targetCard = cardCandidates[0];
-                    break;
+            try {
+                const clickedSelf = clickRadioByValueOrLabel("Self (स्वयं)");
+                if (!clickedSelf) {
+                    sendResponse({ success: false, error: 'Could not click Transfer status: Self (स्वयं) radio button.' });
+                    return;
                 }
-                await new Promise(r => setTimeout(r, 150));
-            }
-            
-            if (targetCard) {
-                targetCard.click();
-                const parentLabel = targetCard.closest('label, span.radio-btn');
-                if (parentLabel) parentLabel.click();
                 
-                await new Promise(r => setTimeout(r, 400));
-                const modalButtons = Array.from(modalBody.querySelectorAll('button, a, input[type="button"]'));
-                const continueBtn = modalButtons.find(b => {
-                    const txt = b.textContent.trim().toUpperCase();
-                    return txt.includes('CONTINUE') || txt.includes('SAVE') || txt.includes('सहेजें') || txt.includes('आगे बढ़ें') || txt.includes('OK');
-                });
-                if (continueBtn) continueBtn.click();
+                // Wait for Self Modal
+                console.log('[RM-Maker] Waiting for category modal...');
+                let modalBody = null;
+                for (let i = 0; i < 25; i++) {
+                    const modals = Array.from(document.querySelectorAll('.modal-body, ngb-modal-window, .modal-dialog, .modal-content, .modal'));
+                    modalBody = modals.find(m => m.offsetWidth > 0 || m.offsetHeight > 0 || m.getBoundingClientRect().width > 0);
+                    if (modalBody) break;
+                    await new Promise(r => setTimeout(r, 150));
+                }
                 
-                await new Promise(r => setTimeout(r, 800));
+                if (!modalBody) {
+                    sendResponse({ success: false, error: 'Could not find the category modal window after clicking Self.' });
+                    return;
+                }
+                console.log('[RM-Maker] Category modal found. Matching gender card:', data.gender_card);
                 
-                // Fill Document Type
-                const docTypeSelect = findSelectByLabel("Document Type") || findSelectByLabel("दस्तावेज़ का प्रकार") || document.querySelector('ng-select');
-                await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
+                // Find the correct gender card
+                let targetCard = null;
+                for (let i = 0; i < 15; i++) {
+                    const elements = Array.from(modalBody.querySelectorAll('*'));
+                    const cardCandidates = elements.filter(el => {
+                        const cleanTxt = el.textContent.replace(/\s+/g, '').toUpperCase();
+                        if (data.gender_card === 'JOINT') {
+                            return cleanTxt.includes('संयुक्त') || cleanTxt.includes('JOINT');
+                        } else if (data.gender_card === 'FEMALE_GEN') {
+                            return (cleanTxt.includes('महिला') && cleanTxt.includes('GEN')) || cleanTxt.includes('FEMALE');
+                        } else {
+                            return (cleanTxt.includes('पुरूष') && cleanTxt.includes('GEN')) || (cleanTxt.includes('पुरुष') && cleanTxt.includes('GEN')) || cleanTxt.includes('MALE');
+                        }
+                    });
+                    
+                    if (cardCandidates.length > 0) {
+                        cardCandidates.sort((a, b) => a.textContent.length - b.textContent.length);
+                        targetCard = cardCandidates[0];
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 150));
+                }
                 
-                await new Promise(r => setTimeout(r, 600));
-                const subTypeSelect = findSelectByLabel("SubType") || findSelectByLabel("उप-प्रकार");
-                await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
-                
-                await new Promise(r => setTimeout(r, 600));
-                const catSelect = findSelectByLabel("Category") || findSelectByLabel("श्रेणी");
-                await setSelectValueByText(catSelect, "General");
-                
-                await new Promise(r => setTimeout(r, 600));
-                const sroSelect = findSelectByLabel("SRO") || findSelectByLabel("उप पंजीयक");
-                await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
-                
-                await new Promise(r => setTimeout(r, 600));
-                const tehsilSelect = findSelectByLabel("Tehsil") || findSelectByLabel("तहसील");
-                await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
-                
-                sendResponse({ success: true, message: 'Autofilled all details! Review and click Save.' });
-                
-            } else {
-                sendResponse({ success: false, error: `Could not find the card matching ${data.gender_card} in the modal.` });
+                if (targetCard) {
+                    console.log('[RM-Maker] Found matching gender card, clicking...', targetCard.textContent);
+                    targetCard.click();
+                    const parentLabel = targetCard.closest('label, span.radio-btn');
+                    if (parentLabel) parentLabel.click();
+                    
+                    await new Promise(r => setTimeout(r, 400));
+                    const modalButtons = Array.from(modalBody.querySelectorAll('button, a, input[type="button"]'));
+                    const continueBtn = modalButtons.find(b => {
+                        const txt = b.textContent.trim().toUpperCase();
+                        return txt.includes('CONTINUE') || txt.includes('SAVE') || txt.includes('सहेजें') || txt.includes('आगे बढ़ें') || txt.includes('OK');
+                    });
+                    if (continueBtn) {
+                        console.log('[RM-Maker] Clicking modal continue button...');
+                        continueBtn.click();
+                    }
+                    
+                    await new Promise(r => setTimeout(r, 800));
+                    
+                    // Fill Document Type
+                    console.log('[RM-Maker] Selecting Document Type...');
+                    const docTypeSelect = findSelectByLabel("Document Type") || findSelectByLabel("दस्तावेज़ का प्रकार") || document.querySelector('ng-select');
+                    await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
+                    
+                    await new Promise(r => setTimeout(r, 600));
+                    console.log('[RM-Maker] Selecting SubType...');
+                    const subTypeSelect = findSelectByLabel("SubType") || findSelectByLabel("उप-प्रकार");
+                    await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
+                    
+                    await new Promise(r => setTimeout(r, 600));
+                    console.log('[RM-Maker] Selecting Category...');
+                    const catSelect = findSelectByLabel("Category") || findSelectByLabel("श्रेणी");
+                    await setSelectValueByText(catSelect, "General");
+                    
+                    await new Promise(r => setTimeout(r, 600));
+                    console.log('[RM-Maker] Selecting SRO...');
+                    const sroSelect = findSelectByLabel("SRO") || findSelectByLabel("उप पंजीयक");
+                    await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
+                    
+                    await new Promise(r => setTimeout(r, 600));
+                    console.log('[RM-Maker] Selecting Tehsil...');
+                    const tehsilSelect = findSelectByLabel("Tehsil") || findSelectByLabel("तहसील");
+                    await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
+                    
+                    sendResponse({ success: true, message: 'Autofilled all details! Review and click Save.' });
+                    
+                } else {
+                    sendResponse({ success: false, error: `Could not find the card matching ${data.gender_card} in the modal.` });
+                }
+            } catch (innerErr) {
+                console.error('[RM-Maker] Error in async autofillDetails steps:', innerErr);
+                sendResponse({ success: false, error: innerErr.message });
             }
         }, 300);
     } catch (err) {
+        console.error('[RM-Maker] Error in autofillDetails wrapper:', err);
         sendResponse({ success: false, error: err.message });
     }
 }
@@ -1058,5 +1290,631 @@ function setPresenter(data, sendResponse) {
         }
     } catch (err) {
         sendResponse({ success: false, error: err.message });
+    }
+}
+
+// =====================================================================
+// AUTO-RUN FLOW: Full automation from Dashboard to Calculate Duty
+// =====================================================================
+
+function updateFloatingStatus(statusText) {
+    let badge = document.getElementById('rm-maker-autorun-badge');
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'rm-maker-autorun-badge';
+        badge.style.position = 'fixed';
+        badge.style.top = '10px';
+        badge.style.right = '10px';
+        badge.style.backgroundColor = '#1e293b';
+        badge.style.color = '#f8fafc';
+        badge.style.padding = '8px 12px';
+        badge.style.borderRadius = '6px';
+        badge.style.fontFamily = 'Segoe UI, -apple-system, sans-serif';
+        badge.style.fontSize = '12px';
+        badge.style.fontWeight = 'bold';
+        badge.style.zIndex = '99999';
+        badge.style.border = '1px solid #6366f1';
+        badge.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.35)';
+        badge.style.pointerEvents = 'none';
+        document.body.appendChild(badge);
+    }
+    badge.textContent = `⚡ Auto-Run: ${statusText.replace(/_/g, ' ').toUpperCase()}`;
+}
+
+function startAutoRunFlow(data, sendResponse) {
+    const url = window.location.href;
+    const lowerUrl = url.toLowerCase();
+    
+    // Auto-detect current page and trigger the appropriate entry point
+    if (lowerUrl.includes('/citizen/dashboard')) {
+        chrome.storage.local.set({ 
+            autoRunState: 'awaiting_district_modal',
+            activeCaseData: data
+        }, () => {
+            console.log('[RM-Maker AutoRun] Flow started from Dashboard. State and Case Data saved.');
+            sendResponse({ success: true, message: 'Auto-run started! Clicking Add New Valuation...' });
+            handleDashboardStep(data);
+        });
+    } else if (lowerUrl.includes('propertyvaluation') && !lowerUrl.includes('propertydetail') && !lowerUrl.includes('calculateduty')) {
+        chrome.storage.local.set({ 
+            autoRunState: 'awaiting_property_valuation',
+            activeCaseData: data
+        }, () => {
+            console.log('[RM-Maker AutoRun] Flow started directly from Property Valuation page.');
+            sendResponse({ success: true, message: 'Auto-run started! Filling document details...' });
+            handleDocumentDetailsStep(data);
+        });
+    } else if (lowerUrl.includes('propertydetail') || lowerUrl.includes('calculateduty')) {
+        chrome.storage.local.set({ 
+            autoRunState: 'awaiting_calculate_duty',
+            activeCaseData: data
+        }, () => {
+            console.log('[RM-Maker AutoRun] Flow started directly from Calculate Duty / Property Detail page.');
+            sendResponse({ success: true, message: 'Auto-run started! Calculating duty...' });
+            handleCalculateDutyStep(data);
+        });
+    } else if (lowerUrl.includes('party/viewparty') || lowerUrl.includes('party/partyadd')) {
+        chrome.storage.local.set({ 
+            autoRunState: 'awaiting_executant_autofill',
+            activeCaseData: data
+        }, () => {
+            console.log('[RM-Maker AutoRun] Flow started directly from Party Details page.');
+            sendResponse({ success: true, message: 'Auto-run started! Autofilling party details...' });
+            handlePartyAutofillSequence('awaiting_executant_autofill', data);
+        });
+    } else {
+        sendResponse({ success: false, error: 'Please navigate to Dashboard, Valuation, Calculate Duty, or Party Details page first.' });
+    }
+}
+
+// --- STEP 1: Dashboard → Click "+ Add New Valuation" → Select District ---
+function handleDashboardStep(caseData) {
+    console.log('[RM-Maker AutoRun] Step 1: Dashboard — clicking Add New Valuation');
+    
+    const addBtn = document.getElementById('addnewproperty') || 
+                   document.querySelector('button.addButton') ||
+                   Array.from(document.querySelectorAll('button')).find(b => 
+                       b.textContent.trim().includes('Add New Valuation') || b.textContent.trim().includes('नया मूल्यांकन'));
+    
+    if (!addBtn) {
+        console.error('[RM-Maker AutoRun] Could not find Add New Valuation button.');
+        chrome.storage.local.remove('autoRunState');
+        return;
+    }
+    
+    addBtn.click();
+    console.log('[RM-Maker AutoRun] Clicked Add New Valuation. Waiting for district modal...');
+    
+    // Wait for the district modal to appear (Select2 dropdown)
+    waitForElement('#ddlDistrict, select[data-select2-id="ddlDistrict"], .select2-selection', 8000)
+        .then(() => {
+            console.log('[RM-Maker AutoRun] District modal appeared. Waiting for it to settle...');
+            return delay(800);
+        })
+        .then(() => {
+            return selectDistrictJaipur();
+        })
+        .then((success) => {
+            if (!success) {
+                console.error('[RM-Maker AutoRun] Failed to select JAIPUR district.');
+                chrome.storage.local.remove('autoRunState');
+            }
+        })
+        .catch(err => {
+            console.error('[RM-Maker AutoRun] District step error:', err);
+            chrome.storage.local.remove('autoRunState');
+        });
+}
+
+// --- STEP 2: PropertyValuation → Fill Document Details → Save ---
+async function handleDocumentDetailsStep(caseData) {
+    console.log('[RM-Maker AutoRun] Step 2: PropertyValuation — filling document details');
+    
+    // Wait a bit more for form elements to load
+    await delay(1000);
+    
+    // Determine gender card type
+    const executants = caseData.executants || [];
+    let genderCard = 'MALE_GEN';
+    if (executants.length > 0) {
+        const genders = executants.map(e => e.gender);
+        const hasMale = genders.includes('MALE');
+        const hasFemale = genders.includes('FEMALE');
+        if (hasMale && hasFemale) genderCard = 'JOINT';
+        else if (hasFemale) genderCard = 'FEMALE_GEN';
+    }
+    
+    // Reuse the existing autofillDetails logic
+    const detailsData = {
+        sro: caseData.sro || 'JAIPUR-VII',
+        tehsil: caseData.tehsil || 'JAIPUR',
+        gender_card: genderCard
+    };
+    
+    // Call autofillDetails and wait for it to complete
+    autofillDetails(detailsData, (response) => {
+        if (response.success) {
+            console.log('[RM-Maker AutoRun] Document details filled. Waiting before clicking Save...');
+            updateFloatingStatus('DETAILS FILLED. SAVING IN 3S...');
+            // Wait 3s for all ng-select options to settle, then click Save
+            setTimeout(() => {
+                clickSaveButton();
+            }, 3000);
+        } else {
+            console.error('[RM-Maker AutoRun] Failed to fill document details:', response.error);
+            updateFloatingStatus(`ERROR: ${response.error}`);
+            // Keep the state on the badge for debugging instead of immediately removing it
+        }
+    });
+}
+
+// --- STEP 3: CalculateDuty → Fill values → Calculate twice ---
+async function handleCalculateDutyStep(caseData) {
+    const url = window.location.href;
+    const lowerUrl = url.toLowerCase();
+    
+    console.log('[RM-Maker AutoRun] Step 3: CalculateDuty — current URL:', url);
+    
+    if (lowerUrl.includes('propertydetail')) {
+        // We are on the intermediate page. Click the "Calculate Duty" button to navigate.
+        console.log('[RM-Maker AutoRun] Intermediate PropertyDetail page. Clicking Calculate Duty button to navigate...');
+        updateFloatingStatus('PROPERTY DETAIL PAGE. NAVIGATING TO DUTY...');
+        await delay(1200);
+        
+        const calcBtn = triggerButtonByText("Calculate Duty") || triggerButtonByText("ड्यूटी की गणना करें");
+        if (calcBtn) {
+            console.log('[RM-Maker AutoRun] Calculate Duty button clicked.');
+        } else {
+            console.error('[RM-Maker AutoRun] Calculate Duty button not found on PropertyDetail page.');
+            updateFloatingStatus('ERROR: Calculate Duty button not found.');
+        }
+        return;
+    }
+    
+    if (lowerUrl.includes('calculateduty')) {
+        // We are on the actual calculate duty page. Fill values and click calculate twice.
+        // Set state to 'duty_completed' immediately to prevent any re-triggering during calculations
+        chrome.storage.local.set({ autoRunState: 'duty_completed' });
+        
+        console.log('[RM-Maker AutoRun] CalculateDuty page. Filling values...');
+        updateFloatingStatus('CALCULATING STAMP DUTY (PASS 1)...');
+        await delay(1200);
+        
+        const dutyData = {
+            execution_date: caseData.execution_date,
+            face_value: caseData.face_value
+        };
+        
+        // First pass: fill values and click Calculate & Save
+        autofillCalculateDuty(dutyData, (response1) => {
+            if (!response1.success) {
+                console.error('[RM-Maker AutoRun] First Calculate Duty pass failed:', response1.error);
+                updateFloatingStatus(`ERROR: ${response1.error}`);
+                // Restore state so user can retry
+                chrome.storage.local.set({ autoRunState: 'awaiting_calculate_duty' });
+                return;
+            }
+            
+            console.log('[RM-Maker AutoRun] First Calculate Duty pass success:', response1.message);
+            updateFloatingStatus('CALCULATED FIRST PASS. WAITING 2.5S...');
+            
+            // Wait 2.5s, then do the second pass click
+            setTimeout(() => {
+                console.log('[RM-Maker AutoRun] Second Calculate Duty pass: clicking Calculate & Save again...');
+                updateFloatingStatus('CALCULATING STAMP DUTY (PASS 2)...');
+                
+                const calcSaveBtn = triggerButtonByText("Calculate & Save") || 
+                                    triggerButtonByText("गणना और सहेजें") || 
+                                    triggerButtonByText("Calculate and Save");
+                if (calcSaveBtn) {
+                    // Save state BEFORE click to prevent race condition during page redirect/unload
+                    chrome.storage.local.set({ autoRunState: 'awaiting_party_detail_navigation' }, () => {
+                        console.log('[RM-Maker AutoRun] Transition state saved: awaiting_party_detail_navigation. Clicking second pass...');
+                        calcSaveBtn.click();
+                        console.log('[RM-Maker AutoRun] Second click completed.');
+                    });
+                } else {
+                    console.error('[RM-Maker AutoRun] Calculate & Save button not found for second pass.');
+                    chrome.storage.local.set({ autoRunState: 'awaiting_calculate_duty' });
+                }
+            }, 2500);
+        });
+    }
+}
+
+async function handlePartyDetailNavigationStep() {
+    console.log('[RM-Maker AutoRun] Step 4: Navigating to Party Details...');
+    updateFloatingStatus('NAVIGATING TO PARTY DETAILS...');
+    await delay(1200);
+    
+    // Find Party Detail button via class, title, formaction, or text
+    const partyBtn = document.querySelector('button[formaction*="Viewparty" i]') ||
+                     document.querySelector('button[title*="Party Detail" i]') ||
+                     Array.from(document.querySelectorAll('button')).find(b => {
+                         const txt = b.textContent.trim().toUpperCase();
+                         return txt.includes('PARTY DETAIL') || txt.includes('पक्षकार') || txt.includes('VIEWPARTY');
+                     });
+                     
+    if (partyBtn) {
+        // Set state to awaiting_executant_autofill BEFORE click/submit to ensure redirect state is saved
+        chrome.storage.local.set({ autoRunState: 'awaiting_executant_autofill' }, () => {
+            console.log('[RM-Maker AutoRun] Transition state saved: awaiting_executant_autofill. Clicking Party Detail...');
+            
+            // Dispatch mousedown and mouseup for safety, then click
+            partyBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            partyBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            partyBtn.click();
+            
+            // Fallback: Programmatic form submission to button's formaction if navigation didn't happen (common for synthetic clicks in SPA forms)
+            setTimeout(() => {
+                const form = partyBtn.closest('form');
+                if (form) {
+                    console.log('[RM-Maker AutoRun] Fallback: submitting form programmatically to button formaction...');
+                    
+                    // Trigger page-context loader animation if it exists
+                    try {
+                        const script = document.createElement('script');
+                        script.textContent = `
+                            if (window.loader && typeof window.loader.show === 'function') {
+                                window.loader.show();
+                            }
+                        `;
+                        (document.head || document.documentElement).appendChild(script);
+                        script.remove();
+                    } catch(e) {}
+                    
+                    form.action = partyBtn.getAttribute('formaction') || '/Party/Viewparty';
+                    form.method = 'POST';
+                    form.submit();
+                }
+            }, 400);
+            
+            console.log('[RM-Maker AutoRun] Party Details navigation initiated!');
+        });
+    } else {
+        console.error('[RM-Maker AutoRun] Party Detail button not found on the page.');
+        updateFloatingStatus('ERROR: Party Detail button not found.');
+    }
+}
+
+async function handlePartyAutofillSequence(state, caseData) {
+    const url = window.location.href;
+    const lowerUrl = url.toLowerCase();
+    
+    console.log(`[RM-Maker AutoRun] handlePartyAutofillSequence state: ${state}, URL: ${url}`);
+    
+    // Map state to party details and next step transition state
+    let partyTypeName = '';
+    let partyData = null;
+    let nextState = '';
+    
+    if (state === 'awaiting_executant_autofill') {
+        partyTypeName = 'EXECUTANT';
+        partyData = { executants: caseData.executants };
+        nextState = 'awaiting_claimant_autofill';
+    } else if (state === 'awaiting_claimant_autofill') {
+        partyTypeName = 'CLAIMANT';
+        partyData = { claimant: caseData.claimant };
+        nextState = 'awaiting_witness1_autofill';
+    } else if (state === 'awaiting_witness1_autofill') {
+        partyTypeName = 'WITNESS1';
+        partyData = { witnesses: caseData.witnesses };
+        nextState = 'awaiting_witness2_autofill';
+    } else if (state === 'awaiting_witness2_autofill') {
+        partyTypeName = 'WITNESS2';
+        partyData = { witnesses: caseData.witnesses };
+        nextState = 'flow_completed'; 
+    }
+    
+    if (lowerUrl.includes('party/viewparty')) {
+        console.log(`[RM-Maker AutoRun] On Viewparty page. Clicking ${partyTypeName} button...`);
+        updateFloatingStatus(`OPENING ${partyTypeName} DIALOG...`);
+        await delay(1200);
+        
+        let buttonAction = null;
+        if (state === 'awaiting_executant_autofill') {
+            buttonAction = 'autofill_executants';
+        } else if (state === 'awaiting_claimant_autofill') {
+            buttonAction = 'autofill_claimant';
+        } else if (state === 'awaiting_witness1_autofill') {
+            buttonAction = 'autofill_witness1';
+        } else if (state === 'awaiting_witness2_autofill') {
+            buttonAction = 'autofill_witness2';
+        }
+        
+        // Call the specific helper based on action
+        if (buttonAction === 'autofill_executants') {
+            autofillExecutants(partyData, (response) => handleViewPartyCallback(response, partyTypeName));
+        } else if (buttonAction === 'autofill_claimant') {
+            autofillClaimant(partyData, (response) => handleViewPartyCallback(response, partyTypeName));
+        } else if (buttonAction === 'autofill_witness1') {
+            autofillWitnessN(partyData, 0, (response) => handleViewPartyCallback(response, partyTypeName));
+        } else if (buttonAction === 'autofill_witness2') {
+            autofillWitnessN(partyData, 1, (response) => handleViewPartyCallback(response, partyTypeName));
+        }
+        return;
+    }
+    
+    if (lowerUrl.includes('party/partyadd')) {
+        console.log(`[RM-Maker AutoRun] On PartyAdd page. Autofilling ${partyTypeName} details...`);
+        updateFloatingStatus(`FILLING ${partyTypeName} DETAILS...`);
+        await delay(1200);
+        
+        const onAutofillComplete = (response) => {
+            if (response.success) {
+                console.log(`[RM-Maker AutoRun] ${partyTypeName} details filled. Waiting 1.2s before clicking Save...`);
+                updateFloatingStatus(`${partyTypeName} DETAILS FILLED. SAVING...`);
+                
+                setTimeout(() => {
+                    // Save next state to storage BEFORE clicking Save button to prevent race conditions during redirect
+                    chrome.storage.local.set({ autoRunState: nextState }, () => {
+                        console.log(`[RM-Maker AutoRun] Next state saved: ${nextState}. Clicking Save button...`);
+                        
+                        // Click the Save button
+                        const saveBtn = document.getElementById('saveDetail') || 
+                                        document.querySelector('button.btn-success') || 
+                                        triggerButtonByText("Save") || 
+                                        triggerButtonByText("सहेजें");
+                                        
+                        if (saveBtn) {
+                            saveBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                            saveBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                            saveBtn.click();
+                            console.log(`[RM-Maker AutoRun] ${partyTypeName} Save button clicked. Watching for SweetAlert2 confirm...`);
+                            
+                            // Poll for SweetAlert2 OK button to dismiss alert and trigger redirect
+                            let checkCount = 0;
+                            const swalInterval = setInterval(() => {
+                                checkCount++;
+                                const okBtn = document.querySelector('button.swal2-confirm') || 
+                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' || b.textContent.trim() === 'ठीक है');
+                                if (okBtn) {
+                                    console.log('[RM-Maker AutoRun] SweetAlert2 OK button found. Clicking to trigger redirect...');
+                                    okBtn.click();
+                                    clearInterval(swalInterval);
+                                    
+                                    // If this was the last step in the party sequence, clear the autoRunState completely after redirect
+                                    if (nextState === 'flow_completed') {
+                                        setTimeout(() => {
+                                            chrome.storage.local.remove('autoRunState');
+                                            console.log('[RM-Maker AutoRun] ✅ Party details filling workflow finished!');
+                                            updateFloatingStatus('PARTY DETAILS FILL COMPLETE!');
+                                            setTimeout(() => {
+                                                const badge = document.getElementById('rm-maker-autorun-badge');
+                                                if (badge) badge.remove();
+                                            }, 4000);
+                                        }, 1500);
+                                    }
+                                }
+                                if (checkCount > 40) { // Timeout after 8 seconds (40 * 200ms)
+                                    console.warn('[RM-Maker AutoRun] SweetAlert2 OK button did not appear within timeout.');
+                                    clearInterval(swalInterval);
+                                }
+                            }, 200);
+                        } else {
+                            console.error('[RM-Maker AutoRun] Save button not found!');
+                            updateFloatingStatus('ERROR: Save button not found!');
+                        }
+                    });
+                }, 1200);
+            } else {
+                console.error(`[RM-Maker AutoRun] ${partyTypeName} details fill failed:`, response.error);
+                updateFloatingStatus(`ERROR: ${response.error}`);
+            }
+        };
+        
+        // Execute the correct form autofill helper
+        if (state === 'awaiting_executant_autofill') {
+            autofillExecutants(partyData, onAutofillComplete);
+        } else if (state === 'awaiting_claimant_autofill') {
+            autofillClaimant(partyData, onAutofillComplete);
+        } else if (state === 'awaiting_witness1_autofill') {
+            autofillWitnessN(partyData, 0, onAutofillComplete);
+        } else if (state === 'awaiting_witness2_autofill') {
+            autofillWitnessN(partyData, 1, onAutofillComplete);
+        }
+    }
+}
+
+function handleViewPartyCallback(response, partyTypeName) {
+    if (response.success) {
+        console.log(`[RM-Maker AutoRun] ${partyTypeName} modal bypass complete.`);
+        updateFloatingStatus(`${partyTypeName} BYPASSED. LOADING FORM...`);
+    } else {
+        console.error(`[RM-Maker AutoRun] ${partyTypeName} modal bypass failed:`, response.error);
+        updateFloatingStatus(`ERROR: ${response.error}`);
+    }
+}
+
+// =====================================================================
+// AUTO-RUN HELPERS
+// =====================================================================
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function waitForElement(selector, timeout = 5000) {
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(selector);
+        if (existing) {
+            resolve(existing);
+            return;
+        }
+        
+        const observer = new MutationObserver((mutations, obs) => {
+            const el = document.querySelector(selector);
+            if (el) {
+                obs.disconnect();
+                resolve(el);
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        setTimeout(() => {
+            observer.disconnect();
+            // One last check
+            const el = document.querySelector(selector);
+            if (el) resolve(el);
+            else reject(new Error(`Timeout waiting for element: ${selector}`));
+        }, timeout);
+    });
+}
+
+async function selectDistrictJaipur() {
+    // The district modal uses Select2. We need to:
+    // 1. Find and open the Select2 dropdown
+    // 2. Search for JAIPUR
+    // 3. Click it
+    
+    // Try clicking the Select2 container to open the dropdown
+    const select2Container = document.querySelector('#select2-ddlDistrict-container') ||
+                              document.querySelector('.select2-selection') ||
+                              document.querySelector('[aria-labelledby="select2-ddlDistrict-container"]');
+    
+    if (select2Container) {
+        console.log('[RM-Maker AutoRun] Found Select2 container, clicking to open...');
+        select2Container.click();
+        // Also try dispatching mousedown which Select2 listens to
+        select2Container.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        
+        await delay(600);
+        
+        // Type "JAIPUR" into the Select2 search box
+        const searchInput = document.querySelector('.select2-search__field') ||
+                           document.querySelector('input.select2-search__field');
+        if (searchInput) {
+            searchInput.value = 'JAIPUR';
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            searchInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+            await delay(800);
+        }
+        
+        // Find and click the JAIPUR option in the dropdown results
+        const options = Array.from(document.querySelectorAll('.select2-results__option'));
+        const jaipurOpt = options.find(opt => {
+            const txt = opt.textContent.toUpperCase();
+            return txt.includes('JAIPUR') || txt.includes('जयपुर');
+        });
+        
+        if (jaipurOpt) {
+            console.log('[RM-Maker AutoRun] Found JAIPUR option, clicking via mouse events...');
+            
+            // Dispatch mousedown, mouseup, and click to ensure Select2 registers the selection
+            jaipurOpt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            jaipurOpt.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            jaipurOpt.click();
+            
+            // Also sync the underlying select element directly as a fail-safe
+            const rawSelect = document.getElementById('ddlDistrict');
+            if (rawSelect) {
+                const fallbackOptions = Array.from(rawSelect.options);
+                const matchOpt = fallbackOptions.find(o => o.text.toUpperCase().includes('JAIPUR') || o.text.includes('जयपुर'));
+                if (matchOpt) {
+                    rawSelect.value = matchOpt.value;
+                    rawSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    triggerJQuerySelect('ddlDistrict', matchOpt.value);
+                }
+            }
+            
+            await delay(500);
+            
+            // Set the state in storage BEFORE triggering navigation to prevent race conditions on unload
+            return new Promise((resolve) => {
+                chrome.storage.local.set({ autoRunState: 'awaiting_property_valuation' }, () => {
+                    console.log('[RM-Maker AutoRun] Property valuation state saved to storage. Clicking navigation arrow...');
+                    
+                    // Now look for the navigation arrow or submit button
+                    const arrowBtn = document.querySelector('.login-arrow') ||
+                                    document.querySelector('a[class*="arrow"]') ||
+                                    document.querySelector('span[class*="arrow"]');
+                    if (arrowBtn) {
+                        arrowBtn.click();
+                        resolve(true);
+                    } else {
+                        // Fallback: look for any submit-like button in the modal
+                        const modalBtns = Array.from(document.querySelectorAll('.modal button, .modal a, .modal input[type="button"]'));
+                        const goBtn = modalBtns.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+                        if (goBtn) {
+                            goBtn.click();
+                            resolve(true);
+                        } else {
+                            resolve(false);
+                        }
+                    }
+                });
+            });
+        }
+    }
+    
+    // Fallback: try using the underlying <select> element directly via jQuery
+    const rawSelect = document.getElementById('ddlDistrict');
+    if (rawSelect) {
+        console.log('[RM-Maker AutoRun] Trying jQuery fallback for district select...');
+        const fallbackOptions = Array.from(rawSelect.options);
+        const jaipurOpt = fallbackOptions.find(o => o.text.toUpperCase().includes('JAIPUR') || o.text.includes('जयपुर'));
+        if (jaipurOpt) {
+            rawSelect.value = jaipurOpt.value;
+            rawSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Also trigger via page-context jQuery for Select2 binding
+            triggerJQuerySelect('ddlDistrict', jaipurOpt.value);
+            
+            await delay(500);
+            
+            return new Promise((resolve) => {
+                chrome.storage.local.set({ autoRunState: 'awaiting_property_valuation' }, () => {
+                    console.log('[RM-Maker AutoRun] Property valuation state saved via fallback. Clicking arrow...');
+                    const arrowBtn = document.querySelector('.login-arrow') ||
+                                    document.querySelector('a[class*="arrow"]');
+                    if (arrowBtn) {
+                        arrowBtn.click();
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            });
+        }
+    }
+    
+    return false;
+}
+ 
+function clickSaveButton() {
+    console.log('[RM-Maker AutoRun] Clicking Save button...');
+    
+    const saveBtn = document.getElementById('savedocument') ||
+                    document.querySelector('button.submit-btn') ||
+                    Array.from(document.querySelectorAll('button')).find(b => {
+                        const txt = b.textContent.trim();
+                        return txt === 'Save' || txt === 'सहेजें';
+                    });
+    
+    if (saveBtn) {
+        console.log('[RM-Maker AutoRun] Save button found. Clicking Save...');
+        saveBtn.click();
+        
+        // Wait for SweetAlert2 confirmation modal button (.swal2-confirm)
+        console.log('[RM-Maker AutoRun] Waiting for SweetAlert confirmation dialog...');
+        waitForElement('.swal2-confirm, button.swal2-confirm, .swal2-actions button', 10000)
+            .then((okBtn) => {
+                console.log('[RM-Maker AutoRun] SweetAlert OK button appeared. Clicking...');
+                // Set state for the CalculateDuty page that will load after OK is clicked
+                chrome.storage.local.set({ autoRunState: 'awaiting_calculate_duty' }, () => {
+                    okBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                    okBtn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+                    okBtn.click();
+                });
+            })
+            .catch(err => {
+                console.error('[RM-Maker AutoRun] SweetAlert OK button did not appear:', err);
+                // Fallback: still set the state in case it auto-navigated or did something else
+                chrome.storage.local.set({ autoRunState: 'awaiting_calculate_duty' });
+            });
+    } else {
+        console.error('[RM-Maker AutoRun] Save button not found.');
+        chrome.storage.local.remove('autoRunState');
     }
 }
