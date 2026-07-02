@@ -8,16 +8,16 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
     .builder-container { height: calc(100vh - 150px); }
-    .panel { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; height: 100%; overflow-y: auto; padding: 1rem; }
+    .panel { background: var(--theme-bg-surface); border: 1px solid var(--theme-border); border-radius: 8px; height: 100%; overflow-y: auto; padding: 1.25rem; }
     .field-list { list-style: none; padding: 0; }
-    .field-item { padding: 0.5rem; border-bottom: 1px solid #F1F5F9; cursor: pointer; transition: background 0.2s; border-radius: 4px; }
-    .field-item:hover { background: #F8FAFC; border-color: #E2E8F0; }
-    .mapping-table th { font-size: 0.75rem; text-transform: uppercase; color: #64748B; font-weight: 600; }
-    .tag-badge { font-family: 'Consolas', monospace; font-size: 0.85rem; background: #E0E7FF; color: #4338CA; padding: 0.1rem 0.4rem; border-radius: 4px; }
-    .section-header { font-size: 0.9rem; color: #1E293B; font-weight: 700; margin-top: 1rem; margin-bottom: 0.75rem; padding-bottom: 0.25rem; border-bottom: 2px solid #3B82F6; display: inline-block; }
+    .field-item { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--theme-border); cursor: pointer; transition: var(--transition-all); border-radius: 4px; }
+    .field-item:hover { background: var(--color-zinc-800); }
+    .mapping-table th { font-size: 0.72rem; text-transform: uppercase; color: var(--theme-text-secondary); font-weight: 600; letter-spacing: 0.05em; }
+    .tag-badge { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-zinc-950); color: var(--theme-accent); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid var(--theme-border); }
+    .section-header { font-size: 0.85rem; color: var(--theme-text-primary); font-weight: 700; margin-top: 1rem; margin-bottom: 0.75rem; padding-bottom: 0.25rem; border-bottom: 2px solid var(--theme-accent); display: inline-block; text-transform: uppercase; letter-spacing: 0.05em; }
   </style>
 </head>
-<body class="bg-light">
+<body>
   <div class="app-container">
     <!-- Sidebar Navigation -->
     <aside class="app-sidebar" id="appSidebar">
@@ -67,123 +67,125 @@
           <span class="breadcrumb-active">Template Builder</span>
         </div>
         <div class="header-actions">
-          <button id="uploadBtn" class="btn btn-primary btn-sm px-3">Upload DOCX</button>
-          <button id="saveBtn" class="btn btn-success btn-sm px-3" disabled>Generate Master</button>
+          <button id="uploadBtn" class="btn btn-outline-secondary btn-sm px-3">Upload DOCX</button>
+          <button id="saveBtn" class="btn btn-primary btn-sm px-3" disabled>Generate Master</button>
         </div>
       </header>
 
       <main class="app-content">
-    <div class="row g-3 builder-container">
-      <!-- Left Panel: Mode & Fields -->
-      <div class="col-md-3">
-        <div class="panel shadow-sm">
-          <h6 class="fw-bold mb-3">1. Setup Mode</h6>
-          <div class="mb-3">
-            <label class="form-label small text-muted">Template Type</label>
-            <select id="modeSelect" class="form-select form-select-sm">
-              <option value="RM">Mortgage (RM)</option>
-              <option value="SD">Sale Deed (SD)</option>
-            </select>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label small text-muted">AI Model</label>
-            <select id="modelSelect" class="form-select form-select-sm">
-              {% for m in models %}
-                <option value="{{ m }}" {% if m == 'NVIDIA Nemotron-3 550B' %}selected{% endif %}>{{ m }}</option>
-              {% endfor %}
-            </select>
+        <div class="row g-3 builder-container">
+          <!-- Left Panel: Mode & Fields -->
+          <div class="col-md-3">
+            <div class="panel shadow-sm">
+              <h6 class="fw-bold mb-3 text-zinc-200">1. Setup Mode</h6>
+              <div class="mb-3">
+                <label class="form-label small text-zinc-400">Template Type</label>
+                <select id="modeSelect" class="form-select form-select-sm">
+                  <option value="RM">Mortgage (RM)</option>
+                  <option value="SD">Sale Deed (SD)</option>
+                </select>
+              </div>
+              
+              <div class="mb-3">
+                <label class="form-label small text-zinc-400">AI Model</label>
+                <select id="modelSelect" class="form-select form-select-sm">
+                  {% for m in models %}
+                    <option value="{{ m }}" {% if m == 'NVIDIA Nemotron-3 550B' %}selected{% endif %}>{{ m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div id="fileInfo" class="alert alert-info py-2 small d-none bg-zinc-900 border-zinc-800 text-zinc-300">
+                 <span id="fileNameDisplay"></span>
+              </div>
+
+              <div class="mt-3">
+                <h6 class="section-header">Field Catalog</h6>
+                <div id="fieldCatalog" class="field-list">
+                   <!-- Dynamically filled -->
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div id="fileInfo" class="alert alert-info py-2 small d-none">
-             <i class="bi bi-file-earmark-word"></i> <span id="fileNameDisplay"></span>
-          </div>
+          <!-- Center Panel: Mapping & Workspace -->
+          <div class="col-md-9">
+            <div class="panel shadow-sm">
+               <div class="d-flex justify-content-between align-items-center mb-4">
+                  <h6 class="fw-bold mb-0 text-zinc-200">2. Mapping Workspace</h6>
+                  <div class="d-flex gap-2">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                      <input type="radio" class="btn-check" name="previewToggle" id="previewRaw" autocomplete="off" checked onclick="setPreviewMode('raw')">
+                      <label class="btn btn-outline-secondary btn-sm" for="previewRaw">Raw ASCII</label>
+                      <input type="radio" class="btn-check" name="previewToggle" id="previewHindi" autocomplete="off" onclick="setPreviewMode('hindi')">
+                      <label class="btn btn-outline-secondary btn-sm" for="previewHindi">Hindi Preview</label>
+                    </div>
+                    <button id="discoverBtn" class="btn btn-outline-primary btn-sm" disabled>🔍 Run AI Discovery</button>
+                    <button id="clearBtn" class="btn btn-outline-secondary btn-sm">Clear Workspace</button>
+                  </div>
+               </div>
+               
+               <div class="bg-zinc-950 p-3 rounded mb-4 border border-zinc-800 shadow-sm">
+                  <label class="form-label small fw-semibold text-zinc-400 mb-2">Manual Add</label>
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <input type="text" id="manualKey" class="form-control form-control-sm" placeholder="Copy-paste EXACT text from document...">
+                    </div>
+                    <div class="col-md-4">
+                      <select id="manualTag" class="form-select form-select-sm">
+                         <option value="">Choose tag...</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <button id="addMappingBtn" class="btn btn-primary btn-sm w-100">Add Mapping</button>
+                    </div>
+                  </div>
+               </div>
 
-          <div class="mt-4">
-            <h6 class="section-header">Field Catalog</h6>
-            <div id="fieldCatalog" class="field-list">
-               <!-- Dynamically filled -->
+               <div class="table-responsive border-zinc-800 shadow-sm">
+                 <div class="p-3 bg-zinc-950 border-bottom border-zinc-800 d-flex gap-2">
+                    <input type="text" id="mappingSearch" class="form-control form-control-sm" placeholder="Search mapped fields (e.g. seller, buyer)..." oninput="renderMapping()">
+                    <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="toggleUnmappedReport()">Show Unmapped Text</button>
+                 </div>
+                 
+                 <div id="unmappedReport" class="alert alert-light bg-zinc-900 border-zinc-800 d-none mb-4 p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                    <h6 class="fw-bold small text-zinc-300">Potential Unmapped Strings</h6>
+                    <div id="unmappedList" class="small text-zinc-400"></div>
+                 </div>
+
+                 <table class="table mapping-table table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Confidence</th>
+                        <th>Document String</th>
+                        <th>Jinja2 Placeholder (Quick Reassign)</th>
+                        <th class="text-end">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="mappingTbody">
+                      <tr>
+                        <td colspan="4" class="text-center py-5 text-zinc-500 small">No mappings yet. Start by uploading a document or running AI discovery.</td>
+                      </tr>
+                    </tbody>
+                 </table>
+               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Center Panel: Mapping & Workspace -->
-      <div class="col-md-9">
-        <div class="panel shadow-sm">
-           <div class="d-flex justify-content-between align-items-center mb-4">
-              <h6 class="fw-bold mb-0">2. Mapping Workspace</h6>
-              <div class="d-flex gap-2">
-                <div class="btn-group btn-group-sm me-2" role="group">
-                  <input type="radio" class="btn-check" name="previewToggle" id="previewRaw" autocomplete="off" checked onclick="setPreviewMode('raw')">
-                  <label class="btn btn-outline-secondary" for="previewRaw">Raw ASCII</label>
-                  <input type="radio" class="btn-check" name="previewToggle" id="previewHindi" autocomplete="off" onclick="setPreviewMode('hindi')">
-                  <label class="btn btn-outline-secondary" for="previewHindi">Hindi Preview</label>
-                </div>
-                <button id="discoverBtn" class="btn btn-outline-primary btn-sm" disabled>🔍 Run AI Discovery</button>
-                <button id="clearBtn" class="btn btn-outline-secondary btn-sm">Clear Workspace</button>
-              </div>
-           </div>
-           
-           <div class="bg-light p-3 rounded mb-4 border">
-              <label class="form-label small fw-bold">Manual Add</label>
-              <div class="row g-2">
-                <div class="col-md-6">
-                  <input type="text" id="manualKey" class="form-control form-control-sm" placeholder="Copy-paste EXACT text from document...">
-                </div>
-                <div class="col-md-4">
-                  <select id="manualTag" class="form-select form-select-sm">
-                     <option value="">Choose tag...</option>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <button id="addMappingBtn" class="btn btn-primary btn-sm w-100">Add Mapping</button>
-                </div>
-              </div>
-           </div>
-
-           <div class="table-responsive">
-             <div class="mb-3 d-flex gap-2">
-                <input type="text" id="mappingSearch" class="form-control form-control-sm" placeholder="Search mapped fields (e.g. seller, buyer)..." oninput="renderMapping()">
-                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="toggleUnmappedReport()">Show Unmapped Text</button>
-             </div>
-             
-             <div id="unmappedReport" class="alert alert-light border d-none mb-4" style="max-height: 200px; overflow-y: auto;">
-                <h6 class="fw-bold small">Potential Unmapped Strings</h6>
-                <div id="unmappedList" class="small text-muted"></div>
-             </div>
-
-             <table class="table table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>Confidence</th>
-                    <th>Document String</th>
-                    <th>Jinja2 Placeholder (Quick Reassign)</th>
-                    <th class="text-end">Action</th>
-                  </tr>
-                </thead>
-                <tbody id="mappingTbody">
-                  <tr>
-                    <td colspan="4" class="text-center py-5 text-muted small">No mappings yet. Start by uploading a document or running AI discovery.</td>
-                  </tr>
-                </tbody>
-             </table>
-           </div>
-        </div>
-      </div>
+      </main>
     </div>
-  </main>
+  </div>
 
   <!-- Context Modal -->
   <div class="modal fade" id="contextModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Document Context</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <div class="modal-content border-zinc-800">
+        <div class="modal-header border-bottom border-zinc-800 bg-zinc-950">
+          <h5 class="modal-title text-zinc-50 fs-6">Document Context</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
-          <div id="contextContent" class="p-3 bg-light border rounded font-monospace" style="white-space: pre-wrap; line-height: 1.6;"></div>
+        <div class="modal-body bg-zinc-900">
+          <div id="contextContent" class="p-3 bg-zinc-950 border border-zinc-800 rounded font-monospace text-zinc-300 small" style="white-space: pre-wrap; line-height: 1.6;"></div>
         </div>
       </div>
     </div>
@@ -230,12 +232,10 @@
       fieldCatalog.innerHTML = '';
       manualTag.innerHTML = '<option value="">Choose tag...</option>';
 
-
-      
       fields.forEach(f => {
         const div = document.createElement('div');
         div.className = 'field-item small mb-1';
-        div.innerHTML = `<strong>${f[0]}</strong> <br><span class="text-muted" style="font-size:0.75rem">${f[1]}</span>`;
+        div.innerHTML = `<strong>${f[0]}</strong> <br><span class="text-zinc-500" style="font-size:0.75rem">${f[1]}</span>`;
         div.onclick = () => {
           manualTag.value = f[1];
           manualKey.focus();
@@ -247,7 +247,7 @@
         opt.textContent = `${f[1]} - ${f[0]}`;
         manualTag.appendChild(opt);
       });
-      renderMapping(); // Refresh reassign dropdowns if mode changed
+      renderMapping();
     }
 
     modeSelect.onchange = updateCatalog;
@@ -298,7 +298,7 @@
       );
 
       if (keys.length === 0) {
-        mappingTbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted small">No mappings yet. Start by uploading a document or running AI discovery.</td></tr>';
+        mappingTbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-zinc-500 small">No mappings yet. Start by uploading a document or running AI discovery.</td></tr>';
         return;
       }
 
@@ -326,14 +326,14 @@
         selectHtml += `</select>`;
 
         tr.innerHTML = `
-          <td><span class="badge bg-${conf.color} small" title="Confidence: ${conf.label}">${conf.icon} ${conf.label}</span></td>
+          <td><span class="badge bg-${conf.color === 'danger' ? 'danger' : (conf.color === 'success' ? 'success' : 'warning')} small" title="Confidence: ${conf.label}">${conf.icon} ${conf.label}</span></td>
           <td class="small">
-            <span class="fw-bold">${displayText}</span>
-            ${previewMode === 'hindi' ? `<br><span class="text-muted" style="font-size:0.7rem">Raw: ${k}</span>` : ''}
+            <span class="fw-bold text-zinc-200">${displayText}</span>
+            ${previewMode === 'hindi' ? `<br><span class="text-zinc-500" style="font-size:0.7rem">Raw: ${k}</span>` : ''}
           </td>
           <td>${selectHtml}</td>
           <td class="text-end">
-            <button class="btn btn-sm text-danger" onclick="removeMapping(\`${k.replace(/`/g, '\\`')}\`)">Remove</button>
+            <button class="btn btn-link btn-sm text-danger text-decoration-none" onclick="removeMapping(\`${k.replace(/`/g, '\\`')}\`)">Remove</button>
           </td>
         `;
         mappingTbody.appendChild(tr);
@@ -380,7 +380,7 @@
         }
         
         document.getElementById('contextContent').innerHTML = 
-            `...${before}<mark class="bg-warning px-1 rounded">${match}</mark>${after}...`;
+            `...<mark class="bg-warning text-dark px-1 rounded">${match}</mark>${after}...`;
         
         const modal = new bootstrap.Modal(document.getElementById('contextModal'));
         modal.show();
@@ -402,7 +402,7 @@
         const chunks = tempText.split("\n").filter(c => c.trim().length > 10 && !c.includes("[MAPPED]"));
         unmappedList.innerHTML = chunks.map(c => {
             const display = previewMode === 'hindi' ? devlysToUnicode(c) : c;
-            return `<div class="mb-2 border-bottom pb-1">${display}</div>`;
+            return `<div class="mb-2 border-bottom border-zinc-800 pb-1">${display}</div>`;
         }).join('') || "No significant unmapped chunks found.";
         
         unmappedReport.classList.remove('d-none');
@@ -509,10 +509,6 @@
       }
     };
   </script>
-      </main>
-    </div>
-  </div>
-  
   <script>
     function toggleSidebar() {
       const sidebar = document.getElementById('appSidebar');
@@ -525,7 +521,7 @@
     document.addEventListener("DOMContentLoaded", function() {
       gsap.defaults({ overwrite: "auto" });
       
-      gsap.from(".card", {
+      gsap.from(".panel", {
         y: 20,
         opacity: 0,
         duration: 0.6,
