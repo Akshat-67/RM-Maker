@@ -935,10 +935,14 @@
                 
                 <!-- Generated Draft Tab Pane -->
                 <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="generated-draft" role="tabpanel" aria-labelledby="draft-tab">
-                    <div class="flex-grow-1 d-flex align-items-center justify-content-center text-muted p-4 bg-light border rounded">
-                        <div class="text-center">
+                    <div class="d-flex justify-content-between align-items-center bg-light border-bottom p-2 flex-shrink-0">
+                        <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
+                        <button class="btn btn-xs btn-primary py-0.5 px-2.5 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
+                    </div>
+                    <div class="flex-grow-1 p-3 overflow-y-auto bg-white border rounded" id="draftPreviewContent" style="min-height: 0; font-family: 'Segoe UI', 'Mangal';">
+                        <div class="text-center text-muted py-5">
                             <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
-                            <span class="small">Once generated, your final draft document will appear here.</span>
+                            <span class="small">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
                         </div>
                     </div>
                 </div>
@@ -1906,7 +1910,7 @@
         document.getElementById('node_reg_no').value = event.reg_no || event.r_no || '';
         document.getElementById('node_bahi_no').value = event.reg_book || event.b_no || '';
         document.getElementById('node_volume_no').value = event.reg_vol || event.v_no || '';
-        document.getElementById('node_page_range').value = event.page_range || event.p_no || '';
+        document.getElementById('node_page_range').value = event.reg_add_page || event.additional_page_range || event.page_range || event.p_no || '';
         document.getElementById('node_consideration').value = event.consideration_amount || event.consideration || '';
     }
 
@@ -1928,8 +1932,12 @@
         titleChainEvents[idx].b_no = document.getElementById('node_bahi_no').value;
         titleChainEvents[idx].reg_vol = document.getElementById('node_volume_no').value;
         titleChainEvents[idx].v_no = document.getElementById('node_volume_no').value;
-        titleChainEvents[idx].page_range = document.getElementById('node_page_range').value;
-        titleChainEvents[idx].p_no = document.getElementById('node_page_range').value;
+        
+        const pageRangeValue = document.getElementById('node_page_range').value;
+        titleChainEvents[idx].reg_add_page = pageRangeValue;
+        titleChainEvents[idx].additional_page_range = pageRangeValue;
+        titleChainEvents[idx].page_range = pageRangeValue;
+        titleChainEvents[idx].p_no = pageRangeValue;
         titleChainEvents[idx].consideration_amount = document.getElementById('node_consideration').value;
         titleChainEvents[idx].consideration = document.getElementById('node_consideration').value;
         
@@ -2027,6 +2035,122 @@
 
     // Call loadTimelineEvents on initialization
     loadTimelineEvents();
+
+    function refreshDraftPreview() {
+        const contentDiv = document.getElementById('draftPreviewContent');
+        if (!contentDiv) return;
+        
+        contentDiv.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="ms-2 small text-muted">Compiling live template draft...</span>
+            </div>
+        `;
+        
+        const data = collectFieldData();
+        const verified = collectVerifiedFields();
+        const docType = document.getElementById('docTypeSelect').value;
+        
+        fetch(`/case/${CASE_ID}/preview_draft`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                doc_type: docType,
+                bank: document.getElementById('bankSelect')?.value || '',
+                borrowers: document.getElementById('borrowerSelect')?.value || '1',
+                loans: document.getElementById('loanSelect')?.value || '1',
+                properties: document.getElementById('propertiesSelect')?.value || '1',
+                sellers_count: document.getElementById('sellersSelect')?.value || '1',
+                buyers_count: document.getElementById('buyersSelect')?.value || '1',
+                property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
+                selected_template: customTemplateFilename,
+                data: data,
+                verified_fields: verified
+            })
+        })
+        .then(r => r.json())
+        .then(resp => {
+            if (resp.success) {
+                contentDiv.innerHTML = resp.preview_html;
+            } else {
+                contentDiv.innerHTML = `<div class="alert alert-danger small p-2 m-2">Preview failed: ${resp.error}</div>`;
+            }
+        })
+        .catch(e => {
+            contentDiv.innerHTML = `<div class="alert alert-danger small p-2 m-2">Error: ${e}</div>`;
+        });
+    }
+
+    // Automatically trigger preview when switching to the draft tab
+    window.addEventListener('DOMContentLoaded', () => {
+        const draftTab = document.getElementById('draft-tab');
+        if (draftTab) {
+            draftTab.addEventListener('shown.bs.tab', () => {
+                // Auto-generate if it still has placeholder
+                if (document.getElementById('draftPreviewContent').querySelector('.spinner-border') === null) {
+                    refreshDraftPreview();
+                }
+            });
+        }
+    });
+
+    function refreshDraftPreview() {
+        const contentDiv = document.getElementById('draftPreviewContent');
+        if (!contentDiv) return;
+        
+        contentDiv.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="ms-2 small text-muted">Compiling live template draft...</span>
+            </div>
+        `;
+        
+        const data = collectFieldData();
+        const verified = collectVerifiedFields();
+        const docType = document.getElementById('docTypeSelect').value;
+        
+        fetch(`/case/${CASE_ID}/preview_draft`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                doc_type: docType,
+                bank: document.getElementById('bankSelect')?.value || '',
+                borrowers: document.getElementById('borrowerSelect')?.value || '1',
+                loans: document.getElementById('loanSelect')?.value || '1',
+                properties: document.getElementById('propertiesSelect')?.value || '1',
+                sellers_count: document.getElementById('sellersSelect')?.value || '1',
+                buyers_count: document.getElementById('buyersSelect')?.value || '1',
+                property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
+                selected_template: customTemplateFilename,
+                data: data,
+                verified_fields: verified
+            })
+        })
+        .then(r => r.json())
+        .then(resp => {
+            if (resp.success) {
+                contentDiv.innerHTML = resp.preview_html;
+            } else {
+                contentDiv.innerHTML = `<div class="alert alert-danger small p-2 m-2">Preview failed: ${resp.error}</div>`;
+            }
+        })
+        .catch(e => {
+            contentDiv.innerHTML = `<div class="alert alert-danger small p-2 m-2">Error: ${e}</div>`;
+        });
+    }
+
+    // Automatically trigger preview when switching to the draft tab
+    window.addEventListener('DOMContentLoaded', () => {
+        const draftTab = document.getElementById('draft-tab');
+        if (draftTab) {
+            draftTab.addEventListener('shown.bs.tab', () => {
+                // Auto-generate if it still has placeholder
+                if (document.getElementById('draftPreviewContent').querySelector('.spinner-border') === null) {
+                    refreshDraftPreview();
+                }
+            });
+        }
+    });
     // Default step routing based on data existence with localStorage fallback
     const DEFAULT_STEP = {% if data %}2{% else %}1{% endif %};
     window.addEventListener('DOMContentLoaded', () => {
