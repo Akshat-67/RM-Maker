@@ -37,7 +37,7 @@ def prune_sd_data(data):
     cleaned = {}
     
     # Keep only SD allowed fields (including both backend aliases and frontend keys)
-    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "title_chain", "reg", "unassigned_aadhars", "sellers", "buyers", "chain", "chain_text", "payments", "seller_label", "buyer_label"]
+    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "title_chain", "reg", "unassigned_aadhars", "sellers", "buyers", "chain", "chain_text", "payments", "seller_label", "buyer_label", "chain_is_manual"]
     for k in sd_keys:
         if k in data:
             cleaned[k] = data[k]
