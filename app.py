@@ -1741,6 +1741,27 @@ def delete_case(case_id):
         shutil.rmtree(case_path)
     return redirect(url_for("dashboard"))
 
+@app.route("/case/<case_id>/file/<path:filename>")
+def serve_case_file(case_id, filename):
+    from flask import send_from_directory
+    safe_case_id = os.path.basename(case_id)
+    case_dir = os.path.abspath(os.path.join(CASES_DIR, safe_case_id))
+    search_dirs = [
+        os.path.join(case_dir, "buckets", "kyc"),
+        os.path.join(case_dir, "buckets", "legal"),
+        os.path.join(case_dir, "buckets", "ats"),
+        os.path.join(case_dir, "buckets", "title_chain"),
+        os.path.join(case_dir, "buckets", "ocr"),
+        os.path.join(case_dir, "files"),
+        os.path.join(case_dir, "legal_reports"),
+        case_dir
+    ]
+    for directory in search_dirs:
+        file_path = os.path.join(directory, os.path.basename(filename))
+        if os.path.exists(file_path):
+            return send_from_directory(directory, os.path.basename(filename))
+    return "File not found", 404
+
 @app.route("/case/<case_id>/delete_file", methods=["POST"])
 def delete_case_file(case_id):
     session = load_case_session(case_id)

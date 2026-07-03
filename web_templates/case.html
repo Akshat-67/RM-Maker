@@ -236,342 +236,453 @@
             top: 1rem;
             z-index: 10;
         }
+
+        /* Top Control Bar and Split Screen Styles */
+        body {
+            background-color: #F5F5F7;
+            color: #1D1D1F;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+        .navbar {
+            flex-shrink: 0;
+        }
+        #top-control-bar {
+            flex-shrink: 0;
+            background-color: #ffffff;
+            border-bottom: 1px solid #E5E5E0;
+        }
+        .split-workspace {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+            background-color: #FBFBF9;
+            height: calc(100vh - 180px); /* fallback */
+        }
+        .preview-pane {
+            width: 50%;
+            border-right: 1px solid #E5E5E0;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #ffffff;
+            height: 100%;
+        }
+        .editor-pane {
+            width: 50%;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            background-color: #FBFBF9;
+            height: 100%;
+        }
+        .preview-tabs {
+            border-bottom: 1px solid #E5E5E0;
+            margin-bottom: 0.75rem;
+        }
+        .preview-tabs .nav-link {
+            border: none;
+            color: #86868B;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+        }
+        .preview-tabs .nav-link.active {
+            color: #1D1D1F;
+            background: none;
+            border-bottom: 2px solid #8E3AC4;
+        }
+        .preview-scroll-container {
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            gap: 0.5rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+            align-items: center;
+        }
+        .preview-scroll-container::-webkit-scrollbar {
+            height: 4px;
+        }
+        .preview-scroll-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 4px;
+        }
+        .file-preview-btn {
+            transition: all 0.2s ease;
+        }
+        .file-preview-btn.active-preview {
+            background-color: #0284c7 !important;
+            color: #ffffff !important;
+            border-color: #0284c7 !important;
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark px-4">
-        <span class="navbar-brand mb-0 h1">LegalDoc Automator Pro</span>
-        <div class="d-flex">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
-            <button class="btn btn-outline-light btn-sm" onclick="saveCase()">💾 Save Workspace</button>
+    <!-- Top Header Navbar -->
+    <nav class="navbar navbar-dark bg-dark px-4 py-2">
+        <span class="navbar-brand mb-0 h1" style="font-size: 1.15rem;">⚖️ LegalDoc Automator Pro</span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-light-50 small" style="font-size: 0.82rem; color: #a1a1aa;">Case: <strong>{{ case_id }}</strong></span>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm px-2.5 py-1">Back to Dashboard</a>
+            <button class="btn btn-primary btn-sm px-3 py-1 fw-bold" onclick="saveCase()">💾 Save Progress</button>
         </div>
     </nav>
 
-    <div class="container-fluid mt-3 px-3">
-        <div class="row g-3">
-            <!-- LEFT PANEL: Settings -->
-            <div class="col-lg-4 col-xl-3">
-                <div class="card shadow-sm border-0 mb-3">
-                    <div class="card-body">
-                        <h5 class="card-title section-title">1. Workspace Type</h5>
-                        
-                        <label class="form-label fw-bold mt-2">Document Type:</label>
-                        <select class="form-select border-2 border-primary" id="docTypeSelect" onchange="onDocTypeChange()">
+    <!-- Top Horizontal Settings & Upload Bar -->
+    <div class="container-fluid py-2" id="top-control-bar">
+        <div class="row g-2 align-items-stretch">
+            
+            <!-- Col 1: Case Type & Config -->
+            <div class="col-md-2 border-end pe-2">
+                <div class="d-flex flex-column gap-1 h-100 justify-content-between">
+                    <div>
+                        <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.72rem; line-height: 1;">Case Mode</label>
+                        <select class="form-select form-select-sm py-0.5" id="docTypeSelect" onchange="onDocTypeChange()" style="font-size: 0.76rem; height: 26px;">
                             <option value="RM" {% if doc_type == 'RM' %}selected{% endif %}>Registered Mortgage (RM)</option>
                             <option value="SD" {% if doc_type == 'SD' %}selected{% endif %}>Sale Deed (SD - Hindi)</option>
                         </select>
-
-                        <!-- RM Only Settings Block -->
-                        <div id="rmSettingsBlock" {% if doc_type == 'SD' %}style="display:none;"{% endif %}>
-                            <label class="form-label fw-bold mt-3">Select Bank:</label>
-                            <select class="form-select" id="bankSelect" onchange="onBankChange()">
-                                <option value="">-- Select Bank --</option>
-                                {% for bank in banks %}
-                                <option value="{{ bank }}" {% if bank == selected_bank %}selected{% endif %}>{{ bank }}</option>
-                                {% endfor %}
-                            </select>
-
-                            <label class="form-label fw-bold mt-3">Borrower Count:</label>
-                            <select class="form-select" id="borrowerSelect" onchange="onBorrowerChange()">
-                                <option value="1" {% if selected_borrower == '1' %}selected{% endif %}>1</option>
-                                <option value="2" {% if selected_borrower == '2' %}selected{% endif %}>2</option>
-                                <option value="3" {% if selected_borrower == '3' %}selected{% endif %}>3</option>
-                            </select>
-
-                            <label class="form-label fw-bold mt-3">Sanction/Loan Count:</label>
-                            <select class="form-select" id="loanSelect" onchange="onLoanChange()">
-                                <option value="1" {% if selected_loan == '1' %}selected{% endif %}>1</option>
-                                <option value="2" {% if selected_loan == '2' %}selected{% endif %}>2</option>
-                                <option value="3" {% if selected_loan == '3' %}selected{% endif %}>3</option>
-                            </select>
-
-                            <label class="form-label fw-bold mt-3">Properties Count:</label>
-                            <select class="form-select" id="propertiesSelect" onchange="onPropertiesChange()">
-                                <option value="1" {% if selected_properties == '2' %}{% else %}selected{% endif %}>1</option>
-                                <option value="2" {% if selected_properties == '2' %}selected{% endif %}>2</option>
-                            </select>
-                        </div>
-
-                        <!-- SD Only Settings Block -->
-                        <div id="sdSettingsBlock" {% if doc_type == 'RM' %}style="display:none;"{% endif %}>
-                            <label class="form-label fw-bold mt-3">Sellers Count:</label>
-                            <select class="form-select" id="sellersSelect" onchange="onSellersChange()">
-                                <option value="1" {% if selected_sellers == '1' %}selected{% endif %}>1</option>
-                                <option value="2" {% if selected_sellers == '2' %}selected{% endif %}>2</option>
-                                <option value="3" {% if selected_sellers == '3' %}selected{% endif %}>3</option>
-                            </select>
-
-                            <label class="form-label fw-bold mt-3">Buyers Count:</label>
-                            <select class="form-select" id="buyersSelect" onchange="onBuyersChange()">
-                                <option value="1" {% if selected_buyers == '1' %}selected{% endif %}>1</option>
-                                <option value="2" {% if selected_buyers == '2' %}selected{% endif %}>2</option>
-                                <option value="3" {% if selected_buyers == '3' %}selected{% endif %}>3</option>
-                            </select>
-
-                            <label class="form-label fw-bold mt-3">Property Type:</label>
-                            <select class="form-select" id="propertyTypeSelect" onchange="onPropertyTypeChange()">
-                                <option value="Plot" {% if property_type == 'Plot' or not property_type %}selected{% endif %}>Plot (भूखण्ड)</option>
-                                <option value="Flat" {% if property_type == 'Flat' %}selected{% endif %}>Flat (फ्लैट / अपार्टमेन्ट)</option>
-                            </select>
-                        </div>
-
-                        <!-- Document Template Block -->
-                        <div>
-                            <h5 class="card-title section-title mt-4">2. Document Template</h5>
-                            
-                            <div class="dropdown w-100 mb-2" id="doc_template_dropdown_container">
-                                <button class="form-select form-select-sm text-start w-100 d-flex justify-content-between align-items-center" 
-                                        type="button" 
-                                        id="doc_template_btn" 
-                                        data-bs-toggle="dropdown" 
-                                        aria-expanded="false"
-                                        style="background-image: none; padding-right: 0.75rem; font-size: 0.85rem;">
-                                    <span class="text-truncate" id="doc_template_label">Auto-Select Template</span>
-                                    <span class="dropdown-caret small text-muted">▼</span>
-                                </button>
-                                <div class="dropdown-menu shadow-lg p-2 w-100" 
-                                     aria-labelledby="doc_template_btn"
-                                     style="max-height: 300px; overflow-y: auto; min-width: 320px; font-size: 0.85rem;">
-                                    <input type="text" 
-                                           class="form-control form-control-sm mb-2" 
-                                           id="doc_template_search_input" 
-                                           placeholder="Search templates..."
-                                           oninput="filterDocTemplateDropdown()"
-                                           onkeydown="handleDocTemplateKeydown(event)"
-                                           onclick="event.stopPropagation()">
-                                    <div id="doc_template_options_list">
-                                        <button type="button" class="dropdown-item rounded py-1 px-2 mb-1 doc-template-option-btn active" 
-                                                data-filename="" 
-                                                onclick="selectDocTemplate('', 'Auto-Select Template')">
-                                            <div class="fw-bold">Auto-Select Template</div>
-                                            <div class="text-wrap text-muted small" style="font-size: 0.74rem;">Let system choose based on settings</div>
-                                        </button>
-                                        {% for temp in templates_list %}
-                                        <button type="button" class="dropdown-item rounded py-1.5 px-2 mb-1 doc-template-option-btn" 
-                                                data-filename="{{ temp }}" 
-                                                onclick="selectDocTemplate('{{ temp }}', '{{ temp }}')">
-                                            <div class="fw-bold text-wrap text-start" style="line-height: 1.2; font-size: 0.82rem;">{{ temp }}</div>
-                                        </button>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mb-2">
-                                <label class="form-label fw-bold small text-muted mb-1">Or upload custom (.docx):</label>
-                                <input type="file" class="form-control form-control-sm" id="templateFile" accept=".docx">
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div id="templateDisplay" class="text-success small fw-bold">Auto-selecting...</div>
-                                <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-bold" id="clearCustomTemplateBtn" onclick="clearTemplate()" style="font-size: 0.72rem; display: none;">Clear Choice</button>
-                            </div>
-                        </div>
-
-
-                        <!-- Document Upload Area -->
-                        {% if doc_type == 'SD' %}
-                        <div id="sdUploadBuckets">
-                            
-                            <!-- KYC Documents -->
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="fw-bold m-0 small text-dark">KYC Documents (Aadhaar/PAN)</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_kyc" onclick="startAIForBucket('kyc', this)" {% if not buckets.get('kyc') %}disabled title="No files uploaded"{% endif %}>⚡ Extract KYC</button>
-                                </div>
-                                <p class="text-muted small mb-1" style="font-size: 0.75rem;">Extracts names, ages, addresses.</p>
-                                <div class="drop-zone mb-2" onclick="document.getElementById('kycFiles').click()" style="padding: 10px; min-height: 40px;">
-                                    <span class="drop-zone-text text-muted small">Click or Drag & Drop</span>
-                                    <input type="file" id="kycFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'kyc')" onclick="event.stopPropagation()">
-                                </div>
-                                <ul class="list-group list-group-flush" id="kycFileList">
-                                    {% for f in buckets.get('kyc', []) %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'kyc')" aria-label="Delete file"></button>
-                                    </li>
+                    </div>
+                    
+                    <!-- RM Settings -->
+                    <div id="rmSettingsBlock" {% if doc_type == 'SD' %}style="display:none;"{% endif %}>
+                        <div class="row g-1">
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Bank</label>
+                                <select class="form-select form-select-sm py-0.5" id="bankSelect" onchange="onBankChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="">-- Bank --</option>
+                                    {% for bank in banks %}
+                                    <option value="{{ bank }}" {% if bank == selected_bank %}selected{% endif %}>{{ bank }}</option>
                                     {% endfor %}
-                                </ul>
+                                </select>
                             </div>
- 
-                            <!-- Legal & Technical Reports -->
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="fw-bold m-0 small text-dark">Legal & Technical Reports</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_legal" onclick="startAIForBucket('legal', this, {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}true{% else %}false{% endif %})" {% if not buckets.get('legal') %}disabled title="No files uploaded"{% endif %}>
-                                        {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}
-                                            ⚡ Re-generate Chain Narrative
-                                        {% else %}
-                                            ⚡ Extract Legal
-                                        {% endif %}
-                                    </button>
-                                </div>
-                                <p class="text-muted small mb-1" style="font-size: 0.75rem;">Primary source for Property & Title Chain.</p>
-                                <div class="drop-zone mb-2" onclick="document.getElementById('legalFiles').click()" style="padding: 10px; min-height: 40px;">
-                                    <span class="drop-zone-text text-muted small">Click or Drag & Drop</span>
-                                    <input type="file" id="legalFiles" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'legal')" onclick="event.stopPropagation()">
-                                </div>
-                                <ul class="list-group list-group-flush" id="legalFileList">
-                                    {% for f in buckets.get('legal', []) %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'legal')" aria-label="Delete file"></button>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Borrowers</label>
+                                <select class="form-select form-select-sm py-0.5" id="borrowerSelect" onchange="onBorrowerChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="1" {% if selected_borrower == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if selected_borrower == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if selected_borrower == '3' %}selected{% endif %}>3</option>
+                                </select>
                             </div>
- 
-                            <!-- ATS Documents -->
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="fw-bold m-0 small text-dark">ATS Documents</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_ats" onclick="startAIForBucket('ats', this)" {% if not buckets.get('ats') %}disabled title="No files uploaded"{% endif %}>⚡ Extract ATS</button>
-                                </div>
-                                <p class="text-muted small mb-1" style="font-size: 0.75rem;">Primary source for Sale Consideration.</p>
-                                <div class="drop-zone mb-2" onclick="document.getElementById('atsFiles').click()" style="padding: 10px; min-height: 40px;">
-                                    <span class="drop-zone-text text-muted small">Click or Drag & Drop</span>
-                                    <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')" onclick="event.stopPropagation()">
-                                </div>
-                                <ul class="list-group list-group-flush" id="atsFileList">
-                                    {% for f in buckets.get('ats', []) %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ats')" aria-label="Delete file"></button>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Loans</label>
+                                <select class="form-select form-select-sm py-0.5" id="loanSelect" onchange="onLoanChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="1" {% if selected_loan == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if selected_loan == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if selected_loan == '3' %}selected{% endif %}>3</option>
+                                </select>
                             </div>
- 
-                            <!-- Title Chain Documents -->
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="fw-bold m-0 small text-dark">Title Chain Documents / Site Plan</h6>
-                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 fw-bold" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this, {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}true{% else %}false{% endif %})" {% if not buckets.get('title_chain') %}disabled title="No files uploaded"{% endif %}>
-                                        {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}
-                                            ⚡ Re-generate Chain Narrative
-                                        {% else %}
-                                            ⚡ Extract Chain
-                                        {% endif %}
-                                    </button>
-                                </div>
-                                <p class="text-muted small mb-1" style="font-size: 0.75rem;">Extracts site plan dimensions.</p>
-                                <div class="drop-zone mb-2" onclick="document.getElementById('titleFiles').click()" style="padding: 10px; min-height: 40px;">
-                                    <span class="drop-zone-text text-muted small">Click or Drag & Drop</span>
-                                    <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')" onclick="event.stopPropagation()">
-                                </div>
-                                <ul class="list-group list-group-flush" id="titleFileList">
-                                    {% for f in buckets.get('title_chain', []) %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'title_chain')" aria-label="Delete file"></button>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Properties</label>
+                                <select class="form-select form-select-sm py-0.5" id="propertiesSelect" onchange="onPropertiesChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="1" {% if selected_properties == '2' %}{% else %}selected{% endif %}>1</option>
+                                    <option value="2" {% if selected_properties == '2' %}selected{% endif %}>2</option>
+                                </select>
                             </div>
- 
-                            <!-- OCR / Manual Documents -->
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <h6 class="fw-bold mb-1 small text-dark">OCR / Manual Documents</h6>
-                                <p class="text-muted small mb-1" style="font-size: 0.75rem;">Reference only. Not extracted automatically.</p>
-                                <div class="drop-zone mb-2" onclick="document.getElementById('ocrFiles').click()" style="padding: 10px; min-height: 40px;">
-                                    <span class="drop-zone-text text-muted small">Click or Drag & Drop</span>
-                                    <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')" onclick="event.stopPropagation()">
-                                </div>
-                                <ul class="list-group list-group-flush" id="ocrFileList">
-                                    {% for f in buckets.get('ocr', []) %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}', 'ocr')" aria-label="Delete file"></button>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
- 
-                            <!-- Legacy Files Display (for older cases) -->
-                            {% if files and files|length > 0 %}
-                            <div class="mb-3 border rounded p-2 bg-light">
-                                <h6 class="fw-bold mb-1 small text-dark">Other Case Documents</h6>
-                                <ul class="list-group list-group-flush" id="legacyFileList">
-                                    {% for f in files %}
-                                    <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                        <span class="text-truncate" style="max-width: 85%;">{{ f | basename }}</span>
-                                        <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file"></button>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            {% endif %}
                         </div>
-                        {% else %}
-                        <!-- Original Generic Upload for RM -->
-                        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
-                            <h5 class="card-title section-title my-0">3. Upload KYC Documents</h5>
-                            {% if files and files|length > 0 %}
-                            <div>
-                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none me-2 fw-bold" onclick="toggleAllFiles(true)" style="font-size: 0.72rem; color: #0d6efd;">Select All</button>
-                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold" onclick="toggleAllFiles(false)" style="font-size: 0.72rem; color: #dc3545;">Deselect All</button>
+                    </div>
+
+                    <!-- SD Settings -->
+                    <div id="sdSettingsBlock" {% if doc_type == 'RM' %}style="display:none;"{% endif %}>
+                        <div class="row g-1">
+                            <div class="col-4">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Sellers</label>
+                                <select class="form-select form-select-sm py-0.5" id="sellersSelect" onchange="onSellersChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="1" {% if selected_sellers == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if selected_sellers == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if selected_sellers == '3' %}selected{% endif %}>3</option>
+                                </select>
                             </div>
-                            {% endif %}
+                            <div class="col-4">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Buyers</label>
+                                <select class="form-select form-select-sm py-0.5" id="buyersSelect" onchange="onBuyersChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.3rem;">
+                                    <option value="1" {% if selected_buyers == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if selected_buyers == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if selected_buyers == '3' %}selected{% endif %}>3</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.68rem; line-height: 1;">Prop Type</label>
+                                <select class="form-select form-select-sm py-0.5" id="propertyTypeSelect" onchange="onPropertyTypeChange()" style="font-size: 0.72rem; height: 24px; padding: 0.1rem 0.2rem;">
+                                    <option value="Plot" {% if property_type == 'Plot' or not property_type %}selected{% endif %}>Plot</option>
+                                    <option value="Flat" {% if property_type == 'Flat' %}selected{% endif %}>Flat</option>
+                                </select>
+                            </div>
                         </div>
-                        <div id="dropZone" class="drop-zone mb-2" onclick="document.getElementById('docFiles').click()">
-                            <span class="drop-zone-text text-muted small">Drag & Drop Aadhaar/PAN Here or Click to Upload</span>
-                            <input type="file" id="docFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleFileSelect(this)" onclick="event.stopPropagation()">
-                        </div>
-                        <ul class="list-group list-group-flush" id="fileList">
-                            {% for f in files %}
-                            <li class="list-group-item small d-flex justify-content-between align-items-center py-1 px-2">
-                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
-                                    <input type="checkbox" class="form-check-input me-2 file-select-checkbox" data-filename="{{ f | basename }}" checked>
-                                    <span class="text-truncate">{{ f | basename }}</span>
-                                </div>
-                                <button type="button" class="btn-close" style="font-size: 0.5rem; padding: 0.2rem;" onclick="deleteFile('{{ f | basename }}')" aria-label="Delete file"></button>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-
-
-                        <h5 class="card-title section-title mt-4">4. AI Configuration</h5>
-                        <label class="form-label fw-bold">AI Model:</label>
-                        <div class="input-group input-group-sm mb-3">
-                            <select class="form-select" id="modelSelect">
-                                <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
-                                <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                            </select>
-                            <button class="btn btn-outline-secondary" type="button" onclick="loadModels()" aria-label="Refresh AI models" title="Refresh AI models">🔄</button>
-                        </div>
-
-                        {% if doc_type != 'SD' %}
-                        <button class="btn btn-primary w-100 mt-2 fw-bold shadow-sm" id="startAiBtn" onclick="startAI()">🤖 Start AI Automation</button>
-                        {% endif %}
-                        <div id="statusMsg" class="small text-muted mt-2">Ready</div>
-
                     </div>
                 </div>
             </div>
 
-            <!-- RIGHT PANEL: Verification & Editing -->
-            <div class="col-lg-8 col-xl-9">
-                <div class="card shadow-sm border-0">
-                    <div class="card-body">
-                        <h4 class="mb-3 d-flex justify-content-between align-items-center">
-                            <span>Case Verification & Workspace Editor</span>
-                            <div>
-                                <span class="badge bg-info text-dark" id="devlysBadge" style="display: none; margin-right: 5px;">DEVLYS MODE ON</span>
-                                <span class="badge bg-warning text-dark" id="transliterationBadge" style="display: none; margin-right: 5px;">ITRANS HINDI ON</span>
-                                <span class="badge bg-secondary fs-6">{{ doc_type }} Case Mode</span>
+            <!-- Col 2: Template Selection -->
+            <div class="col-md-2 border-end pe-2">
+                <div class="d-flex flex-column gap-1 h-100 justify-content-between">
+                    <div>
+                        <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.72rem; line-height: 1;">Word Template (.docx)</label>
+                        <div class="dropdown w-100" id="doc_template_dropdown_container">
+                            <button class="form-select form-select-sm text-start w-100 d-flex justify-content-between align-items-center py-0.5" 
+                                    type="button" 
+                                    id="doc_template_btn" 
+                                    data-bs-toggle="dropdown" 
+                                    aria-expanded="false"
+                                    style="background-image: none; padding-right: 0.5rem; font-size: 0.76rem; height: 26px;">
+                                <span class="text-truncate" id="doc_template_label">Auto-Select Template</span>
+                                <span class="dropdown-caret small text-muted">▼</span>
+                            </button>
+                            <div class="dropdown-menu shadow-lg p-2" 
+                                 aria-labelledby="doc_template_btn"
+                                 style="max-height: 200px; overflow-y: auto; min-width: 280px; font-size: 0.78rem;">
+                                <input type="text" 
+                                       class="form-control form-control-sm mb-2" 
+                                       id="doc_template_search_input" 
+                                       placeholder="Search templates..."
+                                       oninput="filterDocTemplateDropdown()"
+                                       onkeydown="handleDocTemplateKeydown(event)"
+                                       onclick="event.stopPropagation()">
+                                <div id="doc_template_options_list">
+                                    <button type="button" class="dropdown-item rounded py-1 px-2 mb-1 doc-template-option-btn active" 
+                                            data-filename="" 
+                                            onclick="selectDocTemplate('', 'Auto-Select Template')">
+                                        <div class="fw-bold">Auto-Select Template</div>
+                                    </button>
+                                    {% for temp in templates_list %}
+                                    <button type="button" class="dropdown-item rounded py-1 px-2 mb-1 doc-template-option-btn" 
+                                            data-filename="{{ temp }}" 
+                                            onclick="selectDocTemplate('{{ temp }}', '{{ temp }}')">
+                                        <div class="fw-bold text-wrap text-start" style="line-height: 1.2;">{{ temp }}</div>
+                                    </button>
+                                    {% endfor %}
+                                </div>
                             </div>
-                        </h4>
-
-                        <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
-                            <button id="btnToggleItrans" class="btn btn-outline-warning btn-sm text-dark fw-bold" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
-                            <button id="btnToggleDevLys" class="btn btn-outline-info btn-sm text-dark fw-bold" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
-                            <button class="btn btn-outline-secondary btn-sm fw-bold ms-auto" onclick="verifyAllFields()">Verify All Fields</button>
                         </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div id="templateDisplay" class="text-success small fw-bold" style="font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%;">Auto-selecting...</div>
+                        <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-bold" id="clearCustomTemplateBtn" onclick="clearTemplate()" style="font-size: 0.65rem; display: none;">Clear</button>
+                    </div>
+                    <div>
+                        <input type="file" class="form-control form-control-sm" id="templateFile" accept=".docx" style="font-size: 0.68rem; padding: 0.1rem 0.2rem; height: 24px;">
+                    </div>
+                </div>
+            </div>
 
-                                                <div id="verificationContent">
-                            {% if data %}
-                            
+            <!-- Col 3 & 4 & 5: Upload Buckets for SD / Generic Upload for RM -->
+            {% if doc_type == 'SD' %}
+            <div class="col-md-6 border-end pe-2">
+                <div class="row g-2 h-100 align-items-stretch">
+                    <!-- KYC Documents -->
+                    <div class="col-4 border-end pe-1 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center mb-0.5">
+                            <span class="fw-bold text-muted" style="font-size: 0.7rem;">KYC (Aadhaar/PAN)</span>
+                            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1 fw-bold" style="font-size: 0.65rem;" id="extractBtn_kyc" onclick="startAIForBucket('kyc', this)" {% if not buckets.get('kyc') %}disabled{% endif %}>⚡ Extract</button>
+                        </div>
+                        <div class="drop-zone py-1 px-1 border rounded text-center bg-light cursor-pointer" onclick="document.getElementById('kycFiles').click()" style="min-height: 30px; border-style: dashed !important; padding: 0.2rem !important;">
+                            <span class="text-muted" style="font-size: 0.65rem;">+ Upload KYC</span>
+                            <input type="file" id="kycFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'kyc')">
+                        </div>
+                        <div class="overflow-y-auto mt-1" style="max-height: 50px; flex-grow: 1;" id="kycFileList">
+                            {% for f in buckets.get('kyc', []) %}
+                            <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem; line-height: 1.1;">
+                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'kyc')">×</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Legal Documents -->
+                    <div class="col-4 border-end pe-1 d-flex flex-column justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center mb-0.5">
+                            <span class="fw-bold text-muted" style="font-size: 0.7rem;">Legal / Reports</span>
+                            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1 fw-bold" style="font-size: 0.65rem;" id="extractBtn_legal" onclick="startAIForBucket('legal', this, {% if data.get('title_chain') and data.get('title_chain')|length > 0 %}true{% else %}false{% endif %})" {% if not buckets.get('legal') %}disabled{% endif %}>⚡ Extract</button>
+                        </div>
+                        <div class="drop-zone py-1 px-1 border rounded text-center bg-light cursor-pointer" onclick="document.getElementById('legalFiles').click()" style="min-height: 30px; border-style: dashed !important; padding: 0.2rem !important;">
+                            <span class="text-muted" style="font-size: 0.65rem;">+ Upload Legal</span>
+                            <input type="file" id="legalFiles" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'legal')">
+                        </div>
+                        <div class="overflow-y-auto mt-1" style="max-height: 50px; flex-grow: 1;" id="legalFileList">
+                            {% for f in buckets.get('legal', []) %}
+                            <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem; line-height: 1.1;">
+                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'legal')">×</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ATS / Chain / OCR -->
+                    <div class="col-4 d-flex flex-column justify-content-between">
+                        <span class="fw-bold text-muted mb-0.5" style="font-size: 0.7rem;">Other Bucket Uploads</span>
+                        <div class="d-flex flex-column gap-1" style="font-size: 0.68rem; flex-grow: 1; justify-content: center;">
+                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                <span>ATS: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('atsFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_ats" onclick="startAIForBucket('ats', this)" {% if not buckets.get('ats') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')">
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                <span>Chain: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('titleFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this)" {% if not buckets.get('title_chain') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')">
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                <span>OCR: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('ocrFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- RM Upload bucket (Generic) -->
+            <div class="col-md-6 border-end pe-2 d-flex flex-column justify-content-between">
+                <div class="d-flex justify-content-between align-items-center mb-0.5">
+                    <span class="fw-bold text-muted" style="font-size: 0.72rem;">3. Upload KYC Documents</span>
+                    {% if files and files|length > 0 %}
+                    <div style="font-size: 0.68rem;">
+                        <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none me-2 fw-bold" onclick="toggleAllFiles(true)">Select All</button>
+                        <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold" onclick="toggleAllFiles(false)">Deselect All</button>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="row g-2 align-items-stretch" style="flex-grow: 1;">
+                    <div class="col-5 d-flex flex-column justify-content-center">
+                        <div class="drop-zone py-2 px-2 border rounded text-center bg-light cursor-pointer h-100 d-flex align-items-center justify-content-center" id="dropZone" onclick="document.getElementById('docFiles').click()" style="border-style: dashed !important; padding: 0.3rem !important;">
+                            <span class="text-muted" style="font-size: 0.68rem;">+ Upload Files</span>
+                            <input type="file" id="docFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleFileSelect(this)">
+                        </div>
+                    </div>
+                    <div class="col-7">
+                        <div class="overflow-y-auto" style="max-height: 80px;" id="fileList">
+                            {% for f in files %}
+                            <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem; line-height: 1.1;">
+                                <div class="d-flex align-items-center text-truncate" style="max-width: 80%;">
+                                    <input type="checkbox" class="form-check-input me-1 file-select-checkbox" data-filename="{{ f | basename }}" checked>
+                                    <span class="text-truncate" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                </div>
+                                <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}')">×</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Col 6: AI Automation Trigger -->
+            <div class="col-md-2 d-flex flex-column justify-content-between">
+                <div>
+                    <label class="form-label fw-bold text-muted mb-0" style="font-size: 0.72rem; line-height: 1;">AI Model</label>
+                    <div class="input-group input-group-sm mt-0.5">
+                        <select class="form-select py-0.5" id="modelSelect" style="font-size: 0.72rem; height: 26px; padding: 0.1rem 0.3rem;">
+                            <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+                            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                        </select>
+                        <button class="btn btn-outline-secondary py-0 px-2" type="button" onclick="loadModels()" style="font-size: 0.7rem; height: 26px;">🔄</button>
+                    </div>
+                </div>
+                {% if doc_type != 'SD' %}
+                <button class="btn btn-primary btn-sm py-1 fw-bold w-100" id="startAiBtn" onclick="startAI()" style="font-size: 0.76rem; height: 28px;">🤖 Start AI Extraction</button>
+                {% endif %}
+                <div id="statusMsg" class="small text-muted text-center" style="font-size: 0.68rem; line-height: 1.1;">Ready</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Splitscreen Workspace Layout -->
+    <div class="split-workspace">
+        
+        <!-- Left Panel: Document Preview Console -->
+        <div class="preview-pane">
+            <h6 class="fw-bold text-muted mb-2 text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Document Preview Console</h6>
+            
+            <ul class="nav nav-tabs preview-tabs" id="previewTab" role="tablist" style="margin-bottom: 0.5rem;">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active py-1" id="source-tab" data-bs-toggle="tab" data-bs-target="#source-docs" type="button" role="tab" aria-controls="source-docs" aria-selected="true" style="font-size: 0.78rem;">Source Documents</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link py-1" id="draft-tab" data-bs-toggle="tab" data-bs-target="#generated-draft" type="button" role="tab" aria-controls="generated-draft" aria-selected="false" style="font-size: 0.78rem;">Generated Draft</button>
+                </li>
+            </ul>
+            
+            <div class="tab-content flex-grow-1 d-flex flex-column overflow-hidden" id="previewTabContent">
+                <!-- Source Docs Tab Pane -->
+                <div class="tab-pane fade show active flex-grow-1 d-flex flex-column overflow-hidden" id="source-docs" role="tabpanel" aria-labelledby="source-tab">
+                    <!-- Horizontal File Tabs selector -->
+                    <div class="preview-scroll-container">
+                        {% set unique_files = [] %}
+                        {% for f in files %}
+                            {% if f not in unique_files %}
+                                {% set _ = unique_files.append(f) %}
+                            {% endif %}
+                        {% endfor %}
+                        {% for b_name, b_files in buckets.items() %}
+                            {% for f in b_files %}
+                                {% if f not in unique_files %}
+                                    {% set _ = unique_files.append(f) %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                        
+                        {% for file in unique_files %}
+                            {% set filename = file | basename %}
+                            {% set safeId = 'file-tab-' + filename.replace('.', '_') %}
+                            <button class="btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate" 
+                                    id="{{ safeId }}"
+                                    style="max-width: 140px; font-size: 0.7rem; padding: 0.2rem 0.5rem;" 
+                                    onclick="previewFile('{{ filename }}')"
+                                    title="{{ filename }}">
+                                📄 {{ filename }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Preview frame container -->
+                    <div class="preview-frame-container flex-grow-1 border rounded bg-light d-flex align-items-center justify-content-center overflow-hidden position-relative" style="min-height: 0;">
+                        <iframe id="previewIframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+                        <img id="previewImg" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" alt="Preview image" />
+                        <div id="previewPlaceholder" class="text-center text-muted p-4">
+                            <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
+                            <span class="small">Select an uploaded file tab above to preview it in this pane.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Generated Draft Tab Pane -->
+                <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="generated-draft" role="tabpanel" aria-labelledby="draft-tab">
+                    <div class="flex-grow-1 d-flex align-items-center justify-content-center text-muted p-4 bg-light border rounded">
+                        <div class="text-center">
+                            <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
+                            <span class="small">Once generated, your final draft document will appear here.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Case Verification Workspace (tabbed) -->
+        <div class="editor-pane">
+            <h5 class="mb-3 d-flex justify-content-between align-items-center" style="font-size: 0.95rem;">
+                <span class="fw-bold text-secondary">Verification Workspace Editor</span>
+                <div>
+                    <span class="badge bg-info text-dark" id="devlysBadge" style="display: none; margin-right: 5px;">DEVLYS MODE ON</span>
+                    <span class="badge bg-warning text-dark" id="transliterationBadge" style="display: none; margin-right: 5px;">ITRANS HINDI ON</span>
+                    <span class="badge bg-secondary" style="font-size: 0.72rem;">{{ doc_type }} Mode</span>
+                </div>
+            </h5>
+
+            <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+                <button id="btnToggleItrans" class="btn btn-outline-warning btn-sm text-dark fw-bold" style="font-size: 0.72rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                <button id="btnToggleDevLys" class="btn btn-outline-info btn-sm text-dark fw-bold" style="font-size: 0.72rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                <button class="btn btn-outline-secondary btn-sm fw-bold ms-auto" style="font-size: 0.72rem;" onclick="verifyAllFields()">Verify All Fields</button>
+            </div>
+            
+            <div id="verificationContent">
                             <!-- Tab Navigation Header -->
                             <ul class="nav nav-pills nav-fill mb-3" id="verificationTabs" role="tablist">
                                 {% if doc_type == 'RM' %}
@@ -1232,6 +1343,42 @@
     <script>
     const CASE_ID = '{{ case_id }}';
     const DOC_TYPE = '{{ doc_type }}';
+
+    function previewFile(filename) {
+        const iframe = document.getElementById('previewIframe');
+        const img = document.getElementById('previewImg');
+        const placeholder = document.getElementById('previewPlaceholder');
+        
+        // Hide all
+        iframe.style.display = 'none';
+        img.style.display = 'none';
+        placeholder.style.display = 'none';
+        
+        // Deactivate all buttons
+        document.querySelectorAll('.file-preview-btn').forEach(btn => {
+            btn.classList.remove('active-preview');
+        });
+        
+        // Activate current button
+        const safeId = 'file-tab-' + filename.replace(/\./g, '_');
+        const activeBtn = document.getElementById(safeId) || Array.from(document.querySelectorAll('.file-preview-btn')).find(b => b.textContent.includes(filename));
+        if (activeBtn) {
+            activeBtn.classList.add('active-preview');
+        }
+        
+        const fileUrl = `/case/${CASE_ID}/file/${filename}`;
+        const ext = filename.split('.').pop().toLowerCase();
+        if (ext === 'pdf') {
+            iframe.src = fileUrl;
+            iframe.style.display = 'block';
+        } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
+            img.src = fileUrl;
+            img.style.display = 'block';
+        } else {
+            placeholder.style.display = 'block';
+            placeholder.querySelector('span:last-child').textContent = `Preview not supported for .${ext} files. Click download options to view.`;
+        }
+    }
     let customTemplateFilename = '{{ selected_template }}';
     let transliterationEnabled = false;
     let devlysEnabled = false;
