@@ -1465,7 +1465,13 @@ def generate_rm(case_id):
 
     # Now generate chain paragraphs since we have computed ps fields
     if doc_type == "SD":
-        if "title_chain" in context and isinstance(context["title_chain"], list) and len(context["title_chain"]) > 0:
+        if context.get("chain_is_manual") in ["true", True]:
+            # Bypass template compilation, respect user's manual edits
+            if context.get("chain_text"):
+                context["chain_paragraphs"] = [p.strip() for p in context["chain_text"].split("\n\n") if p.strip()]
+            else:
+                context["chain_paragraphs"] = []
+        elif "title_chain" in context and isinstance(context["title_chain"], list) and len(context["title_chain"]) > 0:
             ps0 = context.get("ps", [{}])[0]
             chain_paras = generate_chain_narrative(context["title_chain"], property_details=ps0, context=context)
             context["chain_paragraphs"] = chain_paras
