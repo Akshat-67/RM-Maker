@@ -900,24 +900,8 @@
                                             </div>
                                         </div>
                                         
-                                    <!-- Title Chain Narrative (SD) -->
-                                    <h6 class="section-title sd-only-section mt-3">Title Chain Narrative</h6>
-                                    <div class="card mb-3 shadow-sm border-0 sd-only-section">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <label class="small fw-bold text-muted">Title Chain Legalese / Text</label>
-                                                <div class="form-check">
-                                                    <input class="form-check-input verify-check" type="checkbox" data-path="chain_text" {% if 'chain_text' in verified_fields %}checked{% endif %}>
-                                                    <label class="form-check-label small">Verify</label>
-                                                </div>
-                                            </div>
-                                            <textarea class="form-control form-control-sm" rows="12" id="field_chain_text" name="chain_text" style="font-family: 'Segoe UI', 'Mangal', sans-serif; font-size: 0.95rem; line-height: 1.6; color: #1e293b;">{{ data.get('chain_text', '') }}</textarea>
-                                            <div class="form-text text-muted small mt-1">
-                                                This is the complete narrative that will be merged into the final Word document.
-                                            </div>
-                                        </div>
-                                    </div>
                                 {% endif %}
+
 
                             <!-- ==================== REGISTERED MORTGAGE (RM) ONLY SECTIONS ==================== -->
                             {% if doc_type != 'SD' %}
@@ -1260,7 +1244,6 @@
 
      function shouldTransliterate(el) {
         if (!el || !el.id) return false;
-        if (el.id === 'field_chain_text') return true;
         const id = el.id.toLowerCase();
         if (id.endsWith('_en')) return false;
         if (id.includes('_id') || id.includes('_pan') || id.includes('_reg_no')) return false;
@@ -2110,8 +2093,7 @@
                 buyers: [],
                 ps: [],
                 ws: [],
-                payments: [],
-                chain_text: document.getElementById('field_chain_text')?.value || ''
+                payments: []
             };
 
             // Collect Sellers
