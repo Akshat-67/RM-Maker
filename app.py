@@ -177,48 +177,7 @@ def load_case_session(case_id):
             sess["data"]["property_type"] = property_type
             
             # Universal bidirectional synchronization between long and short keys for title chain
-            for key_list_name in ["title_chain", "chain"]:
-                chain_list = sess["data"].get(key_list_name, [])
-                sync_template_keys_to_property_type(chain_list, property_type)
-                for evt in chain_list:
-                    if isinstance(evt, dict):
-                        # Sync long keys (AI-extracted) to short keys (UI inputs)
-                        if "executant_name" in evt and not evt.get("s"):
-                            evt["s"] = evt["executant_name"]
-                        if "claimant_name" in evt and not evt.get("b"):
-                            evt["b"] = evt["claimant_name"]
-                        if "date" in evt and not evt.get("d"):
-                            evt["d"] = evt["date"]
-                        if "reg_book" in evt and not evt.get("b_no"):
-                            evt["b_no"] = evt["reg_book"]
-                        if "reg_vol" in evt and not evt.get("v_no"):
-                            evt["v_no"] = evt["reg_vol"]
-                        if "reg_page" in evt and not evt.get("p_no"):
-                            evt["p_no"] = evt["reg_page"]
-                        if "reg_no" in evt and not evt.get("r_no"):
-                            evt["r_no"] = evt["reg_no"]
-                        if "reg_add_book" in evt and not evt.get("add_book"):
-                            evt["add_book"] = evt["reg_add_book"]
-                        if "reg_add_vol" in evt and not evt.get("add_vol"):
-                            evt["add_vol"] = evt["reg_add_vol"]
-                        if "reg_add_page" in evt and not evt.get("add_page"):
-                            evt["add_page"] = evt["reg_add_page"]
-                            
-                        # Reverse sync short keys to long keys
-                        if evt.get("s") and not evt.get("executant_name"):
-                            evt["executant_name"] = evt["s"]
-                        if evt.get("b") and not evt.get("claimant_name"):
-                            evt["claimant_name"] = evt["b"]
-                        if evt.get("d") and not evt.get("date"):
-                            evt["date"] = evt.get("d")
-                        if evt.get("b_no") and not evt.get("reg_book"):
-                            evt["reg_book"] = evt["b_no"]
-                        if evt.get("v_no") and not evt.get("reg_vol"):
-                            evt["reg_vol"] = evt["v_no"]
-                        if evt.get("p_no") and not evt.get("reg_page"):
-                            evt["reg_page"] = evt["p_no"]
-                        if evt.get("r_no") and not evt.get("reg_no"):
-                            evt["reg_no"] = evt["r_no"]
+
             
             # Property details key synchronization
             for p in sess["data"].get("ps", []):
@@ -290,10 +249,7 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
             elif not incoming_list and existing_list:
                 merged_data[key] = existing_list
                 
-    # Sync template keys to the property type
-    for key_list_name in ["title_chain", "chain"]:
-        if key_list_name in merged_data:
-            sync_template_keys_to_property_type(merged_data[key_list_name], property_type)
+
                  
     pruned_data = prune_case_data(merged_data, doc_type)
 
@@ -752,7 +708,7 @@ def save_case(case_id):
     # Prune and synchronize frontend/backend aliases to prevent data loss
     merged_data = prune_case_data(merged_data, doc_type)
 
-    for key in ["ss", "bs", "ws", "ps", "sellers", "buyers", "title_chain", "chain"]:
+    for key in ["ss", "bs", "ws", "ps", "sellers", "buyers"]:
         if key in current_extracted_data and key in merged_data:
             ui_arr = merged_data[key]
             current_arr = current_extracted_data[key]
@@ -767,19 +723,6 @@ def save_case(case_id):
             elif isinstance(current_arr, list) and isinstance(ui_arr, list):
                 merged_list = []
                 for idx, ui_item in enumerate(ui_arr):
-                    if isinstance(ui_item, dict):
-                        # Sync UI keys to DB keys in ui_item first (handles edits and new items)
-                        if "d" in ui_item: ui_item["date"] = ui_item["d"]
-                        if "s" in ui_item: ui_item["executant_name"] = ui_item["s"]
-                        if "b" in ui_item: ui_item["claimant_name"] = ui_item["b"]
-                        if "b_no" in ui_item: ui_item["reg_book"] = ui_item["b_no"]
-                        if "v_no" in ui_item: ui_item["reg_vol"] = ui_item["v_no"]
-                        if "p_no" in ui_item: ui_item["reg_page"] = ui_item["p_no"]
-                        if "r_no" in ui_item: ui_item["reg_no"] = ui_item["r_no"]
-                        if "add_book" in ui_item: ui_item["reg_add_book"] = ui_item["add_book"]
-                        if "add_vol" in ui_item: ui_item["reg_add_vol"] = ui_item["add_vol"]
-                        if "add_page" in ui_item: ui_item["reg_add_page"] = ui_item["add_page"]
-                        
                     if idx < len(current_arr):
                         curr_item = current_arr[idx]
                         if isinstance(curr_item, dict) and isinstance(ui_item, dict):
@@ -791,9 +734,6 @@ def save_case(case_id):
                     else:
                         merged_list.append(ui_item)
                 merged_data[key] = merged_list
-
-    if "chain" in merged_data:
-        merged_data["title_chain"] = merged_data["chain"]
 
     if "ps" in merged_data and isinstance(merged_data["ps"], list):
         if doc_type == "SD":
@@ -808,41 +748,6 @@ def save_case(case_id):
             for p in merged_data["ps"]:
                 if isinstance(p, dict):
                     p["full_address"] = extractor.generate_full_property_address(p, property_type)
-
-    existing_prop_type = session.get("property_type", "Plot")
-    force_recompile = (property_type != existing_prop_type)
-    
-    if force_recompile and merged_data.get("title_chain"):
-        if property_type == "Flat":
-            key_map = {
-                "ALLOTMENT_PLOT": "ALLOTMENT_FLAT",
-                "ALLOTMENT_PLOT_NO_DEPOSIT": "ALLOTMENT_FLAT_NO_DEPOSIT",
-                "ALLOTMENT_MUNICIPAL_PLOT": "ALLOTMENT_MUNICIPAL_FLAT",
-                "SALE_DEED_PLOT": "SALE_DEED_FLAT",
-                "TRANSFER_PLOT": "TRANSFER_FLAT"
-            }
-        else:
-            key_map = {
-                "ALLOTMENT_FLAT": "ALLOTMENT_PLOT",
-                "ALLOTMENT_FLAT_NO_DEPOSIT": "ALLOTMENT_PLOT_NO_DEPOSIT",
-                "ALLOTMENT_MUNICIPAL_FLAT": "ALLOTMENT_MUNICIPAL_PLOT",
-                "SALE_DEED_FLAT": "SALE_DEED_PLOT",
-                "TRANSFER_FLAT": "TRANSFER_PLOT"
-            }
-        for key_list_name in ["title_chain", "chain"]:
-            for evt in merged_data.get(key_list_name, []):
-                if isinstance(evt, dict):
-                    old_key = evt.get("template_key")
-                    if old_key in key_map:
-                        evt["template_key"] = key_map[old_key]
-
-    if doc_type == "SD" and merged_data.get("title_chain"):
-        if force_recompile or not merged_data.get("chain_text"):
-            from modules.sd.narrative import generate_chain_narrative
-            ps0 = merged_data.get("ps", [{}])[0]
-            merged_data["property_type"] = property_type
-            chain_paras = generate_chain_narrative(merged_data["title_chain"], property_details=ps0, context=merged_data)
-            merged_data["chain_text"] = "\n\n\t".join(chain_paras)
 
     session["data"] = merged_data
     session["bank"] = bank
@@ -1055,7 +960,7 @@ def run_ai(case_id):
         
         # If regenerate is requested, clear the old title chain data to start fresh
         if req_data.get("regenerate"):
-            for k in ["title_chain", "chain", "chain_text", "chain_paragraphs"]:
+            for k in ["chain_text", "chain_paragraphs"]:
                 if k in current_data:
                     del current_data[k]
                     
@@ -1119,58 +1024,7 @@ def run_ai(case_id):
         session["property_type"] = property_type
         session["data"]["property_type"] = property_type
         
-        # Auto-inject CONSTRUCTION event into title_chain for Flat properties so it shows in the verification UI
-        if doc_type == "SD" and property_type == "Flat":
-            title_chain = session["data"].get("title_chain", [])
-            has_construction = any(e.get("event_type") == "CONSTRUCTION" for e in title_chain)
-            if not has_construction:
-                builder_name = ""
-                project_name = ""
-                ps = session["data"].get("ps", [{}])
-                if ps:
-                    project_name = ps[0].get("building_name") or ps[0].get("project_name") or ""
-                
-                for evt in title_chain:
-                    src_txt = str(evt.get("source_text", "")).lower()
-                    doc_n = str(evt.get("document_name", "")).lower()
-                    exec_n = evt.get("executant_name") or evt.get("s") or ""
-                    is_flat_sale = (
-                        "flat" in src_txt or "unit" in src_txt or "apartment" in src_txt
-                        or "फ्लैट" in src_txt or "फ्लेट" in src_txt or "यूनิต" in src_txt or "अपार्टमेंट" in src_txt or "अपार्टमेन्ट" in src_txt
-                        or "फ्लेट" in doc_n or "फ्लैट" in doc_n
-                    )
-                    if is_flat_sale and exec_n:
-                        builder_name = exec_n
-                        break
-                
-                if builder_name:
-                    injected_const = {
-                        "template_key": "CONSTRUCTION_FLAT",
-                        "event_type": "CONSTRUCTION",
-                        "executant_name": builder_name,
-                        "s": builder_name,
-                        "claimant_name": project_name or "बहुमंजिला इमारत",
-                        "b": project_name or "बहुमंजिला इमारत",
-                        "document_name": "CONSTRUCTION",
-                        "is_registered": "false",
-                        "d": "",
-                        "date": "",
-                        "b_no": "",
-                        "v_no": "",
-                        "p_no": "",
-                        "r_no": ""
-                    }
-                    title_chain.append(injected_const)
-                    session["data"]["title_chain"] = title_chain
-                    session["data"]["chain"] = title_chain
 
-        if doc_type == "SD" and session["data"].get("title_chain"):
-            from modules.sd.narrative import generate_chain_narrative
-            ps0 = session["data"].get("ps", [{}])[0]
-            chain_paras = generate_chain_narrative(session["data"]["title_chain"], property_details=ps0, context=session["data"])
-            session["data"]["chain_text"] = "\n\n\t".join(chain_paras)
-            session["data"]["chain_paragraphs"] = chain_paras
-            session["data"]["chain"] = session["data"]["title_chain"]
         
         # Mark files as processed only after successful AI run
         for f in files_to_process:
@@ -1979,14 +1833,7 @@ def delete_case_file(case_id):
 #     # This is a placeholder for local development. In production, serve static files directly.
 #     return send_from_directory("static", filename)
 
-@app.route("/api/chain_templates")
-def get_chain_templates():
-    from modules.sd.chain_templates import CHAIN_TEMPLATES, CHAIN_TEMPLATE_METADATA
-    return jsonify({
-        "success": True,
-        "templates": CHAIN_TEMPLATES,
-        "metadata": CHAIN_TEMPLATE_METADATA
-    })
+
 
 @app.route("/devlys_keymap")
 def devlys_keymap():

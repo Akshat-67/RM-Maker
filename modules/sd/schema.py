@@ -26,18 +26,10 @@ def prune_sd_data(data):
         else:
             data["bs"] = data.get("buyers", [])
 
-    if "chain" in data or "title_chain" in data:
-        c_score = get_list_completeness(data.get("chain"))
-        tc_score = get_list_completeness(data.get("title_chain"))
-        if tc_score >= c_score:
-            data["chain"] = data.get("title_chain", [])
-        else:
-            data["title_chain"] = data.get("chain", [])
-        
     cleaned = {}
     
     # Keep only SD allowed fields (including both backend aliases and frontend keys)
-    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "title_chain", "reg", "unassigned_aadhars", "sellers", "buyers", "chain", "chain_text", "payments", "seller_label", "buyer_label", "chain_is_manual"]
+    sd_keys = ["rd", "amount", "amount_words", "consideration", "tds", "hypothecation", "ss", "bs", "ps", "ws", "reg", "unassigned_aadhars", "sellers", "buyers", "chain_text", "payments", "seller_label", "buyer_label"]
     for k in sd_keys:
         if k in data:
             cleaned[k] = data[k]
