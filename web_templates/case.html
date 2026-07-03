@@ -1727,17 +1727,36 @@
 
             <!-- Right Panel: Narrative Preview & Actions -->
             <div class="col-lg-5">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-success text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+                <div class="card shadow-sm border-0 d-flex flex-column h-100">
+                    <div class="card-header bg-success text-white fw-bold py-2.5 d-flex justify-content-between align-items-center flex-shrink-0">
                         <span>📝 Hindi Narrative Preview</span>
-                        <button class="btn btn-light btn-xs fw-bold text-success py-0.5 px-2" onclick="refreshNarrativePreview()">⚡ Re-Generate</button>
+                        <button class="btn btn-light btn-xs fw-bold text-success py-0.5 px-2.5 shadow-sm" onclick="refreshNarrativePreview()">⚡ Re-Generate</button>
                     </div>
-                    <div class="card-body d-flex flex-column justify-content-between">
-                        <div class="flex-grow-1 mb-3">
-                            <p class="text-muted small mb-2">This is the generated narrative paragraph that will be compiled into the Sale Deed document:</p>
-                            <textarea class="form-control font-monospace hindi-legacy-input" id="chainNarrativePreview" rows="8" style="font-size: 0.85rem;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
+                    <div class="card-body d-flex flex-column justify-content-between" style="min-height: 0;">
+                        <!-- Preview Mode Switcher Tabs -->
+                        <ul class="nav nav-tabs mb-2 flex-shrink-0" id="narrativePreviewTabs" role="tablist" style="font-size: 0.78rem;">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active py-1 px-3 fw-bold" id="narrative-edit-tab" data-bs-toggle="tab" data-bs-target="#narrative-edit-pane" type="button" role="tab" aria-selected="true">✏️ Edit Text</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-1 px-3 fw-bold" id="narrative-rich-tab" data-bs-toggle="tab" data-bs-target="#narrative-rich-pane" type="button" role="tab" aria-selected="false" onclick="renderRichNarrative()">👁️ Rich View</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column mb-3" style="min-height: 250px;">
+                            <!-- Editable Raw Area -->
+                            <div class="tab-pane fade show active flex-grow-1 d-flex flex-column" id="narrative-edit-pane" role="tabpanel">
+                                <textarea class="form-control flex-grow-1 hindi-legacy-input font-monospace p-3" id="chainNarrativePreview" style="font-size: 0.88rem; line-height: 1.6; resize: none; min-height: 0;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
+                            </div>
+                            <!-- Rich Preview Area -->
+                            <div class="tab-pane fade flex-grow-1 overflow-y-auto p-3 bg-light border rounded" id="narrative-rich-pane" role="tabpanel" style="min-height: 0;">
+                                <div id="richNarrativeContent" style="font-family: 'Segoe UI', 'Mangal'; text-align: justify;">
+                                    <!-- Rendered dynamically -->
+                                </div>
+                            </div>
                         </div>
-                        <div class="bg-light p-3 rounded border">
+
+                        <div class="bg-light p-3 rounded border flex-shrink-0">
                             <h6 class="fw-bold text-secondary mb-1">Verify & Save Workspace</h6>
                             <p class="small text-muted mb-3">Ensure you click "Save Workspace" after modifications to persist the chain sequence.</p>
                             <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm" onclick="saveCase()">💾 Save Chain Workspace</button>
@@ -2151,6 +2170,37 @@
             });
         }
     });
+
+    function renderRichNarrative() {
+        const val = document.getElementById('chainNarrativePreview')?.value || "";
+        const target = document.getElementById('richNarrativeContent');
+        if (!target) return;
+        
+        if (!val.trim()) {
+            target.innerHTML = `<p class="text-muted text-center py-4">No narrative text generated yet. Click "Re-Generate" or write above.</p>`;
+            return;
+        }
+        
+        const paras = val.split(/\n+/);
+        let html = "";
+        paras.forEach(p => {
+            let txt = p.trim();
+            if (txt) {
+                txt = txt.replace(/^\t+/, '');
+                let escaped = txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                
+                // Highlight key dates, registration values, and categories in bold
+                escaped = escaped.replace(/(दिनांक \d{1,2}[.-]\d{1,2}[.-]\d{4})/g, '<strong>$1</strong>');
+                escaped = escaped.replace(/(क्रमांक[- \d\w]+)/g, '<strong>$1</strong>');
+                escaped = escaped.replace(/(पुस्तक संख्या \d+)/g, '<strong>$1</strong>');
+                escaped = escaped.replace(/(जिल्द संख्या \d+)/g, '<strong>$1</strong>');
+                escaped = escaped.replace(/(पृष्ठ संख्या \d+)/g, '<strong>$1</strong>');
+                
+                html += `<p class="lh-lg mb-4" style="text-indent: 2rem; font-size: 0.95rem; color: #1e293b;">${escaped}</p>`;
+            }
+        });
+        target.innerHTML = html;
+    }
     // Default step routing based on data existence with localStorage fallback
     const DEFAULT_STEP = {% if data %}2{% else %}1{% endif %};
     window.addEventListener('DOMContentLoaded', () => {

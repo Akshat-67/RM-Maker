@@ -1848,6 +1848,8 @@ def preview_chain(case_id):
 
     try:
         preview_text = generate_chain_narrative(events)
+        if isinstance(preview_text, list):
+            preview_text = "\n\n\t".join(preview_text)
         return jsonify({"success": True, "preview_text": preview_text})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
