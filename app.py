@@ -767,31 +767,27 @@ def save_case(case_id):
             elif isinstance(current_arr, list) and isinstance(ui_arr, list):
                 merged_list = []
                 for idx, ui_item in enumerate(ui_arr):
+                    if isinstance(ui_item, dict):
+                        # Sync UI keys to DB keys in ui_item first (handles edits and new items)
+                        if "d" in ui_item: ui_item["date"] = ui_item["d"]
+                        if "s" in ui_item: ui_item["executant_name"] = ui_item["s"]
+                        if "b" in ui_item: ui_item["claimant_name"] = ui_item["b"]
+                        if "b_no" in ui_item: ui_item["reg_book"] = ui_item["b_no"]
+                        if "v_no" in ui_item: ui_item["reg_vol"] = ui_item["v_no"]
+                        if "p_no" in ui_item: ui_item["reg_page"] = ui_item["p_no"]
+                        if "r_no" in ui_item: ui_item["reg_no"] = ui_item["r_no"]
+                        if "add_book" in ui_item: ui_item["reg_add_book"] = ui_item["add_book"]
+                        if "add_vol" in ui_item: ui_item["reg_add_vol"] = ui_item["add_vol"]
+                        if "add_page" in ui_item: ui_item["reg_add_page"] = ui_item["add_page"]
+                        
                     if idx < len(current_arr):
                         curr_item = current_arr[idx]
                         if isinstance(curr_item, dict) and isinstance(ui_item, dict):
-                            # Sync UI keys to DB keys in ui_item first
-                            if "d" in ui_item: ui_item["date"] = ui_item["d"]
-                            if "s" in ui_item: ui_item["executant_name"] = ui_item["s"]
-                            if "b" in ui_item: ui_item["claimant_name"] = ui_item["b"]
-                            if "b_no" in ui_item: ui_item["reg_book"] = ui_item["b_no"]
-                            if "v_no" in ui_item: ui_item["reg_vol"] = ui_item["v_no"]
-                            if "p_no" in ui_item: ui_item["reg_page"] = ui_item["p_no"]
-                            if "r_no" in ui_item: ui_item["reg_no"] = ui_item["r_no"]
-                            
                             merged_item = curr_item.copy()
                             merged_item.update(ui_item)
-                            
-                            # Also reverse sync so if DB keys exist, UI keys match
-                            if "date" in merged_item: merged_item["d"] = merged_item["date"]
-                            if "executant_name" in merged_item: merged_item["s"] = merged_item["executant_name"]
-                            if "claimant_name" in merged_item: merged_item["b"] = merged_item["claimant_name"]
-                            if "reg_book" in merged_item: merged_item["b_no"] = merged_item["reg_book"]
-                            if "reg_vol" in merged_item: merged_item["v_no"] = merged_item["reg_vol"]
-                            if "reg_page" in merged_item: merged_item["p_no"] = merged_item["reg_page"]
-                            if "reg_no" in merged_item: merged_item["r_no"] = merged_item["reg_no"]
-                            
                             merged_list.append(merged_item)
+                        else:
+                            merged_list.append(ui_item)
                     else:
                         merged_list.append(ui_item)
                 merged_data[key] = merged_list
