@@ -569,14 +569,17 @@
                             <button class="btn btn-outline-secondary btn-sm fw-bold ms-auto" onclick="verifyAllFields()">Verify All Fields</button>
                         </div>
 
-                        <div id="verificationContent">
+                                                <div id="verificationContent">
                             {% if data %}
                             
                             <!-- Tab Navigation Header -->
                             <ul class="nav nav-pills nav-fill mb-3" id="verificationTabs" role="tablist">
                                 {% if doc_type == 'RM' %}
                                     <li class="nav-item" role="presentation">
-                                        <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👥 Parties (Borrowers/Witnesses)</button>
+                                        <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Borrowers & Signatory</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
                                     </li>
                                     <li class="nav-item" role="presentation">
                                         <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
@@ -589,7 +592,10 @@
                                     </li>
                                 {% else %}
                                     <li class="nav-item" role="presentation">
-                                        <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👥 Parties (Sellers/Buyers)</button>
+                                        <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Sellers & Buyers</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
                                     </li>
                                     <li class="nav-item" role="presentation">
                                         <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
@@ -747,7 +753,7 @@
                                         </div>
                                         {% endfor %}
 
-                                        <!-- Bank Signatory & Witnesses (RM) -->
+                                        <!-- Bank Signatory (RM) -->
                                         <h6 class="section-title">Bank Signatory</h6>
                                         <div class="card mb-2">
                                             <div class="card-body">
@@ -789,42 +795,6 @@
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <h6 class="section-title">Witnesses</h6>
-                                        {% for w in data.get('ws', []) %}
-                                        <div class="card mb-2 witness-card">
-                                            <div class="card-body">
-                                                <h6 class="text-muted">Witness {{ loop.index }}</h6>
-                                                <div class="row g-2">
-                                                    <div class="col-6">
-                                                        <div class="d-flex justify-content-between"><label class="small">Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.n" {% if 'ws.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
-                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_n" value="{{ w.get('n','') }}">
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <div class="d-flex justify-content-between"><label class="small">Relation</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.r" {% if 'ws.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
-                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_r" value="{{ w.get('r','') }}">
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.rn" {% if 'ws.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}></div>
-                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}">
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.a" {% if 'ws.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
-                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_a" value="{{ w.get('a','') }}">
-                                                    </div>
-                                                    <div class="col-6">
-                                                        <div class="d-flex justify-content-between"><label class="small">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.id" {% if 'ws.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
-                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_id" value="{{ w.get('id','') }}">
-                                                    </div>
-                                                    <div class="col-12">
-                                                        <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.adr" {% if 'ws.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
-                                                        <textarea class="form-control form-control-sm" rows="2" id="field_ws_{{ loop.index0 }}_adr">{{ w.get('adr','') }}</textarea>
-                                                    </div>
-                                                    <input type="hidden" id="field_ws_{{ loop.index0 }}_dob" value="{{ w.get('dob','') }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {% endfor %}
                                     {% else %}
                                         <!-- Sellers (SD) -->
                                         <h6 class="section-title">Sellers (First Party - Hindi)</h6>
@@ -929,8 +899,48 @@
                                             </div>
                                         </div>
                                         {% endfor %}
+                                    {% endif %}
+                                </div>
 
-                                        <!-- Witnesses (SD) -->
+                                <!-- ==================== TAB 1.5: WITNESSES (RM & SD) ==================== -->
+                                <div class="tab-pane fade" id="pane-witnesses" role="tabpanel" aria-labelledby="witnesses-tab">
+                                    {% if doc_type == 'RM' %}
+                                        <h6 class="section-title">Witnesses</h6>
+                                        {% for w in data.get('ws', []) %}
+                                        <div class="card mb-2 witness-card">
+                                            <div class="card-body">
+                                                <h6 class="text-muted">Witness {{ loop.index }}</h6>
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <div class="d-flex justify-content-between"><label class="small">Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.n" {% if 'ws.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_n" value="{{ w.get('n','') }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="d-flex justify-content-between"><label class="small">Relation</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.r" {% if 'ws.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_r" value="{{ w.get('r','') }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.rn" {% if 'ws.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}></div>
+                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.a" {% if 'ws.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_a" value="{{ w.get('a','') }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <div class="d-flex justify-content-between"><label class="small">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.id" {% if 'ws.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                        <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_id" value="{{ w.get('id','') }}">
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.adr" {% if 'ws.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
+                                                        <textarea class="form-control form-control-sm" rows="2" id="field_ws_{{ loop.index0 }}_adr">{{ w.get('adr','') }}</textarea>
+                                                    </div>
+                                                    <input type="hidden" id="field_ws_{{ loop.index0 }}_dob" value="{{ w.get('dob','') }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
                                         <h6 class="section-title">Witnesses (Hindi)</h6>
                                         {% for w in data.get('ws', []) %}
                                         <div class="card mb-3 shadow-sm border-0 witness-card">
@@ -1212,8 +1222,7 @@
                                 <h5>No Extracted Case Data Found</h5>
                                 <p class="small">Upload Aadhaar/PAN documents in the left panel and click "Start AI Automation" to begin.</p>
                             </div>
-                            {% endif %}
-                        </div>
+                            {% endif %}                        </div>
                     </div>
                 </div>
             </div>
