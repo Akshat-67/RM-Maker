@@ -519,20 +519,50 @@
                     <!-- ATS / Chain / OCR -->
                     <div class="col-4 d-flex flex-column justify-content-between">
                         <span class="fw-bold text-muted mb-0.5" style="font-size: 0.7rem;">Other Bucket Uploads</span>
-                        <div class="d-flex flex-column gap-1" style="font-size: 0.68rem; flex-grow: 1; justify-content: center;">
-                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                <span>ATS: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('atsFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_ats" onclick="startAIForBucket('ats', this)" {% if not buckets.get('ats') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
-                                <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')">
+                        <div class="d-flex flex-column gap-1" style="font-size: 0.68rem; flex-grow: 1; justify-content: center; overflow-y: auto;">
+                            <div>
+                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                    <span>ATS: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('atsFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_ats" onclick="startAIForBucket('ats', this)" {% if not buckets.get('ats') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                    <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')">
+                                </div>
+                                <div class="overflow-y-auto" style="max-height: 40px;" id="atsFileList">
+                                    {% for f in buckets.get('ats', []) %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.62rem; line-height: 1;">
+                                        <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                        <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'ats')">×</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                <span>Chain: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('titleFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this)" {% if not buckets.get('title_chain') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
-                                <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')">
+                            <div>
+                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                    <span>Chain: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('titleFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this)" {% if not buckets.get('title_chain') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                    <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')">
+                                </div>
+                                <div class="overflow-y-auto" style="max-height: 40px;" id="titleFileList">
+                                    {% for f in buckets.get('title_chain', []) %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.62rem; line-height: 1;">
+                                        <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                        <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'title_chain')">×</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                <span>OCR: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('ocrFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')">
+                            <div>
+                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
+                                    <span>OCR: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('ocrFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
+                                    <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')">
+                                </div>
+                                <div class="overflow-y-auto" style="max-height: 40px;" id="ocrFileList">
+                                    {% for f in buckets.get('ocr', []) %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.62rem; line-height: 1;">
+                                        <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                        <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'ocr')">×</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1902,10 +1932,48 @@
                 const list = document.getElementById(listId);
                 if (list) {
                     resp.new_files.forEach(name => {
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item small text-truncate py-1 px-2';
-                        li.textContent = name;
-                        list.appendChild(li);
+                        const filename = name.split('/').pop().split('\\').pop();
+                        
+                        // Create uploader list item
+                        const div = document.createElement('div');
+                        div.className = "d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1";
+                        div.style.fontSize = "0.62rem";
+                        div.style.lineHeight = "1";
+                        
+                        const span = document.createElement('span');
+                        span.className = "text-truncate";
+                        span.style.maxWidth = "80%";
+                        span.style.cursor = "pointer";
+                        span.textContent = filename;
+                        span.onclick = () => previewFile(filename);
+                        span.title = "Click to Preview";
+                        
+                        const closeSpan = document.createElement('span');
+                        closeSpan.className = "cursor-pointer text-danger fw-bold ms-1";
+                        closeSpan.textContent = "×";
+                        closeSpan.onclick = () => deleteFile(filename, bucket);
+                        
+                        div.appendChild(span);
+                        div.appendChild(closeSpan);
+                        list.appendChild(div);
+
+                        // Add to preview container
+                        const previewContainer = document.querySelector('.preview-scroll-container');
+                        if (previewContainer) {
+                            const safeId = 'file-tab-' + filename.replace(/\./g, '_');
+                            if (!document.getElementById(safeId)) {
+                                const btn = document.createElement('button');
+                                btn.className = "btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate";
+                                btn.id = safeId;
+                                btn.style.maxWidth = "140px";
+                                btn.style.fontSize = "0.7rem";
+                                btn.style.padding = "0.2rem 0.5rem";
+                                btn.title = filename;
+                                btn.onclick = () => previewFile(filename);
+                                btn.innerHTML = `📄 ${filename}`;
+                                previewContainer.appendChild(btn);
+                            }
+                        }
                     });
                 }
                 // Enable corresponding Extract button dynamically
@@ -2863,7 +2931,18 @@
         })
         .catch(err => alert('Failed to delete file: ' + err));
     }
-    </script>
+    
+    window.addEventListener('DOMContentLoaded', () => {
+        // Automatically preview the first file if available
+        const firstBtn = document.querySelector('.file-preview-btn');
+        if (firstBtn) {
+            const filename = firstBtn.getAttribute('title');
+            if (filename) {
+                previewFile(filename);
+            }
+        }
+    });
+</script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
