@@ -1625,6 +1625,31 @@
                     initializeGlobalChainMode();
                 }, 100);
             });
+
+            // Bind property fields for reactive chain sync
+            const propertyFields = [
+                'field_ps_0_adr', 'field_ps_0_area', 'field_ps_0_area_unit',
+                'field_ps_0_e', 'field_ps_0_w', 'field_ps_0_n', 'field_ps_0_s'
+            ];
+            propertyFields.forEach(fieldId => {
+                const el = document.getElementById(fieldId);
+                if (el) {
+                    const triggerSync = () => {
+                        const manualToggle = document.getElementById('field_chain_is_manual');
+                        if (manualToggle && !manualToggle.checked) {
+                            const container = document.getElementById('chainCardsContainer');
+                            if (container) {
+                                const cards = container.querySelectorAll('.chain-card');
+                                cards.forEach((card, idx) => {
+                                    compileCardPreview(idx);
+                                });
+                            }
+                        }
+                    };
+                    el.addEventListener('input', triggerSync);
+                    el.addEventListener('change', triggerSync);
+                }
+            });
         }
     });
 
@@ -2357,28 +2382,27 @@
         const toggle = document.getElementById('field_chain_is_manual');
         if (!globalTextarea || !toggle) return;
         
-        const container = document.getElementById('chainCardsContainer');
-        if (!container) return;
+        const isManualSaved = "{{ data.get('chain_is_manual', 'false') }}" === "true";
+        toggle.checked = isManualSaved;
         
-        const textareas = container.querySelectorAll('textarea');
-        let paragraphs = [];
-        textareas.forEach(ta => {
-            if (ta.id !== 'field_chain_text' && ta.value && ta.value.trim()) {
-                paragraphs.push(ta.value.trim());
-            }
-        });
-        
-        const compiledText = paragraphs.join('\n\n').trim();
-        const savedText = globalTextarea.value.trim();
-        
-        if (savedText && compiledText && savedText !== compiledText) {
-            toggle.checked = true;
+        if (isManualSaved) {
             globalTextarea.removeAttribute('readonly');
         } else {
-            toggle.checked = false;
             globalTextarea.setAttribute('readonly', 'true');
-            if (!savedText && compiledText) {
-                globalTextarea.value = compiledText;
+            
+            // Standard fallback if narrative is empty but we have cards
+            if (!globalTextarea.value.trim()) {
+                const container = document.getElementById('chainCardsContainer');
+                if (container) {
+                    const textareas = container.querySelectorAll('textarea');
+                    let paragraphs = [];
+                    textareas.forEach(ta => {
+                        if (ta.id !== 'field_chain_text' && ta.value && ta.value.trim()) {
+                            paragraphs.push(ta.value.trim());
+                        }
+                    });
+                    globalTextarea.value = paragraphs.join('\n\n');
+                }
             }
         }
     }
@@ -3652,7 +3676,8 @@
                 ws: [],
                 chain: [],
                 payments: [],
-                chain_text: document.getElementById('field_chain_text')?.value || ''
+                chain_text: document.getElementById('field_chain_text')?.value || '',
+                chain_is_manual: document.getElementById('field_chain_is_manual')?.checked ? 'true' : 'false'
             };
 
             // Collect Sellers
