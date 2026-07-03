@@ -1139,6 +1139,13 @@ def generate_rm(case_id):
             else:
                 template_path = sub_map
 
+    if doc_type == "SD" and (not template_path or not os.path.exists(template_path)):
+        sd_dir = os.path.join(TEMPLATES_DIR, "SALE_DEED")
+        if os.path.exists(sd_dir):
+            docx_files = [os.path.join(sd_dir, f) for f in os.listdir(sd_dir) if f.lower().endswith(".docx")]
+            if docx_files:
+                template_path = docx_files[0]
+
     if not template_path or not os.path.exists(template_path):
         return jsonify({"success": False, "error": "No valid template found."}), 400
 
@@ -1416,6 +1423,13 @@ def preview_draft(case_id):
                 template_path = sub_map.get(str(properties)) or sub_map.get("1")
             else:
                 template_path = sub_map
+
+    if doc_type == "SD" and (not template_path or not os.path.exists(template_path)):
+        sd_dir = os.path.join(TEMPLATES_DIR, "SALE_DEED")
+        if os.path.exists(sd_dir):
+            docx_files = [os.path.join(sd_dir, f) for f in os.listdir(sd_dir) if f.lower().endswith(".docx")]
+            if docx_files:
+                template_path = docx_files[0]
 
     if not template_path or not os.path.exists(template_path):
         return jsonify({"success": False, "error": "No valid template found."}), 400
