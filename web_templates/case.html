@@ -1716,6 +1716,10 @@
 
 
     function switchStep(stepNum) {
+        // Persist the active step selection in localStorage (scoped by case ID)
+        if (typeof CASE_ID !== 'undefined') {
+            localStorage.setItem('activeCaseStep_' + CASE_ID, stepNum);
+        }
         const uploadView = document.getElementById('step-upload-view');
         const reviewView = document.getElementById('step-review-view');
         const chainView = document.getElementById('step-chain-view');
@@ -1988,10 +1992,15 @@
 
     // Call loadTimelineEvents on initialization
     loadTimelineEvents();
-    // Default step routing based on data existence
+    // Default step routing based on data existence with localStorage fallback
     const DEFAULT_STEP = {% if data %}2{% else %}1{% endif %};
     window.addEventListener('DOMContentLoaded', () => {
-        switchStep(DEFAULT_STEP);
+        const savedStep = localStorage.getItem('activeCaseStep_' + CASE_ID);
+        if (savedStep) {
+            switchStep(parseInt(savedStep));
+        } else {
+            switchStep(DEFAULT_STEP);
+        }
     });
     function previewFile(filename) {
         const iframe = document.getElementById('previewIframe');
