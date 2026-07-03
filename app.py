@@ -967,6 +967,18 @@ def run_ai(case_id):
         verified_fields = set(session.get("verified_fields", []))
 
         if doc_type == "SD":
+            # Pre-pad ss, bs, and ws lists in current_data to the expected count so that smart_merge
+            # and bucket-merging functions can successfully merge the extracted fields.
+            for key, count in [("ss", sellers_count), ("bs", buyers_count), ("ws", 2)]:
+                if key not in current_data or not isinstance(current_data[key], list):
+                    current_data[key] = []
+                while len(current_data[key]) < count:
+                    current_data[key].append({
+                        "n": "", "a": "", "c": "", "relation_text": "", "adr": "", "id": "", "pan": ""
+                    })
+            if "ps" not in current_data or not isinstance(current_data["ps"], list) or len(current_data["ps"]) == 0:
+                current_data["ps"] = [{}]
+
             buckets = session.get("buckets", {})
             has_bucket_files = any(len(b) > 0 for b in buckets.values())
 
