@@ -1899,7 +1899,7 @@
         
         const event = titleChainEvents[idx];
         document.getElementById('nodeEditorHeader').textContent = `Edit Chain Document #${idx + 1}`;
-        document.getElementById('node_doc_type').value = event.event_type || 'SALE_DEED_PLOT';
+        document.getElementById('node_doc_type').value = event.template_key || event.event_type || 'SALE_DEED_PLOT';
         document.getElementById('node_date').value = event.date || '';
         document.getElementById('node_sellers').value = event.executant_name || event.s || '';
         document.getElementById('node_buyers').value = event.claimant_name || event.b || '';
@@ -1914,7 +1914,9 @@
         const idx = parseInt(document.getElementById('activeNodeIndex').value) || 0;
         if (idx < 0 || idx >= titleChainEvents.length) return;
         
-        titleChainEvents[idx].event_type = document.getElementById('node_doc_type').value;
+        const docTypeValue = document.getElementById('node_doc_type').value;
+        titleChainEvents[idx].event_type = docTypeValue;
+        titleChainEvents[idx].template_key = docTypeValue;
         titleChainEvents[idx].date = document.getElementById('node_date').value;
         titleChainEvents[idx].executant_name = document.getElementById('node_sellers').value;
         titleChainEvents[idx].s = document.getElementById('node_sellers').value;
