@@ -60,7 +60,7 @@
     <!-- Main Content Area -->
     <div class="app-main">
       <header class="app-header">
-        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Toggle Sidebar" title="Toggle Sidebar">☰</button>
         <div class="header-breadcrumbs">
           <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
           <span class="breadcrumb-separator">/</span>
@@ -182,7 +182,7 @@
       <div class="modal-content border-zinc-800">
         <div class="modal-header border-bottom border-zinc-800 bg-zinc-950">
           <h5 class="modal-title text-zinc-50 fs-6">Document Context</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body bg-zinc-900">
           <div id="contextContent" class="p-3 bg-zinc-950 border border-zinc-800 rounded font-monospace text-zinc-300 small" style="white-space: pre-wrap; line-height: 1.6;"></div>
