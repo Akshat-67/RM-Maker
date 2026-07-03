@@ -354,6 +354,88 @@
             box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
         }
         
+
+        /* Step 3: Timeline Track Styles */
+        .timeline-track-wrapper {
+            position: relative;
+            padding: 2rem 1.5rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 1rem;
+            overflow-x: auto;
+        }
+        .timeline-line {
+            position: absolute;
+            top: 3.25rem;
+            left: 5rem;
+            right: 5rem;
+            height: 4px;
+            background-color: #cbd5e1;
+            z-index: 1;
+        }
+        .timeline-nodes-container {
+            display: flex;
+            justify-content: flex-start;
+            gap: 3.5rem;
+            align-items: flex-start;
+            position: relative;
+            z-index: 2;
+            padding: 0 1rem;
+        }
+        .timeline-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            width: 140px;
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+        .timeline-node:hover {
+            transform: translateY(-2px);
+        }
+        .timeline-node-dot {
+            width: 2.8rem;
+            height: 2.8rem;
+            border-radius: 50%;
+            background-color: #ffffff;
+            border: 3px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #64748b;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 0.5rem;
+        }
+        .timeline-node-index {
+            font-size: 0.95rem;
+        }
+        .timeline-node.active .timeline-node-dot {
+            border-color: #0284c7;
+            background-color: #0284c7;
+            color: #ffffff;
+            box-shadow: 0 0 0 5px rgba(2, 132, 199, 0.25);
+        }
+        .timeline-node-content {
+            width: 100%;
+            padding: 0 0.25rem;
+        }
+        .timeline-node-title {
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 0.1rem;
+            line-height: 1.2;
+        }
+        .timeline-node-date {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #64748b;
+        }
         /* Step 1: Upload Card Grid Styles */
         .upload-grid-card {
             border: 1px solid #e2e8f0;
@@ -409,6 +491,7 @@
         <div class="step-switcher-container">
             <button class="step-nav-btn active-step" id="step-indicator-upload" onclick="switchStep(1)">1. Configure & Upload</button>
             <button class="step-nav-btn" id="step-indicator-review" onclick="switchStep(2)">2. Verify & Review</button>
+            <button class="step-nav-btn" id="step-indicator-chain" onclick="switchStep(3)">3. Title Chain Timeline</button>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -1505,6 +1588,128 @@
         </div>
     </div>
 
+
+    <!-- STEP 3: TITLE CHAIN TIMELINE WORKSPACE -->
+    <div id="step-chain-view" class="container py-4 flex-grow-1 overflow-y-auto d-none">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-dark text-white fw-bold py-2.5 d-flex justify-content-between align-items-center">
+                <span>🔗 Interactive Chronological Title Chain Flow</span>
+                <div>
+                    <button class="btn btn-info btn-sm py-1 px-3 fw-bold text-white shadow-sm" onclick="addChainNode()">+ Add Chain Document</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Timeline nodes container (Scrollable list of nodes connected by lines) -->
+                <div class="timeline-track-wrapper">
+                    <div class="timeline-line" id="timelineLine"></div>
+                    <div class="timeline-nodes-container" id="timelineNodesList">
+                        <!-- Rendered dynamically by javascript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left Panel: Active Deed Details Editor -->
+            <div class="col-lg-7">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-secondary text-white fw-bold py-2" id="nodeEditorHeader">
+                        Edit Chain Document #1
+                    </div>
+                    <div class="card-body">
+                        <!-- Hidden inputs to track active node index & manual override -->
+                        <input type="hidden" id="activeNodeIndex" value="0">
+                        <input type="hidden" id="chain_is_manual_input" value="{% if data.get('chain_is_manual') in ['true', True] %}true{% else %}false{% endif %}">
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Document Type</label>
+                                <select class="form-select form-select-sm" id="node_doc_type" onchange="updateActiveNodeData()">
+                                    <option value="SALE_DEED_PLOT">Sale Deed (Plot)</option>
+                                    <option value="SALE_DEED_FLAT">Sale Deed (Flat)</option>
+                                    <option value="ALLOTMENT_PLOT">Allotment Letter (Plot)</option>
+                                    <option value="ALLOTMENT_FLAT">Allotment Letter (Flat)</option>
+                                    <option value="TRANSFER_PLOT">Transfer Letter (Plot)</option>
+                                    <option value="TRANSFER_FLAT">Transfer Letter (Flat)</option>
+                                    <option value="GIFT_DEED">Gift Deed</option>
+                                    <option value="HAK_TYAG">Hak Tyag (Relinquishment)</option>
+                                    <option value="POA_AGRICULTURAL">POA (Agricultural)</option>
+                                    <option value="POA_NON_AGRICULTURAL">POA (Non-Agricultural)</option>
+                                    <option value="DEVELOPER_AGREEMENT">Developer Agreement</option>
+                                    <option value="DEATH_HEIRS_SINGLE">Death / Succession</option>
+                                    <option value="CONSTRUCTION_FLAT">Construction (Flat)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Execution Date</label>
+                                <input type="text" class="form-control form-control-sm" id="node_date" placeholder="e.g. 15-08-2015" oninput="updateActiveNodeData()">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">First Party (Sellers / Transferors - Hindi)</label>
+                                <input type="text" class="form-control form-control-sm hindi-legacy-input" id="node_sellers" placeholder="Hindi/DevLys Sellers" oninput="updateActiveNodeData()">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Second Party (Buyers / Transferees - Hindi)</label>
+                                <input type="text" class="form-control form-control-sm hindi-legacy-input" id="node_buyers" placeholder="Hindi/DevLys Buyers" oninput="updateActiveNodeData()">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Registration No</label>
+                                <input type="text" class="form-control form-control-sm" id="node_reg_no" placeholder="e.g. 2356" oninput="updateActiveNodeData()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Bahi / Book No</label>
+                                <input type="text" class="form-control form-control-sm" id="node_bahi_no" placeholder="e.g. 1" oninput="updateActiveNodeData()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Volume / Jild No</label>
+                                <input type="text" class="form-control form-control-sm" id="node_volume_no" placeholder="e.g. 543" oninput="updateActiveNodeData()">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Page Range (From-To)</label>
+                                <input type="text" class="form-control form-control-sm" id="node_page_range" placeholder="e.g. 12-45" oninput="updateActiveNodeData()">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Consideration Amount</label>
+                                <input type="text" class="form-control form-control-sm" id="node_consideration" placeholder="e.g. 15,00,000/-" oninput="updateActiveNodeData()">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <button class="btn btn-outline-danger btn-sm fw-bold" onclick="deleteActiveNode()">✖ Delete This Document</button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="moveNode(-1)">◀ Move Earlier</button>
+                                <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="moveNode(1)">Move Later ▶</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Narrative Preview & Actions -->
+            <div class="col-lg-5">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-success text-white fw-bold py-2 d-flex justify-content-between align-items-center">
+                        <span>📝 Hindi Narrative Preview</span>
+                        <button class="btn btn-light btn-xs fw-bold text-success py-0.5 px-2" onclick="refreshNarrativePreview()">⚡ Re-Generate</button>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between">
+                        <div class="flex-grow-1 mb-3">
+                            <p class="text-muted small mb-2">This is the generated narrative paragraph that will be compiled into the Sale Deed document:</p>
+                            <textarea class="form-control font-monospace hindi-legacy-input" id="chainNarrativePreview" rows="8" style="font-size: 0.85rem;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
+                        </div>
+                        <div class="bg-light p-3 rounded border">
+                            <h6 class="fw-bold text-secondary mb-1">Verify & Save Workspace</h6>
+                            <p class="small text-muted mb-3">Ensure you click "Save Workspace" after modifications to persist the chain sequence.</p>
+                            <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm" onclick="saveCase()">💾 Save Chain Workspace</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
     const CASE_ID = '{{ case_id }}';
     const DOC_TYPE = '{{ doc_type }}';
@@ -1513,20 +1718,29 @@
     function switchStep(stepNum) {
         const uploadView = document.getElementById('step-upload-view');
         const reviewView = document.getElementById('step-review-view');
+        const chainView = document.getElementById('step-chain-view');
+        
         const indicatorUpload = document.getElementById('step-indicator-upload');
         const indicatorReview = document.getElementById('step-indicator-review');
+        const indicatorChain = document.getElementById('step-indicator-chain');
         
         if (stepNum === 1) {
             uploadView.classList.remove('d-none');
             reviewView.classList.add('d-none');
+            chainView.classList.add('d-none');
+            
             indicatorUpload.classList.add('active-step');
             indicatorReview.classList.remove('active-step');
+            indicatorChain.classList.remove('active-step');
             document.body.style.overflow = 'auto';
-        } else {
+        } else if (stepNum === 2) {
             uploadView.classList.add('d-none');
             reviewView.classList.remove('d-none');
+            chainView.classList.add('d-none');
+            
             indicatorUpload.classList.remove('active-step');
             indicatorReview.classList.add('active-step');
+            indicatorChain.classList.remove('active-step');
             document.body.style.overflow = 'hidden';
             
             // Automatically preview first file if iframe source is empty
@@ -1539,9 +1753,241 @@
                     if (filename) previewFile(filename);
                 }
             }
+        } else if (stepNum === 3) {
+            uploadView.classList.add('d-none');
+            reviewView.classList.add('d-none');
+            chainView.classList.remove('d-none');
+            
+            indicatorUpload.classList.remove('active-step');
+            indicatorReview.classList.remove('active-step');
+            indicatorChain.classList.add('active-step');
+            document.body.style.overflow = 'auto';
+            
+            // Initialize timeline view on display
+            renderTimeline();
+            selectNode(parseInt(document.getElementById('activeNodeIndex').value) || 0);
         }
     }
 
+
+    // Timeline variables
+    let titleChainEvents = [];
+
+    function loadTimelineEvents() {
+        {% if doc_type == 'SD' %}
+            titleChainEvents = {{ data.get('title_chain', []) | tojson }} || [];
+        {% else %}
+            titleChainEvents = [];
+        {% endif %}
+        
+        if (titleChainEvents.length === 0) {
+            titleChainEvents.push({
+                event_type: 'SALE_DEED_PLOT',
+                date: '',
+                executant_name: '',
+                claimant_name: '',
+                reg_no: '',
+                reg_book: '1',
+                reg_vol: '',
+                reg_page: '',
+                consideration_amount: ''
+            });
+        }
+    }
+
+    function renderTimeline() {
+        const list = document.getElementById('timelineNodesList');
+        if (!list) return;
+        
+        list.innerHTML = "";
+        const activeIdx = parseInt(document.getElementById('activeNodeIndex').value) || 0;
+        
+        titleChainEvents.forEach((event, idx) => {
+            const node = document.createElement('div');
+            node.className = `timeline-node ${idx === activeIdx ? 'active' : ''}`;
+            node.onclick = () => selectNode(idx);
+            
+            let icon = "📄";
+            let shortType = "Sale Deed";
+            const type = event.event_type || 'SALE_DEED_PLOT';
+            if (type.includes('ALLOTMENT')) {
+                icon = "✉️";
+                shortType = "Allotment";
+            } else if (type.includes('TRANSFER')) {
+                icon = "🔄";
+                shortType = "Transfer";
+            } else if (type.includes('GIFT')) {
+                icon = "🎁";
+                shortType = "Gift Deed";
+            } else if (type.includes('POA')) {
+                icon = "📋";
+                shortType = "POA";
+            } else if (type.includes('DEATH')) {
+                icon = "✝️";
+                shortType = "Succession";
+            } else if (type.includes('HAK_TYAG')) {
+                icon = "🤝";
+                shortType = "Hak Tyag";
+            } else if (type.includes('CONSTRUCTION')) {
+                icon = "🏗️";
+                shortType = "Construction";
+            }
+            
+            node.innerHTML = `
+                <div class="timeline-node-dot">
+                    <span class="timeline-node-index">${idx + 1}</span>
+                </div>
+                <div class="timeline-node-content">
+                    <div class="timeline-node-title text-truncate">${icon} ${shortType}</div>
+                    <div class="timeline-node-date text-truncate small">${event.date || 'No Date'}</div>
+                </div>
+            `;
+            list.appendChild(node);
+        });
+        
+        const line = document.getElementById('timelineLine');
+        if (line) {
+            line.style.width = `calc(100% - 7rem)`;
+        }
+    }
+
+    function selectNode(idx) {
+        if (idx < 0 || idx >= titleChainEvents.length) return;
+        document.getElementById('activeNodeIndex').value = idx;
+        
+        document.querySelectorAll('.timeline-node').forEach((node, i) => {
+            if (i === idx) node.classList.add('active');
+            else node.classList.remove('active');
+        });
+        
+        const event = titleChainEvents[idx];
+        document.getElementById('nodeEditorHeader').textContent = `Edit Chain Document #${idx + 1}`;
+        document.getElementById('node_doc_type').value = event.event_type || 'SALE_DEED_PLOT';
+        document.getElementById('node_date').value = event.date || '';
+        document.getElementById('node_sellers').value = event.executant_name || event.s || '';
+        document.getElementById('node_buyers').value = event.claimant_name || event.b || '';
+        document.getElementById('node_reg_no').value = event.reg_no || event.r_no || '';
+        document.getElementById('node_bahi_no').value = event.reg_book || event.b_no || '';
+        document.getElementById('node_volume_no').value = event.reg_vol || event.v_no || '';
+        document.getElementById('node_page_range').value = event.page_range || event.p_no || '';
+        document.getElementById('node_consideration').value = event.consideration_amount || event.consideration || '';
+    }
+
+    function updateActiveNodeData() {
+        const idx = parseInt(document.getElementById('activeNodeIndex').value) || 0;
+        if (idx < 0 || idx >= titleChainEvents.length) return;
+        
+        titleChainEvents[idx].event_type = document.getElementById('node_doc_type').value;
+        titleChainEvents[idx].date = document.getElementById('node_date').value;
+        titleChainEvents[idx].executant_name = document.getElementById('node_sellers').value;
+        titleChainEvents[idx].s = document.getElementById('node_sellers').value;
+        titleChainEvents[idx].claimant_name = document.getElementById('node_buyers').value;
+        titleChainEvents[idx].b = document.getElementById('node_buyers').value;
+        titleChainEvents[idx].reg_no = document.getElementById('node_reg_no').value;
+        titleChainEvents[idx].r_no = document.getElementById('node_reg_no').value;
+        titleChainEvents[idx].reg_book = document.getElementById('node_bahi_no').value;
+        titleChainEvents[idx].b_no = document.getElementById('node_bahi_no').value;
+        titleChainEvents[idx].reg_vol = document.getElementById('node_volume_no').value;
+        titleChainEvents[idx].v_no = document.getElementById('node_volume_no').value;
+        titleChainEvents[idx].page_range = document.getElementById('node_page_range').value;
+        titleChainEvents[idx].p_no = document.getElementById('node_page_range').value;
+        titleChainEvents[idx].consideration_amount = document.getElementById('node_consideration').value;
+        titleChainEvents[idx].consideration = document.getElementById('node_consideration').value;
+        
+        const node = document.querySelectorAll('.timeline-node')[idx];
+        if (node) {
+            let icon = "📄";
+            let shortType = "Sale Deed";
+            const type = titleChainEvents[idx].event_type;
+            if (type.includes('ALLOTMENT')) { icon = "✉️"; shortType = "Allotment"; }
+            else if (type.includes('TRANSFER')) { icon = "🔄"; shortType = "Transfer"; }
+            else if (type.includes('GIFT')) { icon = "🎁"; shortType = "Gift Deed"; }
+            else if (type.includes('POA')) { icon = "📋"; shortType = "POA"; }
+            else if (type.includes('DEATH')) { icon = "✝️"; shortType = "Succession"; }
+            else if (type.includes('HAK_TYAG')) { icon = "🤝"; shortType = "Hak Tyag"; }
+            else if (type.includes('CONSTRUCTION')) { icon = "🏗️"; shortType = "Construction"; }
+            
+            node.querySelector('.timeline-node-title').textContent = `${icon} ${shortType}`;
+            node.querySelector('.timeline-node-date').textContent = titleChainEvents[idx].date || 'No Date';
+        }
+    }
+
+    function addChainNode() {
+        titleChainEvents.push({
+            event_type: 'SALE_DEED_PLOT',
+            date: '',
+            executant_name: '',
+            claimant_name: '',
+            reg_no: '',
+            reg_book: '1',
+            reg_vol: '',
+            reg_page: '',
+            consideration_amount: ''
+        });
+        document.getElementById('activeNodeIndex').value = titleChainEvents.length - 1;
+        renderTimeline();
+        selectNode(titleChainEvents.length - 1);
+    }
+
+    function deleteActiveNode() {
+        const idx = parseInt(document.getElementById('activeNodeIndex').value) || 0;
+        if (titleChainEvents.length <= 1) {
+            alert("A title chain must contain at least one document event.");
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete Document #${idx + 1}?`)) return;
+        titleChainEvents.splice(idx, 1);
+        const newActiveIdx = Math.max(0, idx - 1);
+        document.getElementById('activeNodeIndex').value = newActiveIdx;
+        renderTimeline();
+        selectNode(newActiveIdx);
+    }
+
+    function moveNode(dir) {
+        const idx = parseInt(document.getElementById('activeNodeIndex').value) || 0;
+        const targetIdx = idx + dir;
+        if (targetIdx < 0 || targetIdx >= titleChainEvents.length) return;
+        
+        const temp = titleChainEvents[idx];
+        titleChainEvents[idx] = titleChainEvents[targetIdx];
+        titleChainEvents[targetIdx] = temp;
+        
+        document.getElementById('activeNodeIndex').value = targetIdx;
+        renderTimeline();
+        selectNode(targetIdx);
+    }
+
+    function refreshNarrativePreview() {
+        const textarea = document.getElementById('chainNarrativePreview');
+        if (!textarea) return;
+        
+        document.getElementById('statusMsg').textContent = 'Re-generating Hindi Narrative...';
+        updateActiveNodeData();
+        
+        fetch(`/case/${CASE_ID}/preview_chain`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ events: titleChainEvents })
+        })
+        .then(r => r.json())
+        .then(resp => {
+            if (resp.success) {
+                textarea.value = resp.preview_text;
+                document.getElementById('statusMsg').textContent = 'Narrative generated successfully.';
+                document.getElementById('chain_is_manual_input').value = "false";
+            } else {
+                alert('Preview failed: ' + resp.error);
+            }
+        })
+        .catch(e => alert('Error re-generating narrative: ' + e));
+    }
+
+    function syncNarrativeToMainData() {
+        document.getElementById('chain_is_manual_input').value = "true";
+    }
+
+    // Call loadTimelineEvents on initialization
+    loadTimelineEvents();
     // Default step routing based on data existence
     const DEFAULT_STEP = {% if data %}2{% else %}1{% endif %};
     window.addEventListener('DOMContentLoaded', () => {
@@ -2612,7 +3058,14 @@
                 }
             });
 
-
+            // Collect Title Chain timeline data
+            if (typeof titleChainEvents !== 'undefined') {
+                // Ensure we save active node data before submitting
+                updateActiveNodeData();
+                data.title_chain = titleChainEvents;
+                data.chain_text = document.getElementById('chainNarrativePreview')?.value || '';
+                data.chain_is_manual = document.getElementById('chain_is_manual_input')?.value || 'false';
+            }
 
             return data;
         } else {
