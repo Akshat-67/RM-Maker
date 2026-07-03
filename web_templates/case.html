@@ -521,10 +521,10 @@
                         <span class="fw-bold text-muted mb-0.5" style="font-size: 0.7rem;">Other Bucket Uploads</span>
                         <div class="d-flex flex-column gap-1" style="font-size: 0.68rem; flex-grow: 1; justify-content: center; overflow-y: auto;">
                             <div>
-                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                    <span>ATS: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('atsFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_ats" onclick="startAIForBucket('ats', this)" {% if not buckets.get('ats') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
-                                    <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')">
+                                <div class="drop-zone d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light" onclick="document.getElementById('atsFiles').click()" style="cursor: pointer; border-style: dashed !important; padding: 0.15rem 0.3rem !important;">
+                                    <span>ATS: <button class="btn btn-link btn-xs p-0 text-decoration-none" style="font-size: 0.65rem;" onclick="event.stopPropagation()">+ Add</button></span>
+                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_ats" onclick="startAIForBucket('ats', this); event.stopPropagation();" {% if not buckets.get('ats') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                    <input type="file" id="atsFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ats')" onclick="event.stopPropagation()">
                                 </div>
                                 <div class="overflow-y-auto" style="max-height: 40px;" id="atsFileList">
                                     {% for f in buckets.get('ats', []) %}
@@ -536,10 +536,10 @@
                                 </div>
                             </div>
                             <div>
-                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                    <span>Chain: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('titleFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this)" {% if not buckets.get('title_chain') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
-                                    <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')">
+                                <div class="drop-zone d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light" onclick="document.getElementById('titleFiles').click()" style="cursor: pointer; border-style: dashed !important; padding: 0.15rem 0.3rem !important;">
+                                    <span>Chain: <button class="btn btn-link btn-xs p-0 text-decoration-none" style="font-size: 0.65rem;" onclick="event.stopPropagation()">+ Add</button></span>
+                                    <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none fw-bold text-success" id="extractBtn_title_chain" onclick="startAIForBucket('title_chain', this); event.stopPropagation();" {% if not buckets.get('title_chain') %}disabled{% endif %} style="font-size: 0.65rem;">⚡ Ext</button>
+                                    <input type="file" id="titleFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'title_chain')" onclick="event.stopPropagation()">
                                 </div>
                                 <div class="overflow-y-auto" style="max-height: 40px;" id="titleFileList">
                                     {% for f in buckets.get('title_chain', []) %}
@@ -551,9 +551,9 @@
                                 </div>
                             </div>
                             <div>
-                                <div class="d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light">
-                                    <span>OCR: <button class="btn btn-link btn-xs p-0 text-decoration-none" onclick="document.getElementById('ocrFiles').click()" style="font-size: 0.65rem;">+ Add</button></span>
-                                    <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')">
+                                <div class="drop-zone d-flex align-items-center justify-content-between border rounded px-1 py-0.5 bg-light" onclick="document.getElementById('ocrFiles').click()" style="cursor: pointer; border-style: dashed !important; padding: 0.15rem 0.3rem !important;">
+                                    <span>OCR: <button class="btn btn-link btn-xs p-0 text-decoration-none" style="font-size: 0.65rem;" onclick="event.stopPropagation()">+ Add</button></span>
+                                    <input type="file" id="ocrFiles" accept=".pdf,.jpg,.jpeg,.png" multiple style="display: none;" onchange="handleBucketFileSelect(this, 'ocr')" onclick="event.stopPropagation()">
                                 </div>
                                 <div class="overflow-y-auto" style="max-height: 40px;" id="ocrFileList">
                                     {% for f in buckets.get('ocr', []) %}
