@@ -261,7 +261,8 @@
             flex-grow: 1;
             overflow: hidden;
             background-color: #FBFBF9;
-            height: calc(100vh - 180px); /* fallback */
+            height: calc(100vh - 52px); /* fill entire height below 52px navbar */
+            min-height: 0;
         }
         .preview-pane {
             width: 50%;
@@ -506,6 +507,14 @@
             display: flex;
             align-items: stretch;
             justify-content: stretch;
+        }
+        /* High specificity overrides to stretch preview tabs to full height */
+        #source-docs, #generated-draft {
+            display: flex !important;
+            flex-direction: column !important;
+            flex-grow: 1 !important;
+            height: 100% !important;
+            min-height: 0 !important;
         }
         #previewIframe, #previewImg {
             flex-grow: 1;
