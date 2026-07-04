@@ -1086,32 +1086,33 @@ async function autofillCalculateDuty(data, sendResponse) {
                                         triggerButtonByText("गणना और सहेजें");
                     
                     if (calcSaveBtn) {
-                        calcSaveBtn.click();
-                        
-                        // Poll for SweetAlert2 modal to appear
-                        const checkInterval = setInterval(() => {
-                            showStatusToast("Waiting for Calculation Saved popup...");
-                            const swalOkBtn = document.querySelector('.swal2-confirm') || 
-                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
-                            if (swalOkBtn) {
-                                showStatusToast("Confirming calculation (Clicking OK)...");
-                                clearInterval(checkInterval);
-                                
-                                // Set the stampDutyCalculated state to true in local storage before clicking OK
-                                chrome.storage.local.set({ stampDutyCalculated: true }, () => {
+                        // Set the stampDutyCalculated state to true in local storage immediately before clicking submit
+                        chrome.storage.local.set({ stampDutyCalculated: true }, () => {
+                            calcSaveBtn.click();
+                            
+                            // Poll for SweetAlert2 modal to appear
+                            const checkInterval = setInterval(() => {
+                                showStatusToast("Waiting for Calculation Saved popup...");
+                                const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                                if (swalOkBtn) {
+                                    showStatusToast("Confirming calculation (Clicking OK)...");
+                                    clearInterval(checkInterval);
                                     swalOkBtn.click();
                                     setTimeout(() => {
                                         hideStatusToast();
                                     }, 1000);
                                     sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
-                                });
-                            }
-                        }, 250);
-                        
-                        // Safety timeout (clear interval after 8 seconds)
-                        setTimeout(() => {
-                            clearInterval(checkInterval);
-                        }, 8000);
+                                }
+                            }, 250);
+                            
+                            // Safety timeout (clear interval after 8 seconds)
+                            setTimeout(() => {
+                                clearInterval(checkInterval);
+                                // If no popup appeared after 8s (e.g. redirected already), send response
+                                sendResponse({ success: true, message: 'Submitted stamp duty calculation.' });
+                            }, 8000);
+                        });
                     } else {
                         showStatusToast("Calculate & Save button not found.", false);
                         sendResponse({ success: true, message: 'Autofilled execution date and face value!' });
