@@ -244,6 +244,14 @@ MAPPING_PAIRS.sort(key=lambda x: len(x[0]), reverse=True)
 
 class DevLysToUnicodeConverter:
     _devanagari_regex = re.compile(r'[ऀ-ॿ]')
+    _valid_chars_regex = re.compile(r'^[A-Za-z0-9\s\.,\-\(\)\/\#\&\:\@]+$')
+    _common_english_regex = re.compile(
+        r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
+        re.IGNORECASE
+    )
+    _devlys_specifics = ["Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k"]
+    _clean_punc_regex = re.compile(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$')
+    _common_english_words = {"and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"}
 
     @staticmethod
     def is_likely_english(text):
@@ -257,15 +265,11 @@ class DevLysToUnicodeConverter:
             return False
 
         # If it doesn't match standard English/numeric/punctuation characters, it's not English
-        if not re.match(r'^[A-Za-z0-9\s\.,\-\(\)\/\#\&\:\@]+$', stripped):
+        if not DevLysToUnicodeConverter._valid_chars_regex.match(stripped):
             return False
             
         # Common English terms in legal docs (case-insensitive)
-        common_english = re.compile(
-            r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
-            re.IGNORECASE
-        )
-        if common_english.search(stripped):
+        if DevLysToUnicodeConverter._common_english_regex.search(stripped):
             return True
 
         # Check word-by-word
@@ -274,40 +278,36 @@ class DevLysToUnicodeConverter:
             return True
 
         # If there are specific DevLys substrings, it's not English
-        devlys_specifics = ["Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k"]
-        if any(x in stripped for x in devlys_specifics):
-            return False
+        for x in DevLysToUnicodeConverter._devlys_specifics:
+            if x in stripped:
+                return False
 
-        is_english_words = []
+        has_words = False
         for w in words:
             # Clean punctuation from ends
-            w_clean = re.sub(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$', '', w)
+            w_clean = DevLysToUnicodeConverter._clean_punc_regex.sub('', w)
             if not w_clean:
                 continue
+
+            has_words = True
+
             if w_clean.isdigit():
-                is_english_words.append(True)
                 continue
             # If all uppercase (e.g. "S.NO", "PAN", "LAN", "IFSC")
             if w_clean.isupper():
-                is_english_words.append(True)
                 continue
             # If Capitalized (e.g. "Name", "Date")
             if w_clean[0].isupper() and w_clean[1:].islower() and len(w_clean) >= 3:
-                is_english_words.append(True)
                 continue
             # Common short lowercase English words
-            if w_clean.islower() and len(w_clean) >= 3:
-                if w_clean in ["and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"]:
-                    is_english_words.append(True)
-                    continue
+            if w_clean.islower() and len(w_clean) >= 3 and w_clean in DevLysToUnicodeConverter._common_english_words:
+                continue
             
-            is_english_words.append(False)
+            # If we reach here, it's an unrecognized word type
+            return False
 
-        # If all words look like English, it's English
-        if is_english_words and all(is_english_words):
-            return True
-
-        return False
+        # If all words were recognized as English, it's English
+        return has_words
 
     @staticmethod
     def devlys_to_unicode_text(text):
