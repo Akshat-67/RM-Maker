@@ -974,11 +974,11 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                                     
                                     setTimeout(() => {
                                         hideStatusToast();
-                                    }, 1000);
+                                    }, 100);
                                     
                                     sendResponse({ success: true, message: 'Autofilled details, clicked Save, and confirmed modal!' });
                                 }
-                            }, 250);
+                            }, 50);
                             
                             // Safety timeout (clear interval after 8 seconds)
                             setTimeout(() => {
@@ -1099,10 +1099,10 @@ async function autofillCalculateDuty(data, sendResponse) {
                                     swalOkBtn.click();
                                     setTimeout(() => {
                                         hideStatusToast();
-                                    }, 1000);
+                                    }, 100);
                                     sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
                                 }
-                            }, 250);
+                            }, 50);
                             
                             // Safety timeout (clear interval after 8 seconds)
                             setTimeout(() => {
@@ -1485,11 +1485,11 @@ async function oneClickAutofill(data, sendResponse) {
                                     }
                                     chrome.storage.local.set(updates, () => {
                                         swalOkBtn.click();
-                                        setTimeout(() => hideStatusToast(), 1000);
+                                        setTimeout(() => hideStatusToast(), 100);
                                         sendResponse({ success: true, message: `Successfully saved ${stage} and updated stage to ${nextStage}` });
                                     });
                                 }
-                            }, 250);
+                            }, 50);
                             
                             // Safety timeout (clear interval after 10 seconds)
                             setTimeout(() => {
@@ -1553,11 +1553,11 @@ async function oneClickAutofill(data, sendResponse) {
                                                 // Set stage to DONE and stop automation
                                                 chrome.storage.local.set({ partyStage: "DONE", oneClickRunning: false }, () => {
                                                     swalOkBtn.click();
-                                                    setTimeout(() => hideStatusToast(), 1000);
+                                                    setTimeout(() => hideStatusToast(), 100);
                                                     sendResponse({ success: true, message: 'Presenter Details saved! One-Click Autofill Complete.' });
                                                 });
                                             }
-                                        }, 250);
+                                        }, 50);
                                         
                                         // Safety timeout (clear interval after 8 seconds)
                                         setTimeout(() => clearInterval(checkInterval), 8000);
