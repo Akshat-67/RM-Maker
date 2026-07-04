@@ -69,21 +69,32 @@ This page is divided into multiple sections:
     * **Input 2 (`plotNo2`)**: Primary Plot Number (e.g. `"101 /"`). If the remaining plot number contains a slash (like `"101/200A"`), the part before the slash including the slash is set here (e.g. `"101 /"`).
     * **Input 3 (`plotNo3`)**: Suffix / Part / Flat Number (e.g. `"200A"`). The part after the slash is set here.
     * *Fallback*: If no complex patterns are found, leave `plotNo1` and `plotNo3` empty, and write the entire plot string to `plotNo2`.
+* **Colony/Village / (कॉलोनी/गाँव)**: (Dropdown select element ID: `select#othercolonyvillage` / Select2: `span#select2-othercolonyvillage-container`)
+  * **Rule**: Select the same colony name selected in Section 4.1.
+* **City / (शहर)**: (Dropdown select element ID: `select#city` / Select2: `span#select2-city-container`)
+  * **Rule**: Select the case city, e.g., `"JAIPUR"`.
 * **Issuing Authority / जारी करने वाला प्राधिकरण**: (Dropdown)
 * **Road Width / सड़क की चौड़ाई**: (Input in feet)
+  * **Rule**: Set to the road width extracted from the boundary details.
 * **Corner Plot / कॉर्नर प्लॉट**: (Radio: Yes / No)
-* **Property Area / संपत्ति क्षेत्र**: (Input)
+  * **Rule**: Default to "No" unless specified otherwise.
+* **Property Area / संपत्ति क्षेत्र**: (Input element ID: `input#txtPlotArea`)
+  * **Rule**: Set to property area. If the value in the report is in **Square Yards (Gaj)**, convert it to **Square Meters** by multiplying by **0.8361** (e.g. `gaj * 0.8361`).
 * **Other Detail / अन्य विवरण**: (Input)
-* **City / शहर**: (Dropdown / Input)
-* **Latitude & Longitude**: (Inputs)
+* **Latitude & Longitude**: (Input element IDs: `input#latitude`, `input#longitude`)
+  * **Rule**: Set to coordinates from the Technical Valuation Report.
 * **Property Id**: (Input)
 
 ### Section 4.3: Other Details & Boundaries
-* **East / पूर्व**: (Input)
-* **West / पश्चिम**: (Input)
-* **North / उत्तर**: (Input)
-* **South / दक्षिण**: (Input)
-* **Intermediate Documents / मध्यवर्ती दस्तावेज़**: (Radio: Yes / No, default No)
-* **Commission / कमीशन**: (Radios, default N/A)
-* **Save**: Click Save button at the bottom of the page.
+* **East / पूर्व**: (Input element ID: `input#east` / name `east`)
+  * **Rule**: Set to East boundary description from the Legal Search Report.
+* **West / पश्चिम**: (Input element ID: `input#west` / name `west`)
+  * **Rule**: Set to West boundary description from the Legal Search Report.
+* **North / उत्तर**: (Input element ID: `input#north` / name `north`)
+  * **Rule**: Set to North boundary description from the Legal Search Report.
+* **South / दक्षिण**: (Input element ID: `input#south` / name `south`)
+  * **Rule**: Set to South boundary description from the Legal Search Report.
+* **Intermediate Documents / मध्यवर्ती दस्तावेज़**: (Radio: Yes / No, default "No")
+* **Commission / कमीशन**: (Radios, default "N/A")
+* **Save**: Click Save button at the bottom of the page (`button` or `input` type submit).
 
