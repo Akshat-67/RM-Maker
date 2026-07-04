@@ -1003,12 +1003,16 @@
                                                         {% for ua in data.get('unassigned_aadhars', []) %}
                                                         <tr id="ua-row-{{ loop.index0 }}" 
                                                             data-n="{{ ua.get('n','') }}"
+                                                            data-n_en="{{ ua.get('n_en','') }}"
                                                             data-id="{{ ua.get('id','') }}"
                                                             data-a="{{ ua.get('a','') }}"
                                                             data-dob="{{ ua.get('dob','') }}"
                                                             data-r="{{ ua.get('r','') }}"
                                                             data-rn="{{ ua.get('rn','') }}"
+                                                            data-rn_en="{{ ua.get('rn_en','') }}"
                                                             data-adr="{{ ua.get('adr','') }}"
+                                                            data-adr_en="{{ ua.get('adr_en','') }}"
+                                                            data-is_bpl="{{ ua.get('is_bpl','') }}"
                                                             data-s="{{ ua.get('s','') }}">
                                                             <td class="fw-bold">{{ ua.get('n','') }}</td>
                                                             <td><code>{{ ua.get('id','') }}</code></td>
@@ -1166,6 +1170,10 @@
                                         {% for s in data.get('sellers', []) %}
                                         <div class="card mb-3 shadow-sm border-0 seller-card">
                                             <div class="card-body">
+                                                <input type="hidden" id="field_sellers_{{ loop.index0 }}_n_en" value="{{ s.get('n_en','') }}">
+                                                <input type="hidden" id="field_sellers_{{ loop.index0 }}_rn_en" value="{{ s.get('rn_en','') }}">
+                                                <input type="hidden" id="field_sellers_{{ loop.index0 }}_adr_en" value="{{ s.get('adr_en','') }}">
+                                                <input type="hidden" id="field_sellers_{{ loop.index0 }}_is_bpl" value="{{ s.get('is_bpl','') }}">
                                                 <h6 class="text-primary fw-bold">Seller {{ loop.index }}</h6>
                                                 <div class="row g-2">
                                                     <div class="col-8">
@@ -1218,6 +1226,10 @@
                                         {% for b in data.get('buyers', []) %}
                                         <div class="card mb-3 shadow-sm border-0 buyer-card">
                                             <div class="card-body">
+                                                <input type="hidden" id="field_buyers_{{ loop.index0 }}_n_en" value="{{ b.get('n_en','') }}">
+                                                <input type="hidden" id="field_buyers_{{ loop.index0 }}_rn_en" value="{{ b.get('rn_en','') }}">
+                                                <input type="hidden" id="field_buyers_{{ loop.index0 }}_adr_en" value="{{ b.get('adr_en','') }}">
+                                                <input type="hidden" id="field_buyers_{{ loop.index0 }}_is_bpl" value="{{ b.get('is_bpl','') }}">
                                                 <h6 class="text-success fw-bold">Buyer {{ loop.index }}</h6>
                                                 <div class="row g-2">
                                                     <div class="col-8">
@@ -1310,6 +1322,9 @@
                                         {% for w in data.get('ws', []) %}
                                         <div class="card mb-3 shadow-sm border-0 witness-card">
                                             <div class="card-body">
+                                                <input type="hidden" id="field_ws_{{ loop.index0 }}_n_en" value="{{ w.get('n_en','') }}">
+                                                <input type="hidden" id="field_ws_{{ loop.index0 }}_rn_en" value="{{ w.get('rn_en','') }}">
+                                                <input type="hidden" id="field_ws_{{ loop.index0 }}_adr_en" value="{{ w.get('adr_en','') }}">
                                                 <h6 class="text-secondary fw-bold">Witness {{ loop.index }}</h6>
                                                 <div class="row g-2">
                                                     <div class="col-8">
@@ -1398,6 +1413,14 @@
                                         {% for p in data.get('ps', []) %}
                                         <div class="card mb-3 shadow-sm border-0 property-card">
                                             <div class="card-body">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_adr_en" value="{{ p.get('adr_en','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_n_en" value="{{ p.get('n_en','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_s_en" value="{{ p.get('s_en','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_e_en" value="{{ p.get('e_en','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_w_en" value="{{ p.get('w_en','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_lat" value="{{ p.get('lat','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_lng" value="{{ p.get('lng','') }}">
+                                                <input type="hidden" id="field_ps_{{ loop.index0 }}_road_width" value="{{ p.get('road_width','') }}">
                                                 <h6 class="text-primary fw-bold">Property Details</h6>
                                                 <div class="row g-2 mb-2">
                                                     <div class="col-12">
@@ -3244,7 +3267,7 @@
             const pCards = document.querySelectorAll('#verificationContent .property-card');
             pCards.forEach((card, i) => {
                 const p = {};
-                ['adr', 'adr_en', 'area', 'area_unit', 'n', 'n_en', 's', 's_en', 'e', 'e_en', 'w', 'w_en'].forEach(k => {
+                ['adr', 'adr_en', 'area', 'area_unit', 'n', 'n_en', 's', 's_en', 'e', 'e_en', 'w', 'w_en', 'lat', 'lng', 'road_width'].forEach(k => {
                     const el = document.getElementById(`field_ps_${i}_${k}`);
                     if (el) p[k] = el.value || '';
                 });
@@ -3517,12 +3540,16 @@
             assignedIndices.push(parseInt(index));
 
             const name = row.getAttribute('data-n');
+            const nameEn = row.getAttribute('data-n_en') || '';
             const id = row.getAttribute('data-id');
             const age = row.getAttribute('data-a');
             const dob = row.getAttribute('data-dob');
             const relation = row.getAttribute('data-r');
             const relName = row.getAttribute('data-rn');
+            const relNameEn = row.getAttribute('data-rn_en') || '';
             const address = row.getAttribute('data-adr');
+            const addressEn = row.getAttribute('data-adr_en') || '';
+            const isBpl = row.getAttribute('data-is_bpl') || '';
             const salutation = row.getAttribute('data-s');
 
             if (docType === 'SD') {
@@ -3532,7 +3559,7 @@
                     if (nInput) nInput.value = name;
                     
                     const nEnInput = document.getElementById(`field_sellers_${idx}_n_en`);
-                    if (nEnInput) nEnInput.value = ""; // Let typist key or AI translit
+                    if (nEnInput) nEnInput.value = nameEn;
                     
                     const aInput = document.getElementById(`field_sellers_${idx}_a`);
                     if (aInput) aInput.value = age;
@@ -3543,8 +3570,17 @@
                     const rnInput = document.getElementById(`field_sellers_${idx}_rn`);
                     if (rnInput) rnInput.value = relName;
                     
+                    const rnEnInput = document.getElementById(`field_sellers_${idx}_rn_en`);
+                    if (rnEnInput) rnEnInput.value = relNameEn;
+                    
                     const adrText = document.getElementById(`field_sellers_${idx}_adr`);
                     if (adrText) adrText.value = address;
+                    
+                    const adrEnText = document.getElementById(`field_sellers_${idx}_adr_en`);
+                    if (adrEnText) adrEnText.value = addressEn;
+                    
+                    const isBplInput = document.getElementById(`field_sellers_${idx}_is_bpl`);
+                    if (isBplInput) isBplInput.value = isBpl;
                     
                     const idInput = document.getElementById(`field_sellers_${idx}_id`);
                     if (idInput) idInput.value = id;
@@ -3560,6 +3596,9 @@
                     const nInput = document.getElementById(`field_buyers_${idx}_n`);
                     if (nInput) nInput.value = name;
                     
+                    const nEnInput = document.getElementById(`field_buyers_${idx}_n_en`);
+                    if (nEnInput) nEnInput.value = nameEn;
+                    
                     const aInput = document.getElementById(`field_buyers_${idx}_a`);
                     if (aInput) aInput.value = age;
                     
@@ -3569,8 +3608,17 @@
                     const rnInput = document.getElementById(`field_buyers_${idx}_rn`);
                     if (rnInput) rnInput.value = relName;
                     
+                    const rnEnInput = document.getElementById(`field_buyers_${idx}_rn_en`);
+                    if (rnEnInput) rnEnInput.value = relNameEn;
+                    
                     const adrText = document.getElementById(`field_buyers_${idx}_adr`);
                     if (adrText) adrText.value = address;
+                    
+                    const adrEnText = document.getElementById(`field_buyers_${idx}_adr_en`);
+                    if (adrEnText) adrEnText.value = addressEn;
+                    
+                    const isBplInput = document.getElementById(`field_buyers_${idx}_is_bpl`);
+                    if (isBplInput) isBplInput.value = isBpl;
                     
                     const idInput = document.getElementById(`field_buyers_${idx}_id`);
                     if (idInput) idInput.value = id;
@@ -3586,14 +3634,23 @@
                     const nInput = document.getElementById(`field_ws_${idx}_n`);
                     if (nInput) nInput.value = name;
                     
+                    const nEnInput = document.getElementById(`field_ws_${idx}_n_en`);
+                    if (nEnInput) nEnInput.value = nameEn;
+                    
                     const rInput = document.getElementById(`field_ws_${idx}_r`);
                     if (rInput) rInput.value = relation === 'Father of' ? 'iqr Jh' : (relation === 'Wife of' ? 'iRuh Jh' : relation);
                     
                     const rnInput = document.getElementById(`field_ws_${idx}_rn`);
                     if (rnInput) rnInput.value = relName;
                     
+                    const rnEnInput = document.getElementById(`field_ws_${idx}_rn_en`);
+                    if (rnEnInput) rnEnInput.value = relNameEn;
+                    
                     const adrText = document.getElementById(`field_ws_${idx}_adr`);
                     if (adrText) adrText.value = address;
+                    
+                    const adrEnText = document.getElementById(`field_ws_${idx}_adr_en`);
+                    if (adrEnText) adrEnText.value = addressEn;
 
                     const idInput = document.getElementById(`field_ws_${idx}_id`);
                     if (idInput) idInput.value = id;
