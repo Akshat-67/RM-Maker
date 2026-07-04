@@ -820,4 +820,138 @@ async function autofillCalculateDuty(data, sendResponse) {
     }
 }
 
+// 4. Quotation Scraping & Persistent Backend Storage
+function scrapeValuationQuote() {
+    let stampDuty = "";
+    let regFee = "";
+    let cessSurcharge = "";
+    let totalFee = "";
+    
+    // Scan all cells in the document
+    const cells = Array.from(document.querySelectorAll('td, th, label, span, div'));
+    
+    function extractValueNextTo(keywordText) {
+        const index = cells.findIndex(c => c.textContent.replace(/\s+/g, ' ').trim().toUpperCase().includes(keywordText.toUpperCase()));
+        if (index !== -1) {
+            const cell = cells[index];
+            if (cell.tagName === 'TD' || cell.tagName === 'TH') {
+                const row = cell.closest('tr');
+                if (row) {
+                    const rowCells = Array.from(row.cells);
+                    const cellIndex = rowCells.indexOf(cell);
+                    if (cellIndex !== -1 && cellIndex + 1 < rowCells.length) {
+                        return rowCells[cellIndex + 1].textContent.trim();
+                    }
+                }
+            }
+            let next = cell.nextElementSibling;
+            if (next) return next.textContent.trim();
+            
+            const parent = cell.parentElement;
+            if (parent && parent.nextElementSibling) {
+                return parent.nextElementSibling.textContent.trim();
+            }
+        }
+        return "";
+    }
+    
+    stampDuty = extractValueNextTo("STAMP DUTY") || extractValueNextTo("स्टाम्प शुल्क") || extractValueNextTo("स्टाम्प ड्यूटी");
+    regFee = extractValueNextTo("REGISTRATION FEE") || extractValueNextTo("पंजीयन शुल्क") || extractValueNextTo("पंजीकरण शुल्क");
+    cessSurcharge = extractValueNextTo("SURCHARGE") || extractValueNextTo("सरचार्ज") || extractValueNextTo("CESS");
+    totalFee = extractValueNextTo("TOTAL") || extractValueNextTo("कुल");
+    
+    // Grid search fallback
+    if (!totalFee) {
+        const rows = Array.from(document.querySelectorAll('tr'));
+        for (let row of rows) {
+            const txt = row.textContent.toUpperCase();
+            const cellsList = Array.from(row.cells).map(c => c.textContent.trim());
+            if (txt.includes("TOTAL") || txt.includes("कुल")) {
+                totalFee = cellsList[cellsList.length - 1] || "";
+            }
+            if (txt.includes("STAMP") || txt.includes("स्टाम्प")) {
+                stampDuty = cellsList[cellsList.length - 1] || "";
+            }
+            if (txt.includes("REGISTRATION") || txt.includes("पंजीयन")) {
+                regFee = cellsList[cellsList.length - 1] || "";
+            }
+            if (txt.includes("SURCHARGE") || txt.includes("सरचार्ज")) {
+                cessSurcharge = cellsList[cellsList.length - 1] || "";
+            }
+        }
+    }
+    
+    return {
+        stamp_duty: stampDuty,
+        registration_fee: regFee,
+        cess_surcharge: cessSurcharge,
+        total_fee: totalFee
+    };
+}
+
+async function saveQuoteToBackend(caseId, quote) {
+    try {
+        showStatusToast("Saving valuation quote to backend...");
+        const response = await fetch(`http://localhost:5000/api/case/${caseId}/save_valuation_quote`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(quote)
+        });
+        const res = await response.json();
+        if (res.success) {
+            showStatusToast("Valuation quote saved successfully!", false);
+        } else {
+            console.error("[SD Autofill] Failed to save quote:", res.error);
+        }
+    } catch (e) {
+        console.error("[SD Autofill] Error saving quote:", e);
+    }
+}
+
+// 5. Automated state loading machine (on DOM load)
+async function checkAutomatedStateOnLoad() {
+    if (!chrome || !chrome.storage || !chrome.storage.local) return;
+    
+    chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'stampDutyCalculated'], async (res) => {
+        if (!res.oneClickRunning || !res.oneClickData) return;
+        
+        const url = window.location.href.toLowerCase();
+        
+        // Scraping and pausing stage
+        if (url.includes('/propertyvaluation/propertydetail') && res.stampDutyCalculated) {
+            showStatusToast("Scraping calculated valuation quote...");
+            const quote = scrapeValuationQuote();
+            await saveQuoteToBackend(res.oneClickData.case_id, quote);
+            
+            // Clear automation states
+            chrome.storage.local.remove(['stampDutyCalculated']);
+            chrome.storage.local.set({ oneClickRunning: false });
+            
+            showStatusToast("⚡ One-click property valuation complete!", false);
+            alert(`Valuation Complete!\n\nStamp Duty: ${quote.stamp_duty}\nRegistration Fee: ${quote.registration_fee}\nSurcharges: ${quote.cess_surcharge}\nTotal Fee: ${quote.total_fee}`);
+            return;
+        }
+        
+        // Next step transition loop
+        if (url.includes('/citizen/dashboard')) {
+            // Wait for user to trigger or click district
+        } else if (url.includes('/propertyvaluation')) {
+            // Trigger automation step on page load
+            setTimeout(() => {
+                oneClickAutofill(res.oneClickData, () => {});
+            }, 800);
+        }
+    });
+}
+
+// Start page load listener
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(checkAutomatedStateOnLoad, 1000));
+} else {
+    setTimeout(checkAutomatedStateOnLoad, 1000);
+}
+
+
 
