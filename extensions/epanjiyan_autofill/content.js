@@ -323,7 +323,23 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         }
     }
     
-    // 3. Parallel static input fields filling
+    // 3. Parallel dropdown menus filling (Filled first so conditional fields like ID details are enabled)
+    await Promise.all([
+        (async () => {
+            const catSelect = getField('category');
+            if (catSelect) await setSelectValueByText(catSelect, "General");
+        })(),
+        (async () => {
+            const occSelect = getField('occupation');
+            if (occSelect) await setSelectValueByText(occSelect, "Other");
+        })(),
+        (async () => {
+            const idSelect = getField('idProof');
+            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
+        })()
+    ]);
+    
+    // 4. Parallel static input fields filling
     await Promise.all([
         // Name and Relation
         (async () => {
@@ -398,22 +414,6 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
                 if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
                 if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
             }
-        })()
-    ]);
-    
-    // 4. Parallel dropdown menus filling
-    await Promise.all([
-        (async () => {
-            const catSelect = getField('category');
-            if (catSelect) await setSelectValueByText(catSelect, "General");
-        })(),
-        (async () => {
-            const occSelect = getField('occupation');
-            if (occSelect) await setSelectValueByText(occSelect, "Other");
-        })(),
-        (async () => {
-            const idSelect = getField('idProof');
-            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
         })()
     ]);
     
@@ -611,50 +611,36 @@ function triggerButtonByText(text) {
 // IMPORTANT: No alert() calls — they block Angular rendering!
 // =====================================================================
 
-function bypassVerificationModal(verifyType, sendResponse, successMsg) {
-    const debugLog = []; // Collect all debug info for one final alert
+async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
+    console.log(`[RM-Maker] Starting bypassVerificationModal for type: ${verifyType}`);
     
-    // Step 1: Wait for modal to fully render (2s)
-    setTimeout(() => {
-        const allSelects = Array.from(document.querySelectorAll('select'));
-        debugLog.push(`Step 1: Found ${allSelects.length} <select> elements`);
-        allSelects.forEach((s, i) => {
-            const opts = Array.from(s.options).map(o => o.text).join(', ');
-            debugLog.push(`  select[${i}]: id="${s.id}" name="${s.name}" opts=[${opts}]`);
-        });
-        
-        const verificationTypeSelect = allSelects.find(s => {
-            const opts = Array.from(s.options).map(o => o.text.toUpperCase());
-            return opts.some(t => t.includes('PUBLIC') || t.includes('BANK') || t.includes('सार्वजनिक'));
-        });
+    try {
+        // Step 1: Poll for the verification dropdown
+        let verificationTypeSelect = null;
+        for (let i = 0; i < 40; i++) {
+            const allSelects = Array.from(document.querySelectorAll('select'));
+            verificationTypeSelect = allSelects.find(s => {
+                const opts = Array.from(s.options).map(o => o.text.toUpperCase());
+                return opts.some(t => t.includes('PUBLIC') || t.includes('BANK') || t.includes('सार्वजनिक'));
+            });
+            if (verificationTypeSelect) break;
+            await new Promise(r => setTimeout(r, 50));
+        }
         
         if (!verificationTypeSelect) {
-            debugLog.push("Step 1: FAILED — No dropdown with Public/Bank found");
-            alert("[RM-Maker DEBUG]\n" + debugLog.join("\n"));
+            console.error("[RM-Maker] Verification dropdown not found after polling.");
             sendResponse({ success: false, error: 'Verification modal dropdown not found.' });
             return;
         }
-        debugLog.push(`Step 1: SUCCESS — Found verification dropdown`);
         
-        // Step 2: Select Public or Bank
-        setSelectValueByText(verificationTypeSelect, verifyType);
-        const selectedText = verificationTypeSelect.options[verificationTypeSelect.selectedIndex]?.text || "(none)";
-        debugLog.push(`Step 2: Set dropdown to "${selectedText}"`);
-        console.log("[RM-Maker]", debugLog.join(" | "));
+        // Select Public or Bank
+        await setSelectValueByText(verificationTypeSelect, verifyType);
         
-        // Step 3: Wait 1.5s for Angular to render the radio buttons after dropdown change
-        setTimeout(() => {
+        // Step 2: Poll for the radio buttons to render
+        let withoutOtpRadio = null;
+        for (let i = 0; i < 30; i++) {
             const allRadios = Array.from(document.querySelectorAll('input[type="radio"]'));
-            debugLog.push(`Step 3: Found ${allRadios.length} radio buttons`);
-            allRadios.forEach((r, i) => {
-                const lbl = r.labels?.[0]?.textContent?.trim() ||
-                            r.nextSibling?.textContent?.trim() ||
-                            r.parentElement?.textContent?.trim().substring(0, 80) ||
-                            "(no label)";
-                debugLog.push(`  radio[${i}]: id="${r.id}" name="${r.name}" val="${r.value}" lbl="${lbl.substring(0, 60)}"`);
-            });
-            
-            const withoutOtpRadio = allRadios.find(r => {
+            withoutOtpRadio = allRadios.find(r => {
                 const combined = [
                     r.labels?.[0]?.textContent || "",
                     r.nextSibling?.textContent || "",
@@ -667,50 +653,48 @@ function bypassVerificationModal(verifyType, sendResponse, successMsg) {
                        combined.includes("ओटीपी के बिना") || 
                        combined.includes("ओटीपी सत्यापन के बिना");
             });
-            
-            if (!withoutOtpRadio) {
-                debugLog.push("Step 3: FAILED — 'Without OTP Verification' radio NOT found. ABORTING.");
-                alert("[RM-Maker DEBUG]\n" + debugLog.join("\n"));
-                sendResponse({ success: false, error: 'Without OTP option not found. See console for debug info.' });
-                return;
+            if (withoutOtpRadio) break;
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        if (!withoutOtpRadio) {
+            console.error("[RM-Maker] 'Without OTP' radio button not found after polling.");
+            sendResponse({ success: false, error: 'Without OTP option not found.' });
+            return;
+        }
+        
+        // Click the Without OTP radio
+        withoutOtpRadio.checked = true;
+        withoutOtpRadio.click();
+        withoutOtpRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // Step 3: Poll for the Submit button to render and become clickable
+        let submitBtn = null;
+        for (let i = 0; i < 30; i++) {
+            submitBtn = document.getElementById('btnsubmit') || 
+                        Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a')).find(b => {
+                            const txt = b.textContent.trim().toUpperCase();
+                            return txt === 'SUBMIT' || txt.includes('प्रस्तुत करें');
+                        });
+            if (submitBtn && (submitBtn.offsetWidth > 0 || submitBtn.offsetHeight > 0)) {
+                break;
             }
-            debugLog.push(`Step 3: SUCCESS — Found Without OTP radio (id="${withoutOtpRadio.id}")`);
-            
-            // Step 4: Click the Without OTP radio
-            withoutOtpRadio.checked = true;
-            withoutOtpRadio.click();
-            withoutOtpRadio.dispatchEvent(new Event('change', { bubbles: true }));
-            debugLog.push(`Step 4: Clicked Without OTP radio. checked=${withoutOtpRadio.checked}`);
-            console.log("[RM-Maker]", debugLog.join(" | "));
-            
-            // Step 5: Wait 1.5s for Submit button to appear after radio selection
-            setTimeout(() => {
-                // Target the Submit button directly by its known ID
-                const submitBtn = document.getElementById('btnsubmit');
-                debugLog.push(`Step 5: btnsubmit element = ${submitBtn ? 'FOUND' : 'NOT FOUND'}`);
-                
-                if (submitBtn) {
-                    console.log("[RM-Maker] Clicking #btnsubmit...");
-                    submitBtn.click();
-                    debugLog.push("Step 5: SUCCESS — Clicked #btnsubmit!");
-                    console.log("[RM-Maker] MODAL BYPASS COMPLETE:", debugLog.join(" | "));
-                    sendResponse({ success: true, message: successMsg });
-                } else {
-                    // Fallback: try by text
-                    const clicked = triggerButtonByText("Submit") || triggerButtonByText("प्रस्तुत करें");
-                    if (clicked) {
-                        debugLog.push("Step 5: SUCCESS — Clicked Submit by text fallback");
-                        console.log("[RM-Maker] MODAL BYPASS COMPLETE:", debugLog.join(" | "));
-                        sendResponse({ success: true, message: successMsg });
-                    } else {
-                        debugLog.push("Step 5: FAILED — Submit button not found by ID or text");
-                        alert("[RM-Maker DEBUG]\n" + debugLog.join("\n"));
-                        sendResponse({ success: false, error: 'Submit button not found.' });
-                    }
-                }
-            }, 1500); // Wait for Submit button to render
-        }, 1500); // Wait for radio buttons to render
-    }, 2000); // Wait for modal to render
+            submitBtn = null;
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        if (submitBtn) {
+            console.log("[RM-Maker] Clicking verification Submit button.");
+            submitBtn.click();
+            sendResponse({ success: true, message: successMsg });
+        } else {
+            console.error("[RM-Maker] Submit button not found in modal after polling.");
+            sendResponse({ success: false, error: 'Submit button not found.' });
+        }
+    } catch (e) {
+        console.error("[RM-Maker] Error in bypassVerificationModal:", e);
+        sendResponse({ success: false, error: e.message });
+    }
 }
 
 // =====================================================================
