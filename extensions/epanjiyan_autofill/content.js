@@ -839,10 +839,17 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
         // Select Urban
         clickRadioByValueOrLabel("Urban (शहरी)");
         
-        // Select Self
+        // Select Self (target input#radioself directly)
         setTimeout(async () => {
             showStatusToast("Selecting Transfer Status: Self...");
-            clickRadioByValueOrLabel("Self (स्वयं)");
+            const selfRadio = document.getElementById('radioself') || document.querySelector('input#radioself');
+            if (selfRadio) {
+                selfRadio.checked = true;
+                selfRadio.click();
+                selfRadio.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                clickRadioByValueOrLabel("Self (स्वयं)");
+            }
             
             // Wait for Self Modal
             showStatusToast("Waiting for Gender Profile Modal...");
@@ -860,41 +867,31 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 return;
             }
             
-            // Find the correct gender card
+            // Find correct gender card and click it using value-based selectors
             showStatusToast(`Selecting Gender Card: ${data.gender_card}...`);
-            let targetCard = null;
-            for (let i = 0; i < 15; i++) {
-                const elements = Array.from(modalBody.querySelectorAll('*'));
-                const cardCandidates = elements.filter(el => {
-                    const cleanTxt = el.textContent.replace(/\s+/g, '').toUpperCase();
-                    if (data.gender_card === 'JOINT') {
-                        return cleanTxt.includes('संयुक्त') || cleanTxt.includes('JOINT');
-                    } else if (data.gender_card === 'FEMALE_GEN') {
-                        return (cleanTxt.includes('महिला') && cleanTxt.includes('GEN')) || cleanTxt.includes('FEMALE');
-                    } else {
-                        return (cleanTxt.includes('पुरूष') && cleanTxt.includes('GEN')) || (cleanTxt.includes('पुरुष') && cleanTxt.includes('GEN')) || cleanTxt.includes('MALE');
-                    }
-                });
-                
-                if (cardCandidates.length > 0) {
-                    cardCandidates.sort((a, b) => a.textContent.length - b.textContent.length);
-                    targetCard = cardCandidates[0];
-                    break;
-                }
-                await new Promise(r => setTimeout(r, 150));
+            let radioValue = "1"; // Default General Male
+            if (data.gender_card === 'JOINT') {
+                radioValue = "6"; // Male/Female Joint
+            } else if (data.gender_card === 'FEMALE_GEN') {
+                radioValue = "3"; // Female General
             }
             
-            if (targetCard) {
-                targetCard.click();
-                const parentLabel = targetCard.closest('label, span.radio-btn');
-                if (parentLabel) parentLabel.click();
+            const radioBtn = modalBody.querySelector(`input[name="individualdata"][value="${radioValue}"]`);
+            if (radioBtn) {
+                radioBtn.checked = true;
+                radioBtn.click();
+                radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
                 
                 await new Promise(r => setTimeout(r, 400));
-                const modalButtons = Array.from(modalBody.querySelectorAll('button, a, input[type="button"]'));
-                const continueBtn = modalButtons.find(b => {
-                    const txt = b.textContent.trim().toUpperCase();
-                    return txt.includes('CONTINUE') || txt.includes('SAVE') || txt.includes('सहेजें') || txt.includes('आगे बढ़ें') || txt.includes('OK');
-                });
+                
+                // Click Continue button in modal footer
+                const continueBtn = modalBody.querySelector('button[onclick*="setdatass"]') || 
+                                    modalBody.querySelector('button[onclick*="return setdatass()"]') ||
+                                    Array.from(modalBody.querySelectorAll('button, a, input[type="button"]')).find(b => {
+                                        const txt = b.textContent.trim().toUpperCase();
+                                        return txt.includes('CONTINUE') || txt.includes('SAVE') || txt.includes('आगे बढ़ें') || txt.includes('OK');
+                                    });
+                                    
                 if (continueBtn) {
                     showStatusToast("Saving modal selection...");
                     continueBtn.click();
@@ -902,37 +899,42 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 
                 await new Promise(r => setTimeout(r, 800));
                 
-                // Fill Document Type
+                // Fill Document Type using exact select element ID
                 showStatusToast("Setting Document Type: Mortgage...");
-                const docTypeSelect = findSelectByLabel("Document Type") || findSelectByLabel("दस्तावेज़ का प्रकार") || document.querySelector('ng-select');
+                const docTypeSelect = document.getElementById('parentarticle_id');
                 await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
                 
                 await new Promise(r => setTimeout(r, 600));
+                
+                // Fill SubType using exact select element ID
                 showStatusToast("Setting SubType: Mortgage without possession...");
-                const subTypeSelect = findSelectByLabel("SubType") || findSelectByLabel("उप-प्रकार");
+                const subTypeSelect = document.getElementById('ddlDocSubType');
                 await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
                 
                 await new Promise(r => setTimeout(r, 600));
+                
+                // Fill Category using exact select element ID
                 showStatusToast("Setting Category: General...");
-                const catSelect = findSelectByLabel("Category") || findSelectByLabel("श्रेणी");
+                const catSelect = document.getElementById('ddlCategory');
                 await setSelectValueByText(catSelect, "General");
                 
                 await new Promise(r => setTimeout(r, 600));
+                
+                // Fill SRO using exact select element ID
                 showStatusToast(`Setting SRO to ${data.sro || 'JAIPUR-VII'}...`);
-                const sroSelect = findSelectByLabel("SRO") || findSelectByLabel("उप पंजीयक");
+                const sroSelect = document.getElementById('ddlSRO');
                 await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
                 
                 await new Promise(r => setTimeout(r, 600));
+                
+                // Fill Tehsil using exact select element ID
                 showStatusToast(`Setting Tehsil to ${data.tehsil || 'JAIPUR'}...`);
-                const tehsilSelect = findSelectByLabel("Tehsil") || findSelectByLabel("तहसील");
+                const tehsilSelect = document.getElementById('ddlTehsil');
                 await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
                 
                 if (autoSave) {
                     setTimeout(() => {
-                        const saveBtn = document.getElementById('savedocument') || 
-                                        document.querySelector('button#savedocument') || 
-                                        triggerButtonByText("Save") || 
-                                        triggerButtonByText("सहेजें");
+                        const saveBtn = document.getElementById('savedocument');
                         if (saveBtn) {
                             showStatusToast("Submitting Details (Clicking Save)...");
                             saveBtn.click();
@@ -970,7 +972,6 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                     }, 1500);
                     sendResponse({ success: true, message: 'Autofilled all details! Review and click Save.' });
                 }
-                
             } else {
                 showStatusToast("Card selection failed.", false);
                 sendResponse({ success: false, error: `Could not find the card matching ${data.gender_card} in the modal.` });
