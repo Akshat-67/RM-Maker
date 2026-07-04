@@ -903,7 +903,7 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                     continueBtn.click();
                 }
                 
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 600)); // Minimal wait for modal submit action
                 
                 // Fill Document Type using exact select element ID
                 showStatusToast("Setting Document Type: Mortgage...");
@@ -912,10 +912,8 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 for (let i = 0; i < 10; i++) {
                     docTypeSet = await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
                     if (docTypeSet) break;
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
-                
-                await new Promise(r => setTimeout(r, 600));
                 
                 // Fill SubType using exact select element ID
                 showStatusToast("Setting SubType: Mortgage without possession...");
@@ -924,10 +922,8 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 for (let i = 0; i < 15; i++) {
                     subTypeSet = await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
                     if (subTypeSet) break;
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
-                
-                await new Promise(r => setTimeout(r, 600));
                 
                 // Fill Category using exact select element ID
                 showStatusToast("Setting Category: General...");
@@ -936,10 +932,8 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 for (let i = 0; i < 10; i++) {
                     catSet = await setSelectValueByText(catSelect, "General");
                     if (catSet) break;
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
-                
-                await new Promise(r => setTimeout(r, 600));
                 
                 // Fill SRO using exact select element ID
                 showStatusToast(`Setting SRO to ${data.sro || 'JAIPUR-VII'}...`);
@@ -948,10 +942,8 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 for (let i = 0; i < 15; i++) {
                     sroSet = await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
                     if (sroSet) break;
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
-                
-                await new Promise(r => setTimeout(r, 600));
                 
                 // Fill Tehsil using exact select element ID
                 showStatusToast(`Setting Tehsil to ${data.tehsil || 'JAIPUR'}...`);
@@ -960,7 +952,7 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 for (let i = 0; i < 15; i++) {
                     tehsilSet = await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
                     if (tehsilSet) break;
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
                 
                 if (autoSave) {
