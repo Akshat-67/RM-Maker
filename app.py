@@ -2403,13 +2403,13 @@ def split_address(address_str):
     address_str = re.sub(r'[\s,\.]+$', '', address_str)
     
     house_no = "00"
-    house_match = re.search(r'\b(?:plot|p\.?|h\.?|flat|shop|house|ward)\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+    house_match = re.search(r'\b(?:plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
     if house_match:
         house_no = house_match.group(1).upper()
         address_str = address_str.replace(house_match.group(0), "").strip()
     else:
         start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
-        if start_match and start_match.group(1).isdigit():
+        if start_match and re.search(r'\d', start_match.group(1)):
             house_no = start_match.group(1)
             address_str = address_str.replace(house_no, "", 1).strip()
             
