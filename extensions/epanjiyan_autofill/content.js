@@ -987,38 +987,48 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
 // 2b. Calculate Duty (Step 5-6 in notes)
 // =====================================================================
 
-function autofillCalculateDuty(data, sendResponse) {
+async function autofillCalculateDuty(data, sendResponse) {
     try {
         const url = window.location.href;
         const urlLower = url.toLowerCase();
         
         if (urlLower.includes('/propertyvaluation/propertydetail')) {
-            showStatusToast("Calculating Stamp Duty...");
-            const calcBtn = triggerButtonByText("Calculate Duty") || triggerButtonByText("ड्यूटी की गणना करें");
-            if (calcBtn) {
-                sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
-            } else {
-                const preValBtn = triggerButtonByText("Pre Valuation Report") || triggerButtonByText("पूर्व मूल्यांकन रिपोर्ट");
-                if (preValBtn) {
-                    sendResponse({ success: true, message: 'Opened Pre Valuation Report!' });
+            // Retrieve stampDutyCalculated status from local storage
+            const storage = await new Promise(resolve => {
+                chrome.storage.local.get(['stampDutyCalculated'], resolve);
+            });
+            
+            if (storage.stampDutyCalculated) {
+                showStatusToast("Proceeding to Party details screen...");
+                const partyDetailBtn = document.querySelector('button[formaction*="/Party/viewparty"]') || 
+                                       triggerButtonByText("Party Detail") || 
+                                       triggerButtonByText("पक्षकार विवरण") ||
+                                       Array.from(document.querySelectorAll('button, a')).find(b => b.textContent.includes('Party Detail') || b.textContent.includes('पक्षकार विवरण'));
+                if (partyDetailBtn) {
+                    chrome.storage.local.remove(['stampDutyCalculated']);
+                    partyDetailBtn.click();
+                    setTimeout(() => hideStatusToast(), 1000);
+                    sendResponse({ success: true, message: 'Proceeding to Party Details screen...' });
                 } else {
-                    const partyDetailBtn = triggerButtonByText("Party Detail") || triggerButtonByText("पक्षकार विवरण") || Array.from(document.querySelectorAll('button, a')).find(b => b.textContent.includes('Party Detail') || b.textContent.includes('पक्षकार विवरण'));
-                    if (partyDetailBtn) {
-                        showStatusToast("Proceeding to Party details screen...");
-                        partyDetailBtn.click();
-                        setTimeout(() => {
-                            hideStatusToast();
-                        }, 1000);
-                        sendResponse({ success: true, message: 'Proceeding to Party Details screen...' });
-                    } else {
-                        showStatusToast("Failed: Nav buttons not found", false);
-                        sendResponse({ success: false, error: 'Could not find relevant buttons on this screen.' });
-                    }
+                    showStatusToast("Party Detail button not found.", false);
+                    sendResponse({ success: false, error: 'Could not locate Party Detail button.' });
+                }
+            } else {
+                showStatusToast("Navigating to Calculate Stamp Duty...");
+                const calcBtn = document.querySelector('button[formaction*="/PropertyValuation/CalculateDuty"]') || 
+                                triggerButtonByText("Calculate Duty") || 
+                                triggerButtonByText("ड्यूटी की गणना करें");
+                if (calcBtn) {
+                    calcBtn.click();
+                    sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
+                } else {
+                    showStatusToast("Calculate Duty button not found.", false);
+                    sendResponse({ success: false, error: 'Could not find Calculate Duty button.' });
                 }
             }
         } else if (urlLower.includes('/propertyvaluation/calculateduty')) {
-            const dateInput = findInputByLabel("Execution Date") || findInputByLabel("निष्पादन तिथि") || document.querySelector('input[id*="execution" i], input[name*="execution" i], input[id*="date" i]');
-            const faceValueInput = findInputByLabel("Face Value") || findInputByLabel("अंकित मूल्य") || document.querySelector('input[id*="face" i], input[name*="face" i], input[id*="loan" i]');
+            const dateInput = document.getElementById('execution_date') || findInputByLabel("Execution Date") || findInputByLabel("निष्पादन तिथि");
+            const faceValueInput = document.getElementById('face_value') || findInputByLabel("Face Value") || findInputByLabel("अंकित मूल्य");
             
             if (dateInput && faceValueInput) {
                 let execDate = data.execution_date;
@@ -1031,14 +1041,19 @@ function autofillCalculateDuty(data, sendResponse) {
                 }
                 
                 showStatusToast(`Setting Execution Date: ${execDate} & Face Value: ${data.face_value}...`);
-                setInputValue(dateInput, execDate);
+                setDatePickerValue(dateInput, execDate);
                 setInputValue(faceValueInput, data.face_value.toString());
                 
                 setTimeout(() => {
                     showStatusToast("Submitting Stamp Duty (Clicking Calculate & Save)...");
-                    const clicked = triggerButtonByText("Calculate & Save") || triggerButtonByText("गणना और सहेजें") || triggerButtonByText("Calculate");
+                    const calcSaveBtn = document.querySelector('input[type="submit"][value="Calculate & Save"]') || 
+                                        document.querySelector('button[value="Calculate & Save"]') ||
+                                        triggerButtonByText("Calculate & Save") || 
+                                        triggerButtonByText("गणना और सहेजें");
                     
-                    if (clicked) {
+                    if (calcSaveBtn) {
+                        calcSaveBtn.click();
+                        
                         // Poll for SweetAlert2 modal to appear
                         const checkInterval = setInterval(() => {
                             showStatusToast("Waiting for Calculation Saved popup...");
@@ -1047,13 +1062,15 @@ function autofillCalculateDuty(data, sendResponse) {
                             if (swalOkBtn) {
                                 showStatusToast("Confirming calculation (Clicking OK)...");
                                 clearInterval(checkInterval);
-                                swalOkBtn.click();
                                 
-                                setTimeout(() => {
-                                    hideStatusToast();
-                                }, 1000);
-                                
-                                sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
+                                // Set the stampDutyCalculated state to true in local storage before clicking OK
+                                chrome.storage.local.set({ stampDutyCalculated: true }, () => {
+                                    swalOkBtn.click();
+                                    setTimeout(() => {
+                                        hideStatusToast();
+                                    }, 1000);
+                                    sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
+                                });
                             }
                         }, 250);
                         
@@ -1062,9 +1079,7 @@ function autofillCalculateDuty(data, sendResponse) {
                             clearInterval(checkInterval);
                         }, 8000);
                     } else {
-                        setTimeout(() => {
-                            hideStatusToast();
-                        }, 1500);
+                        showStatusToast("Calculate & Save button not found.", false);
                         sendResponse({ success: true, message: 'Autofilled execution date and face value!' });
                     }
                 }, 800);
