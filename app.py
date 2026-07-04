@@ -1642,13 +1642,13 @@ def preview_draft(case_id):
                     
                     # Apply specific header/title styles (red color, bold, centered) as seen in user's Word screenshots
                     normalized_txt = unicode_txt.replace(" ", "")
-                    if "!!श्री!!" in normalized_txt:
+                    if len(unicode_txt.strip()) < 20 and "!!श्री!!" in normalized_txt:
                         p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: 'Segoe UI', 'Mangal';"
                         current_page_elements.append(f"<p style=\"{p_style}\">!! श्री !!</p>")
-                    elif "विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt:
+                    elif len(unicode_txt.strip()) < 20 and ("विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt):
                         p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: 'Segoe UI', 'Mangal';"
                         current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
-                    elif unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
+                    elif len(unicode_txt.strip()) < 30 and unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
                         p_style = "text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: 'Segoe UI', 'Mangal';"
                         current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
                     else:
