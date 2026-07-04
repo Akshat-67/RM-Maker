@@ -45,10 +45,14 @@ This page is divided into multiple sections:
 
 ### Section 4.1: DLC Address
 * **Property Type / संपत्ति का प्रकार**: (Dropdown)
+* **Colony / कॉलोनी**: (Dropdown select element ID: `select#ddlColony` / Select2 styled wrapper `span#select2-ddlColony-container`)
+  * **Selection Hierarchy**:
+    1. Search options for the exact colony name match (e.g. `"Patrakar Colony"`).
+    2. If not found, search for `"JDA Converted"` / `"जे.डी.ए. स्वीकृत"` options.
+    3. If still not found, search for the nearest zone, sector, or landmark, or prompt the user for manual override.
 * **Area / क्षेत्र**: (Dropdown)
-* **Category Type / श्रेणी का प्रकार**: (Dropdown)
-* **Colony / कॉलोनी**: (Dropdown)
 * **Zone / जोन**: (Dropdown)
+* **Category Type / श्रेणी का प्रकार**: (Dropdown)
 * **Location / स्थान**: (Radio: Interior / Exterior)
 * **Applicable DLC / लागू डीएलसी**: (Auto-populated or input)
 
