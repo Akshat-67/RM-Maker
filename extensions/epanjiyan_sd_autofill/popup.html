@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            width: 320px;
+            margin: 0;
+            padding: 16px;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+        .title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .logo-icon {
+            font-size: 18px;
+        }
+        .status-badge {
+            background-color: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .form-group {
+            margin-bottom: 14px;
+        }
+        label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        select {
+            width: 100%;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        select:focus {
+            border-color: var(--primary);
+        }
+        .actions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+            outline: none;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: rgba(99, 102, 241, 0.08);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-fill {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            font-weight: 600;
+            justify-content: center;
+        }
+        .btn-fill:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+        .btn-icon {
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            padding-top: 10px;
+        }
+        .msg {
+            font-size: 11px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: none;
+        }
+        .msg-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .msg-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">
+            <span class="logo-icon">⚡</span> SD e-Panjiyan
+        </h1>
+        <span class="status-badge" id="statusBadge">OFFLINE</span>
+    </div>
+
+    <div class="form-group">
+        <label for="caseSelect">Select Active Case</label>
+        <select id="caseSelect">
+            <option value="">Loading recent cases...</option>
+        </select>
+    </div>
+
+    <div class="actions-list">
+        <button class="btn btn-fill" id="btnOneClickAutofill" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border: none; font-weight: 700; margin-bottom: 12px; justify-content: center; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);" disabled>
+            <span>⚡ ONE-CLICK AUTOFILL</span>
+        </button>
+        <button class="btn" id="btnAutofillDistrict">
+            <span>🌍 0. Select District & Navigate</span>
+            <span class="btn-icon">➜</span>
+        </button>
+        <button class="btn" id="btnAutofillDetails" disabled>
+            <span>📋 1. Autofill Document Details</span>
+            <span class="btn-icon">➜</span>
+        </button>
+        <button class="btn" id="btnAutofillAddress" disabled>
+            <span>🏠 2. Add Property Address</span>
+            <span class="btn-icon">➜</span>
+        </button>
+        <button class="btn" id="btnCalculateDuty" disabled>
+            <span>💰 3. Calculate Stamp Duty</span>
+            <span class="btn-icon">➜</span>
+        </button>
+    </div>
+
+    <div class="msg" id="statusMsg"></div>
+
+    <div class="footer">
+        RM-Maker SD e-Panjiyan Linker v1.0
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

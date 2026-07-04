@@ -112,5 +112,3 @@ This page is divided into multiple sections:
 * **Action 6.1 (Set Execution Date):** Programmatically select today's date in the read-only Execution Date input (`input#execution_date`).
 * **Action 6.2 (Set Face Value):** Enter the **Consideration Amount / ATS Transaction Value** from the case data (instead of loan amount) in the Face Value input (`input#face_value`).
 * **Action 6.3 (Calculate & Save):** Click **Calculate & Save** button (HTML input/button with value `"Calculate & Save"`).
-
-
