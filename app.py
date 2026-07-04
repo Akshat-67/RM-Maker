@@ -2491,17 +2491,20 @@ def get_epanjiyan_data(case_id):
                 return ""
             return str(val).strip().upper()
             
+        is_sd = doc_type == "SD"
+        
+        executants_source = data.get("ss", []) if is_sd else data.get("bs", [])
         executants = []
-        for b in data.get("bs", []):
-            name_en = clean_val(b.get("n", ""))
-            rel_name_en = clean_val(b.get("rn", ""))
+        for b in executants_source:
+            name_en = clean_val(b.get("n_en", "")) or clean_val(b.get("n", ""))
+            rel_name_en = clean_val(b.get("rn_en", "")) or clean_val(b.get("rn", ""))
             
             sal = clean_val(b.get("s", ""))
             gender = "MALE"
-            if "MRS" in sal or "MS" in sal or "FEMALE" in sal:
+            if "MRS" in sal or "MS" in sal or "FEMALE" in sal or clean_val(b.get("gender", "")) == "FEMALE":
                 gender = "FEMALE"
                 
-            addr_str = b.get("adr", "")
+            addr_str = b.get("adr_en", "") or b.get("adr", "")
             addr_split = split_address(addr_str)
             
             rel_type = clean_val(b.get("r", "S/O"))
@@ -2510,11 +2513,16 @@ def get_epanjiyan_data(case_id):
             else:
                 rel_type = "FATHER"
                 
+            caste = clean_val(b.get("c", "General"))
+            is_bpl = b.get("is_bpl") == "true" or b.get("is_bpl") is True
+                
             executants.append({
                 "name_en": name_en,
                 "relation_type": rel_type,
                 "relation_name_en": rel_name_en,
                 "gender": gender,
+                "caste": caste,
+                "is_bpl": is_bpl,
                 "age": clean_val(b.get("a", "")),
                 "dob": clean_val(b.get("dob", "")),
                 "aadhaar": clean_val(b.get("id", "")).replace(" ", ""),
@@ -2529,62 +2537,101 @@ def get_epanjiyan_data(case_id):
             })
             
         claimant = {}
-        bank_map = {
-            "CHOLA": {
-                "en": "CHOLAMANDALAM INVESTMENT AND FINANCE COMPANY LIMITED"
-            },
-            "ICICI": {
-                "en": "ICICI BANK LIMITED"
-            }
-        }
-        
-        bank_folder = session.get("bank", "CHOLA")
-        bank_names = bank_map.get(bank_folder, bank_map["CHOLA"])
-        
-        sig = data.get("bsign", {})
-        sig_name_en = clean_val(sig.get("n", ""))
-        sig_rel_name_en = clean_val(sig.get("rn", ""))
-        
-        sig_sal = clean_val(sig.get("s", ""))
-        sig_gender = "MALE"
-        if "MRS" in sig_sal or "MS" in sig_sal or "FEMALE" in sig_sal:
-            sig_gender = "FEMALE"
-            
-        sig_addr_str = sig.get("adr", "")
-        if not sig_addr_str:
-            sig_addr_str = "JAIPUR"
-        sig_addr_split = split_address(sig_addr_str)
-        
-        sig_rel_type = clean_val(sig.get("r", "S/O"))
-        if "W/O" in sig_rel_type or "WIFE" in sig_rel_type:
-            sig_rel_type = "HUSBAND"
+        if is_sd:
+            buyers = data.get("bs", [])
+            if buyers:
+                first_buyer = buyers[0]
+                buyer_name_en = clean_val(first_buyer.get("n_en", "")) or clean_val(first_buyer.get("n", ""))
+                buyer_rel_name_en = clean_val(first_buyer.get("rn_en", "")) or clean_val(first_buyer.get("rn", ""))
+                
+                buyer_sal = clean_val(first_buyer.get("s", ""))
+                buyer_gender = "MALE"
+                if "MRS" in buyer_sal or "MS" in buyer_sal or "FEMALE" in buyer_sal or clean_val(first_buyer.get("gender", "")) == "FEMALE":
+                    buyer_gender = "FEMALE"
+                    
+                buyer_addr_str = first_buyer.get("adr_en", "") or first_buyer.get("adr", "")
+                buyer_addr_split = split_address(buyer_addr_str)
+                
+                buyer_rel_type = clean_val(first_buyer.get("r", "S/O"))
+                if "W/O" in buyer_rel_type or "WIFE" in buyer_rel_type:
+                    buyer_rel_type = "HUSBAND"
+                else:
+                    buyer_rel_type = "FATHER"
+                    
+                claimant = {
+                    "name_en": buyer_name_en,
+                    "relation_type": buyer_rel_type,
+                    "relation_name_en": buyer_rel_name_en,
+                    "gender": buyer_gender,
+                    "age": clean_val(first_buyer.get("a", "")),
+                    "dob": clean_val(first_buyer.get("dob", "")),
+                    "aadhaar": clean_val(first_buyer.get("id", "")).replace(" ", ""),
+                    "pan": clean_val(first_buyer.get("pan", "")).replace(" ", ""),
+                    "address": {
+                        "house_no": clean_val(buyer_addr_split["house_no"]),
+                        "colony": clean_val(buyer_addr_split["colony"]),
+                        "area": clean_val(buyer_addr_split["area"]),
+                        "city": clean_val(buyer_addr_split["city"]),
+                        "pincode": clean_val(buyer_addr_split["pincode"])
+                    }
+                }
         else:
-            sig_rel_type = "FATHER"
-            
-        bank_composite_en = f"{bank_names['en']} THROUGH AUTHORISED SIGNATORY {sig_name_en}"
-        
-        claimant = {
-            "name_en": clean_val(bank_composite_en),
-            "relation_type": sig_rel_type,
-            "relation_name_en": sig_rel_name_en,
-            "gender": sig_gender,
-            "age": clean_val(sig.get("a", "")),
-            "dob": clean_val(sig.get("dob", "")),
-            "aadhaar": clean_val(sig.get("id", "")).replace(" ", ""),
-            "pan": clean_val(sig.get("pan", "")).replace(" ", ""),
-            "address": {
-                "house_no": clean_val(sig_addr_split["house_no"]),
-                "colony": clean_val(sig_addr_split["colony"]),
-                "area": clean_val(sig_addr_split["area"]),
-                "city": clean_val(sig_addr_split["city"]),
-                "pincode": clean_val(sig_addr_split["pincode"])
+            bank_map = {
+                "CHOLA": {
+                    "en": "CHOLAMANDALAM INVESTMENT AND FINANCE COMPANY LIMITED"
+                },
+                "ICICI": {
+                    "en": "ICICI BANK LIMITED"
+                }
             }
-        }
-        
+            
+            bank_folder = session.get("bank", "CHOLA")
+            bank_names = bank_map.get(bank_folder, bank_map["CHOLA"])
+            
+            sig = data.get("bsign", {})
+            sig_name_en = clean_val(sig.get("n", ""))
+            sig_rel_name_en = clean_val(sig.get("rn", ""))
+            
+            sig_sal = clean_val(sig.get("s", ""))
+            sig_gender = "MALE"
+            if "MRS" in sig_sal or "MS" in sig_sal or "FEMALE" in sig_sal:
+                sig_gender = "FEMALE"
+                
+            sig_addr_str = sig.get("adr", "")
+            if not sig_addr_str:
+                sig_addr_str = "JAIPUR"
+            sig_addr_split = split_address(sig_addr_str)
+            
+            sig_rel_type = clean_val(sig.get("r", "S/O"))
+            if "W/O" in sig_rel_type or "WIFE" in sig_rel_type:
+                sig_rel_type = "HUSBAND"
+            else:
+                sig_rel_type = "FATHER"
+                
+            bank_composite_en = f"{bank_names['en']} THROUGH AUTHORISED SIGNATORY {sig_name_en}"
+            
+            claimant = {
+                "name_en": clean_val(bank_composite_en),
+                "relation_type": sig_rel_type,
+                "relation_name_en": sig_rel_name_en,
+                "gender": sig_gender,
+                "age": clean_val(sig.get("a", "")),
+                "dob": clean_val(sig.get("dob", "")),
+                "aadhaar": clean_val(sig.get("id", "")).replace(" ", ""),
+                "pan": clean_val(sig.get("pan", "")).replace(" ", ""),
+                "address": {
+                    "house_no": clean_val(sig_addr_split["house_no"]),
+                    "colony": clean_val(sig_addr_split["colony"]),
+                    "area": clean_val(sig_addr_split["area"]),
+                    "city": clean_val(sig_addr_split["city"]),
+                    "pincode": clean_val(sig_addr_split["pincode"])
+                }
+            }
+            
         witnesses = []
         for w in data.get("ws", []):
-            w_name_en = clean_val(w.get("n", ""))
-            w_rel_name_en = clean_val(w.get("rn", ""))
+            w_name_en = clean_val(w.get("n_en", "")) or clean_val(w.get("n", ""))
+            w_rel_name_en = clean_val(w.get("rn_en", "")) or clean_val(w.get("rn", ""))
             
             w_rel_type = clean_val(w.get("r", "S/O"))
             if "W/O" in w_rel_type or "WIFE" in w_rel_type:
@@ -2592,7 +2639,7 @@ def get_epanjiyan_data(case_id):
             else:
                 w_rel_type = "FATHER"
                 
-            w_addr_str = w.get("adr", "")
+            w_addr_str = w.get("adr_en", "") or w.get("adr", "")
             w_addr_split = split_address(w_addr_str)
             
             w_age = clean_val(w.get("a", ""))
@@ -2618,7 +2665,7 @@ def get_epanjiyan_data(case_id):
             
         properties = []
         for p in data.get("ps", []):
-            p_addr_str = p.get("adr", "")
+            p_addr_str = p.get("adr_en", "") or p.get("adr", "")
             p_addr_split = split_address(p_addr_str)
             properties.append({
                 "address": {
@@ -2628,8 +2675,14 @@ def get_epanjiyan_data(case_id):
                     "city": clean_val(p_addr_split["city"]),
                     "pincode": clean_val(p_addr_split["pincode"])
                 },
-                "lat": clean_val(p.get("lat", "")),
-                "lng": clean_val(p.get("lng", ""))
+                "area": p.get("area") or p.get("land_area") or 0,
+                "road_width": p.get("road_width", 30),
+                "latitude": clean_val(p.get("lat") or "0"),
+                "longitude": clean_val(p.get("lng") or "0"),
+                "east": p.get("e_en") or p.get("e") or "",
+                "west": p.get("w_en") or p.get("w") or "",
+                "north": p.get("n_en") or p.get("n") or "",
+                "south": p.get("s_en") or p.get("s") or ""
             })
             
         import datetime

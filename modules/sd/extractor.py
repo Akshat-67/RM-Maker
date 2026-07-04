@@ -1103,7 +1103,7 @@ class SDDataExtractor:
 
         prompt = """
         Extract data for Sale Deed (SD) from Hindi documents. Return ONLY a JSON object.
-        IMPORTANT: Extract all descriptive text (Names, Addresses, Relations, Caste, Property details) in UNICODE HINDI (Hindi script).
+        IMPORTANT: Extract all Hindi descriptive fields in UNICODE HINDI script, AND extract their transliterated/English counterparts in UPPERCASE ENGLISH script (standard Roman alphabet) inside the respective '_en' fields.
         
         JSON STRUCTURE:
         {
@@ -1113,10 +1113,11 @@ class SDDataExtractor:
           "consideration": "Consideration details/value (Unicode Hindi)",
           "tds": "TDS details (Unicode Hindi, e.g., if consideration is >= 50 Lakhs)",
           "hypothecation": "Existing Mortgage Bank Name (Unicode Hindi)",
-          "ss": [{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase (e.g. 'पुत्र श्री भीवा राम')", "adr":"Address", "id":"Aadhar", "pan":"PAN"}],
-          "bs": [{"n":"Name", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase (e.g. 'पुत्री श्री रामअवतार मीणा')", "adr":"Address", "id":"Aadhar", "pan":"PAN"}],
+          "ss": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री भीवा राम')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'BHEEVA RAM')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
+          "bs": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्री श्री रामअवतार मीणा')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'RAMAVTAR MEENA')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
           "ps": [{
-            "adr": "Full address if stated as a single string (Unicode Hindi)",
+            "adr": "Full address in Hindi (Unicode Hindi)",
+            "adr_en": "Full address in English script (e.g. 'PLOT NO. 12, PATRAKAR COLONY, MANSAROVAR, JAIPUR')",
             "plot_no": "Plot/Flat/Unit number being sold (e.g. 'S-1' or 'A-24')",
             "floor": "Floor description for flat (Unicode Hindi, e.g. 'सेकंड फ्लोर')",
             "building_name": "Name of the building/society/complex (Unicode Hindi, e.g. 'श्री साईं रेजीडेंसी')",
@@ -1143,29 +1144,31 @@ class SDDataExtractor:
             "parking_number": "Parking number or description",
             "area_type": "Super Built-up / Carpet / Plot Area",
             "covered_area": "Covered area if stated",
-            "property_portion": "Portion of the property being sold"
+            "property_portion": "Portion of the property being sold",
+            "lat": "Latitude coordinate from maps or documents (e.g. '26.949441')",
+            "lng": "Longitude coordinate from maps or documents (e.g. '75.678939')",
+            "road_width": "Width of boundary road in feet next to property (e.g. '30')"
           }],
-          "ws": [{"n":"Name", "relation_text":"Complete Relation Phrase (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "adr":"Address"}],
+          "ws": [{"n":"Name in Hindi", "n_en":"Name in English script", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "rn_en":"Relative Father Name in English script (e.g. 'RAMESHWAR PRASAD')", "adr":"Address in Hindi", "adr_en":"Address in English script"}],
           "title_chain": [{"template_key":"Specific template key (e.g. 'SALE_DEED_PLOT', 'ALLOTMENT_SOCIETY')", "event_type":"SALE_DEED|ALLOTMENT|CONSTRUCTION|POA|RELINQUISHMENT|CORRECTION_DEED|TRANSFER", "document_name":"हिंदी Doc Name (e.g. 'विक्रय पत्र')", "date":"DD.MM.YYYY", "consideration_amount":"digits", "executant_name":"Seller/Authority (Unicode Hindi)", "claimant_name":"Buyer/Allottee (Unicode Hindi)", "is_registered":"true/false", "reg_office":"Office (Hindi)", "reg_date":"DD.MM.YYYY", "reg_book":"#", "reg_vol":"#", "reg_page":"#", "reg_no":"#", "reg_add_book":"#", "reg_add_vol":"#", "reg_add_page":"1026-1039 (number or range)", "project_name":"Name if CONSTRUCTION (Unicode Hindi, e.g. 'रॉयल एन्क्लेव')", "unit_number":"Unit/Flat No if CONSTRUCTION (Unicode Hindi, e.g. 'एस-1')", "confidence":"High/Medium/Low", "source_text":"exact source text", "share_fraction":"e.g. '1/2', 'undivided'", "wife_name":"where applicable", "wife_death_date":"DD.MM.YYYY", "husband_name":"where applicable", "husband_death_date":"DD.MM.YYYY", "east_owner":"where applicable", "west_owner":"where applicable", "khata_no":"where applicable", "khasra_no":"where applicable", "rakba":"where applicable", "co_owner":"where applicable", "owner_name":"where applicable", "parent_property_info":"where applicable", "will_type":"'Registered' or 'Unregistered'", "death_date":"DD.MM.YYYY", "receipt_no":"where applicable", "receipt_date":"DD.MM.YYYY"}],
           "reg": {"office":"Name", "book":"#", "vol":"#", "page":"#", "reg_no":"#", "reg_date":"Date"},
-          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "relation_text":"Complete Relation Phrase (exact Unicode Hindi)", "adr":"Address (exact Unicode Hindi)", "id":"Aadhar"}]
+          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "relation_text":"Complete Relation Phrase in Hindi", "rn_en":"Relative Father/Husband Name in English script", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar"}]
         }
 
         RULES:
         1. NO HALLUCINATION. If missing, use "".
-        2. MANDATORY HINDI SCRIPT: You MUST use Unicode Hindi (Devanagari script) for ALL names, addresses, relations, castes, boundaries, and amount_words. DO NOT USE ENGLISH for these fields under any circumstances.
-           - Correct Name: 'रामकुमार शर्मा' (NOT 'Ramkumar Sharma')
-           - Correct Address: '१२३, मालवीय नगर, जयपुर' (NOT '123, Malviya Nagar, Jaipur')
-           - Correct Relation: 'पुत्र श्री बनवारी लाल' (NOT 'S/o Banwari Lal')
-           - Use English ONLY for fields like `id`, `pan`, `date` (DD.MM.YYYY), and purely numeric fields.
-        2b. HINDI SOURCE PRIORITY: Always prefer extracting names and addresses natively from HINDI text in the uploaded documents (e.g., the Hindi side of an Aadhaar card, or a Hindi Agreement to Sale / ATS). The native Hindi print is much more reliable. Only fallback to translating/transliterating English text into Hindi if native Hindi text is completely unavailable.
+        2. MANDATORY HINDI SCRIPT: You MUST use Unicode Hindi (Devanagari script) for ALL Hindi descriptive fields.
+        2b. ENGLISH SCRIPT COUNTERPARTS: For every person (buyers, sellers, witnesses, unassigned aadhars) and property address, you must extract/transliterate their corresponding English names, relative names, and addresses into UPPERCASE ENGLISH script (standard Roman alphabet) inside the respective '_en' fields.
+           - Correct Name: 'रामकुमार शर्मा' vs 'RAMKUMAR SHARMA'
+           - Correct Address: '१२३, मालवीय नगर, जयपुर' vs '123, MALVIYA NAGAR, JAIPUR'
+           - Correct Relation Name: 'बनवारी लाल' vs 'BANWARI LAL'
         3. COUNTS: "ss" exactly selected count. "bs" exactly selected count. "ws" exactly 2.
         4. AADHAAR CARDS: Extract details from Aadhaar cards into 'unassigned_aadhars' ONLY.
         4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
         5. BOUNDARIES: Extract the four boundary directions of the ORIGINAL PLOT from chain-of-title descriptions. Map to e, w, n, s. These are found in sentences like 'जिसकी चारों सीमाएं...' or 'पूर्व की ओर... पश्चिम की ओर...' etc.
         5b. DIMENSIONS: Extract length_ew (East-West) and length_ns (North-South) of the ORIGINAL PLOT from chain docs. These appear as 'पूर्व से पश्चिम XX फीट एवं उत्तर से दक्षिण XX फीट है'. land_area is the total plot area in sq. yards.
         6. RELATIONS & ADDRESSES: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
-        6b. STRICT RELATION FORMATTING: ALWAYS format relations using exact Unicode Hindi (e.g. 'पुत्र श्री मोहनलाल', 'पत्नी श्री रामलाल', 'पुत्र स्वर्गीय श्री गंगाराम', 'पुत्री श्री ...'). NEVER output "S/O", "W/O", or "C/O".
+        6b. STRICT HINDI RELATION FORMATTING: ALWAYS format relations using exact Unicode Hindi (e.g. 'पुत्र श्री मोहनलाल', 'पत्नी श्री रामलाल', 'पुत्र स्वर्गीय श्री गंगाराम', 'पुत्री श्री ...'). NEVER output "S/O", "W/O", or "C/O".
         7. INCREMENTAL: Do not re-extract existing fields. Focus on new documents.
         8. PRECISE: Extract ALL digits of the consideration amount.
         9. TITLE CHAIN: Extract ALL title history events chronologically.
@@ -1190,6 +1193,7 @@ class SDDataExtractor:
         """
         return prompt + count_instruction + previously_identified_instruction
 
+
     def _normalize_sd_response(self, data, expected_sellers, expected_buyers, expected_witnesses):
         if not isinstance(data, dict):
             return {"error": "AI returned JSON, but it was not an object"}
@@ -1199,17 +1203,22 @@ class SDDataExtractor:
         data["consideration"] = str(data.get("consideration", "")).strip()
         data["tds"] = str(data.get("tds", "")).strip()
         
-        self._normalize_list(data, "ss", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
-        self._normalize_list(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
-        self._normalize_list(data, "ps", ["adr", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
-        self._normalize_list(data, "ws", ["n", "relation_text", "adr"])
+        self._normalize_list(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
+        self._normalize_list(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
+        self._normalize_list(data, "ps", ["adr", "adr_en", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "parking_type", "parking_number", "area_type", "covered_area", "property_portion", "lat", "lng", "road_width"])
+        self._normalize_list(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"])
 
         # Move extraction-compensation upstream (cleaning OCR commas between names and relations)
         for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
             for person in data.get(key, []):
                 if person.get("n"):
-                    # Remove trailing comma from name if AI hallucinates it before a relation
                     person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
+                if person.get("n_en"):
+                    person["n_en"] = re.sub(r',\s*$', '', person["n_en"]).strip().upper()
+                if person.get("rn_en"):
+                    person["rn_en"] = person["rn_en"].strip().upper()
+                if person.get("adr_en"):
+                    person["adr_en"] = person["adr_en"].strip().upper()
                 if person.get("relation_text"):
                     from utils.helpers import parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
@@ -1230,7 +1239,7 @@ class SDDataExtractor:
             "conv_reg_add_page_start", "conv_reg_add_page_end"
         ])
         
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id", "pan", "is_bpl"])
         
         witness_names = set()
         for w in data.get("ws", []):
@@ -1261,14 +1270,15 @@ class SDDataExtractor:
             p["dimension_text"] = self.generate_dimension_text(p)
             p["boundary_text"] = self.generate_boundary_text(p)
 
-        self._force_count(data, "ss", ["n", "a", "c", "relation_text", "adr", "id", "pan"], expected_sellers)
-        self._force_count(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"], expected_buyers)
-        self._force_count(data, "ws", ["n", "relation_text", "adr"], expected_witnesses)
+        self._force_count(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_sellers)
+        self._force_count(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_buyers)
+        self._force_count(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"], expected_witnesses)
         
         if not data.get("title_chain"):
             data["title_chain"] = [{"event_type": "SALE_DEED", "document_name": "", "date": "", "consideration_amount": "", "executant_name": "", "claimant_name": "", "is_registered": "true", "reg_office": "", "reg_date": "", "reg_book": "", "reg_vol": "", "reg_page": "", "reg_no": "", "reg_add_book": "", "reg_add_vol": "", "reg_add_page": "", "confidence": "", "source_text": ""}]
 
         return data
+
 
     def _normalize_list(self, data, key, fields):
         items = data.get(key)
