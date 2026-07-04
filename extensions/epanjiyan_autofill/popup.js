@@ -87,6 +87,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     // Set up button event handlers
+    if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['oneClickRunning'], (res) => {
+            const btn = document.getElementById('btnOneClickAutofill');
+            if (res.oneClickRunning) {
+                btn.innerHTML = '<span>⚡ STOP AUTOMATION</span>';
+                btn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            }
+        });
+    }
+
+    document.getElementById('btnOneClickAutofill').addEventListener('click', async () => {
+        try {
+            if (!activeCaseData) {
+                showMsg('No case loaded. Please select a case first.', 'error');
+                return;
+            }
+
+            let isRunning = false;
+            if (chrome && chrome.storage && chrome.storage.local) {
+                const res = await new Promise(r => chrome.storage.local.get(['oneClickRunning'], r));
+                isRunning = !!res.oneClickRunning;
+            }
+
+            const btn = document.getElementById('btnOneClickAutofill');
+            if (isRunning) {
+                if (chrome && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.set({ oneClickRunning: false });
+                }
+                btn.innerHTML = '<span>⚡ ONE-CLICK AUTOFILL</span>';
+                btn.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+                showMsg('Automation stopped.', 'success');
+            } else {
+                const oneClickData = {
+                    sro: activeCaseData.sro,
+                    tehsil: activeCaseData.tehsil,
+                    gender_card: getGenderCardType(activeCaseData.executants),
+                    mobile: FIRM_MOBILE,
+                    execution_date: activeCaseData.execution_date,
+                    face_value: activeCaseData.face_value,
+                    executants: activeCaseData.executants,
+                    claimant: activeCaseData.claimant,
+                    witnesses: activeCaseData.witnesses
+                };
+
+                if (chrome && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.set({ 
+                        oneClickRunning: true,
+                        oneClickData: oneClickData
+                    });
+                    chrome.storage.local.remove(['stampDutyCalculated']);
+                }
+                btn.innerHTML = '<span>⚡ STOP AUTOMATION</span>';
+                btn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+                
+                sendTabMessage('one_click_autofill', oneClickData);
+            }
+        } catch (e) {
+            console.error('[RM-Maker Popup] One-click error:', e);
+            showMsg('Error: ' + e.message, 'error');
+        }
+    });
+
     document.getElementById('btnAutofillDistrict').addEventListener('click', () => {
         sendTabMessage('autofill_district', {});
     });
@@ -181,7 +243,8 @@ async function sendTabMessage(action, data) {
         chrome.tabs.sendMessage(tab.id, { action, data }, (response) => {
             const err = chrome.runtime.lastError;
             if (err) {
-                showMsg('Autofill failed: Content script not loaded. Please refresh the e-Panjiyan page and try again.', 'error');
+                console.error('[RM-Maker Popup] sendMessage error:', err.message, 'tab:', tab.url);
+                showMsg('Autofill failed: Content script not loaded. Please reload the extension at chrome://extensions and refresh the e-Panjiyan page.', 'error');
                 return;
             }
             if (response && response.success) {

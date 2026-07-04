@@ -1020,20 +1020,29 @@ async function autofillCalculateDuty(data, sendResponse) {
         if (urlLower.includes('/propertyvaluation/propertydetail')) {
             showStatusToast("Checking Stamp Duty Calculation...");
             
-            // Query for Party Detail button case-insensitively using formaction or text content
-            const partyDetailBtn = document.querySelector('button[formaction*="/Party/Viewparty" i]') || 
-                                   document.querySelector('button[formaction*="viewparty" i]') ||
-                                   Array.from(document.querySelectorAll('button, a')).find(b => {
-                                       const txt = b.textContent.toUpperCase();
-                                       return txt.includes('PARTY DETAIL') || txt.includes('पक्षकार विवरण');
-                                   });
-                                   
-            if (partyDetailBtn) {
-                showStatusToast("Stamp duty calculated! Proceeding to Party Details...");
-                chrome.storage.local.remove(['stampDutyCalculated']); // cleanup flag if present
-                partyDetailBtn.click();
-                setTimeout(() => hideStatusToast(), 1000);
-                sendResponse({ success: true, message: 'Proceeding to Party Details screen...' });
+            // Retrieve stampDutyCalculated status from local storage
+            const storage = await new Promise(resolve => {
+                chrome.storage.local.get(['stampDutyCalculated'], resolve);
+            });
+            
+            if (storage.stampDutyCalculated) {
+                showStatusToast("Proceeding to Party details screen...");
+                const partyDetailBtn = document.querySelector('button[formaction*="/Party/Viewparty" i]') || 
+                                       document.querySelector('button[formaction*="viewparty" i]') ||
+                                       Array.from(document.querySelectorAll('button, a')).find(b => {
+                                           const txt = b.textContent.toUpperCase();
+                                           return txt.includes('PARTY DETAIL') || txt.includes('पक्षकार विवरण');
+                                       });
+                                       
+                if (partyDetailBtn) {
+                    chrome.storage.local.remove(['stampDutyCalculated']);
+                    partyDetailBtn.click();
+                    setTimeout(() => hideStatusToast(), 1000);
+                    sendResponse({ success: true, message: 'Proceeding to Party Details screen...' });
+                } else {
+                    showStatusToast("Party Detail button not found.", false);
+                    sendResponse({ success: false, error: 'Could not locate Party Detail button.' });
+                }
             } else {
                 showStatusToast("Navigating to Calculate Stamp Duty...");
                 const calcBtn = document.querySelector('button[formaction*="/PropertyValuation/CalculateDuty" i]') || 
@@ -1048,7 +1057,7 @@ async function autofillCalculateDuty(data, sendResponse) {
                     sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
                 } else {
                     showStatusToast("Calculate Duty button not found.", false);
-                    sendResponse({ success: false, error: 'Could not find Calculate Duty or Party Detail buttons on this screen.' });
+                    sendResponse({ success: false, error: 'Could not find Calculate Duty button.' });
                 }
             }
         } else if (urlLower.includes('/propertyvaluation/calculateduty')) {
