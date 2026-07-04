@@ -6,6 +6,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     try {
         switch (request.action) {
+            case 'one_click_autofill':
+                oneClickAutofill(request.data, sendResponse);
+                break;
             case 'autofill_district':
                 autofillDistrict(request.data, sendResponse);
                 break;
@@ -46,6 +49,89 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // =====================================================================
 // HELPER FUNCTIONS
 // =====================================================================
+
+let toastElement = null;
+
+function showStatusToast(message, isSpinner = true) {
+    try {
+        if (!toastElement) {
+            toastElement = document.createElement('div');
+            toastElement.id = 'rm-maker-toast';
+            toastElement.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 999999;
+                background: rgba(15, 23, 42, 0.95);
+                color: #ffffff;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-family: 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 10px rgba(99, 102, 241, 0.2);
+                border: 1px solid rgba(99, 102, 241, 0.4);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                transition: all 0.3s ease;
+                transform: translateY(-20px);
+                opacity: 0;
+            `;
+            document.body.appendChild(toastElement);
+            
+            // Force reflow
+            toastElement.offsetHeight;
+            toastElement.style.transform = 'translateY(0)';
+            toastElement.style.opacity = '1';
+        }
+        
+        const icon = isSpinner ? 
+            `<svg style="animation: spin 1s linear infinite; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" stroke="rgba(255, 255, 255, 0.2)" stroke-width="3"/>
+                <path d="M12 2C6.47715 2 2 6.47715 2 12C2 13.5997 2.37562 15.1116 3.04348 16.4522" stroke="#6366f1" stroke-width="3" stroke-linecap="round"/>
+             </svg>` : 
+            `<span style="color: #10b981; font-size: 18px; font-weight: bold;">⚡</span>`;
+            
+        toastElement.innerHTML = `
+            ${icon}
+            <span style="letter-spacing: 0.2px;">${message}</span>
+        `;
+        
+        // Add keyframe animation for spinner if not present
+        if (!document.getElementById('rm-maker-toast-style')) {
+            const style = document.createElement('style');
+            style.id = 'rm-maker-toast-style';
+            style.textContent = `
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    } catch (e) {
+        console.error("[RM-Maker] Error showing status toast:", e);
+    }
+}
+
+function hideStatusToast() {
+    try {
+        if (toastElement) {
+            toastElement.style.transform = 'translateY(-20px)';
+            toastElement.style.opacity = '0';
+            setTimeout(() => {
+                if (toastElement && toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                    toastElement = null;
+                }
+            }, 300);
+        }
+    } catch (e) {
+        console.error("[RM-Maker] Error hiding status toast:", e);
+    }
+}
+
 
 function findInputByLabel(text) {
     const cleanText = text.replace(/\s+/g, ' ').trim().toUpperCase();
@@ -429,7 +515,21 @@ async function setSelectValueByText(selectEl, text) {
         if (isExactJaipur) {
             return optText.includes('JAIPUR') || optText.includes('जयपुर');
         }
-        return optText.includes(text.toUpperCase()) || optText.replace(/\s+/g, '').includes(text.toUpperCase().replace(/\s+/g, ''));
+        
+        const query = text.toUpperCase();
+        let isMatch = optText.includes(query) || optText.replace(/\s+/g, '').includes(query.replace(/\s+/g, ''));
+        
+        // Bilingual fallbacks mapping if direct string match fails
+        if (!isMatch) {
+            if (query.includes("MORTGAGE/ CHARGE") || query.includes("MORTGAGE")) {
+                isMatch = optText.includes("बंधक/भार") || optText.includes("MORTGAGE");
+            } else if (query.includes("WITHOUT POSSESSION")) {
+                isMatch = optText.includes("बिना कब्जे") || optText.includes("WITHOUT POSSESSION");
+            } else if (query.includes("GENERAL")) {
+                isMatch = optText.includes("सामान्य") || optText.includes("GENERAL");
+            }
+        }
+        return isMatch;
     });
     
     if (matchedOption) {
@@ -733,16 +833,19 @@ function autofillLogin(data, sendResponse) {
 // 2. Autofill Document Details (Step 4 in notes)
 // =====================================================================
 
-async function autofillDetails(data, sendResponse) {
+async function autofillDetails(data, sendResponse, autoSave = false) {
     try {
+        showStatusToast("Selecting Location: Urban...");
         // Select Urban
         clickRadioByValueOrLabel("Urban (शहरी)");
         
         // Select Self
         setTimeout(async () => {
+            showStatusToast("Selecting Transfer Status: Self...");
             clickRadioByValueOrLabel("Self (स्वयं)");
             
             // Wait for Self Modal
+            showStatusToast("Waiting for Gender Profile Modal...");
             let modalBody = null;
             for (let i = 0; i < 15; i++) {
                 const modals = Array.from(document.querySelectorAll('.modal-body, ngb-modal-window, .modal-dialog, .modal-content, .modal'));
@@ -752,11 +855,13 @@ async function autofillDetails(data, sendResponse) {
             }
             
             if (!modalBody) {
+                showStatusToast("Error: Modal not found", false);
                 sendResponse({ success: false, error: 'Could not find the category modal window.' });
                 return;
             }
             
             // Find the correct gender card
+            showStatusToast(`Selecting Gender Card: ${data.gender_card}...`);
             let targetCard = null;
             for (let i = 0; i < 15; i++) {
                 const elements = Array.from(modalBody.querySelectorAll('*'));
@@ -790,37 +895,89 @@ async function autofillDetails(data, sendResponse) {
                     const txt = b.textContent.trim().toUpperCase();
                     return txt.includes('CONTINUE') || txt.includes('SAVE') || txt.includes('सहेजें') || txt.includes('आगे बढ़ें') || txt.includes('OK');
                 });
-                if (continueBtn) continueBtn.click();
+                if (continueBtn) {
+                    showStatusToast("Saving modal selection...");
+                    continueBtn.click();
+                }
                 
                 await new Promise(r => setTimeout(r, 800));
                 
                 // Fill Document Type
+                showStatusToast("Setting Document Type: Mortgage...");
                 const docTypeSelect = findSelectByLabel("Document Type") || findSelectByLabel("दस्तावेज़ का प्रकार") || document.querySelector('ng-select');
                 await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
                 
                 await new Promise(r => setTimeout(r, 600));
+                showStatusToast("Setting SubType: Mortgage without possession...");
                 const subTypeSelect = findSelectByLabel("SubType") || findSelectByLabel("उप-प्रकार");
                 await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
                 
                 await new Promise(r => setTimeout(r, 600));
+                showStatusToast("Setting Category: General...");
                 const catSelect = findSelectByLabel("Category") || findSelectByLabel("श्रेणी");
                 await setSelectValueByText(catSelect, "General");
                 
                 await new Promise(r => setTimeout(r, 600));
+                showStatusToast(`Setting SRO to ${data.sro || 'JAIPUR-VII'}...`);
                 const sroSelect = findSelectByLabel("SRO") || findSelectByLabel("उप पंजीयक");
                 await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
                 
                 await new Promise(r => setTimeout(r, 600));
+                showStatusToast(`Setting Tehsil to ${data.tehsil || 'JAIPUR'}...`);
                 const tehsilSelect = findSelectByLabel("Tehsil") || findSelectByLabel("तहसील");
                 await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
                 
-                sendResponse({ success: true, message: 'Autofilled all details! Review and click Save.' });
+                if (autoSave) {
+                    setTimeout(() => {
+                        const saveBtn = document.getElementById('savedocument') || 
+                                        document.querySelector('button#savedocument') || 
+                                        triggerButtonByText("Save") || 
+                                        triggerButtonByText("सहेजें");
+                        if (saveBtn) {
+                            showStatusToast("Submitting Details (Clicking Save)...");
+                            saveBtn.click();
+                            
+                            // Poll for SweetAlert2 modal to appear
+                            const checkInterval = setInterval(() => {
+                                showStatusToast("Waiting for Document Saved popup...");
+                                const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                                if (swalOkBtn) {
+                                    showStatusToast("Confirming Save (Clicking OK)...");
+                                    clearInterval(checkInterval);
+                                    swalOkBtn.click();
+                                    
+                                    setTimeout(() => {
+                                        hideStatusToast();
+                                    }, 1000);
+                                    
+                                    sendResponse({ success: true, message: 'Autofilled details, clicked Save, and confirmed modal!' });
+                                }
+                            }, 250);
+                            
+                            // Safety timeout (clear interval after 8 seconds)
+                            setTimeout(() => {
+                                clearInterval(checkInterval);
+                            }, 8000);
+                        } else {
+                            showStatusToast("Save button not found.", false);
+                            sendResponse({ success: true, message: 'Autofilled details, but could not find Save button.' });
+                        }
+                    }, 1000);
+                } else {
+                    setTimeout(() => {
+                        hideStatusToast();
+                    }, 1500);
+                    sendResponse({ success: true, message: 'Autofilled all details! Review and click Save.' });
+                }
                 
             } else {
+                showStatusToast("Card selection failed.", false);
                 sendResponse({ success: false, error: `Could not find the card matching ${data.gender_card} in the modal.` });
             }
         }, 300);
     } catch (err) {
+        showStatusToast("Details autofill encountered error.", false);
         sendResponse({ success: false, error: err.message });
     }
 }
@@ -832,8 +989,10 @@ async function autofillDetails(data, sendResponse) {
 function autofillCalculateDuty(data, sendResponse) {
     try {
         const url = window.location.href;
+        const urlLower = url.toLowerCase();
         
-        if (url.includes('/PropertyValuation/PropertyDetail')) {
+        if (urlLower.includes('/propertyvaluation/propertydetail')) {
+            showStatusToast("Calculating Stamp Duty...");
             const calcBtn = triggerButtonByText("Calculate Duty") || triggerButtonByText("ड्यूटी की गणना करें");
             if (calcBtn) {
                 sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
@@ -844,14 +1003,19 @@ function autofillCalculateDuty(data, sendResponse) {
                 } else {
                     const partyDetailBtn = triggerButtonByText("Party Detail") || triggerButtonByText("पक्षकार विवरण") || Array.from(document.querySelectorAll('button, a')).find(b => b.textContent.includes('Party Detail') || b.textContent.includes('पक्षकार विवरण'));
                     if (partyDetailBtn) {
+                        showStatusToast("Proceeding to Party details screen...");
                         partyDetailBtn.click();
+                        setTimeout(() => {
+                            hideStatusToast();
+                        }, 1000);
                         sendResponse({ success: true, message: 'Proceeding to Party Details screen...' });
                     } else {
+                        showStatusToast("Failed: Nav buttons not found", false);
                         sendResponse({ success: false, error: 'Could not find relevant buttons on this screen.' });
                     }
                 }
             }
-        } else if (url.includes('/PropertyValuation/CalculateDuty')) {
+        } else if (urlLower.includes('/propertyvaluation/calculateduty')) {
             const dateInput = findInputByLabel("Execution Date") || findInputByLabel("निष्पादन तिथि") || document.querySelector('input[id*="execution" i], input[name*="execution" i], input[id*="date" i]');
             const faceValueInput = findInputByLabel("Face Value") || findInputByLabel("अंकित मूल्य") || document.querySelector('input[id*="face" i], input[name*="face" i], input[id*="loan" i]');
             
@@ -865,20 +1029,53 @@ function autofillCalculateDuty(data, sendResponse) {
                     execDate = `${dd}-${mm}-${yyyy}`;
                 }
                 
+                showStatusToast(`Setting Execution Date: ${execDate} & Face Value: ${data.face_value}...`);
                 setInputValue(dateInput, execDate);
                 setInputValue(faceValueInput, data.face_value.toString());
                 
                 setTimeout(() => {
-                    triggerButtonByText("Calculate & Save") || triggerButtonByText("गणना और सहेजें") || triggerButtonByText("Calculate");
-                    sendResponse({ success: true, message: 'Autofilled execution date and face value!' });
-                }, 300);
+                    showStatusToast("Submitting Stamp Duty (Clicking Calculate & Save)...");
+                    const clicked = triggerButtonByText("Calculate & Save") || triggerButtonByText("गणना और सहेजें") || triggerButtonByText("Calculate");
+                    
+                    if (clicked) {
+                        // Poll for SweetAlert2 modal to appear
+                        const checkInterval = setInterval(() => {
+                            showStatusToast("Waiting for Calculation Saved popup...");
+                            const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                            if (swalOkBtn) {
+                                showStatusToast("Confirming calculation (Clicking OK)...");
+                                clearInterval(checkInterval);
+                                swalOkBtn.click();
+                                
+                                setTimeout(() => {
+                                    hideStatusToast();
+                                }, 1000);
+                                
+                                sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
+                            }
+                        }, 250);
+                        
+                        // Safety timeout (clear interval after 8 seconds)
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                        }, 8000);
+                    } else {
+                        setTimeout(() => {
+                            hideStatusToast();
+                        }, 1500);
+                        sendResponse({ success: true, message: 'Autofilled execution date and face value!' });
+                    }
+                }, 800);
             } else {
+                showStatusToast("Failed to find inputs.", false);
                 sendResponse({ success: false, error: 'Could not locate Execution Date or Face Value inputs.' });
             }
         } else {
             sendResponse({ success: false, error: 'Make sure you are on the Property Detail or Calculate Duty screen.' });
         }
     } catch (err) {
+        showStatusToast("Calculate duty encountered error.", false);
         sendResponse({ success: false, error: err.message });
     }
 }
@@ -1059,4 +1256,179 @@ function setPresenter(data, sendResponse) {
     } catch (err) {
         sendResponse({ success: false, error: err.message });
     }
+}
+
+// =====================================================================
+// 7. One-Click Page Autofill
+// =====================================================================
+
+function oneClickAutofill(data, sendResponse) {
+    try {
+        // Ensure gender_card is computed if not present
+        if (!data.gender_card && data.executants) {
+            data.gender_card = computeGenderCard(data.executants);
+        }
+        
+        const url = window.location.href;
+        const urlLower = url.toLowerCase();
+
+        // Helper function to handle district selection on the dashboard
+        async function selectDistrictAndSubmit(distSelect) {
+            showStatusToast("Selecting District 'JAIPUR'...");
+            const success = await setSelectValueByText(distSelect, "JAIPUR");
+            if (success) {
+                showStatusToast("District selected! Waiting to submit modal...");
+                setTimeout(() => {
+                    const modalEl = distSelect.closest('.modal-content, .modal, .modal-dialog');
+                    const submitBtn = modalEl?.querySelector('button[type="submit"], button.btn-primary, .btn-primary, #btnsubmit') || 
+                                      document.querySelector('.login-arrow') || 
+                                      document.querySelector('.fa-arrow-right, .fa-arrow-circle-right');
+                    if (submitBtn) {
+                        showStatusToast("Submitting District Selection...");
+                        submitBtn.click();
+                        sendResponse({ success: true, message: 'Selected district JAIPUR and submitted modal!' });
+                    } else {
+                        // Fallback change trigger
+                        distSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        sendResponse({ success: true, message: 'Selected district JAIPUR!' });
+                    }
+                }, 1500);
+            } else {
+                showStatusToast("Failed to select JAIPUR in dropdown.", false);
+                sendResponse({ success: false, error: 'Could not select JAIPUR in district dropdown.' });
+            }
+        }
+
+        // 1. Citizen Dashboard
+        if (urlLower.includes('/citizen/dashboard')) {
+            const distSelect = document.getElementById('ddlDistrict');
+            // Verify if the district dropdown is actually visible (modal is open)
+            const isModalOpen = distSelect && (distSelect.offsetWidth > 0 || distSelect.offsetHeight > 0 || distSelect.getBoundingClientRect().width > 0);
+            
+            if (isModalOpen) {
+                // District modal is already open, select and submit
+                selectDistrictAndSubmit(distSelect);
+            } else {
+                showStatusToast("Opening Valuation Modal...");
+                // Click Add New Valuation button to open modal - ID is specific
+                let addValuationBtn = document.getElementById('addnewproperty');
+                const isBtnVisible = addValuationBtn && (addValuationBtn.offsetWidth > 0 || addValuationBtn.offsetHeight > 0 || addValuationBtn.getBoundingClientRect().width > 0);
+                
+                if (!isBtnVisible) {
+                    // Fallback to text matching
+                    addValuationBtn = Array.from(document.querySelectorAll('button, input, a')).find(el => {
+                        const isVisible = el.offsetWidth > 0 || el.offsetHeight > 0 || el.getBoundingClientRect().width > 0;
+                        if (!isVisible) return false;
+                        
+                        const txt = el.textContent.trim().toUpperCase();
+                        return txt.includes('ADD NEW VALUATION') || txt.includes('मूल्यांकन जोड़ें');
+                    });
+                }
+                                        
+                if (addValuationBtn) {
+                    addValuationBtn.click();
+                    
+                    // Wait 1.5 seconds for modal to appear and become visible
+                    setTimeout(() => {
+                        const newDistSelect = document.getElementById('ddlDistrict');
+                        if (newDistSelect) {
+                            selectDistrictAndSubmit(newDistSelect);
+                        } else {
+                            showStatusToast("Failed to open district selection modal.", false);
+                            sendResponse({ success: false, error: 'District dropdown did not appear in modal.' });
+                        }
+                    }, 1500);
+                } else {
+                    showStatusToast("Valuation button not found.", false);
+                    sendResponse({ success: false, error: 'Could not find visible "+ Add New Valuation" button.' });
+                }
+            }
+            return;
+        }
+
+        // 2. Property Valuation (Details vs Property Detail vs Calculate Duty Page)
+        if (urlLower.includes('/propertyvaluation')) {
+            if (urlLower.includes('/propertyvaluation/propertydetail')) {
+                autofillCalculateDuty(data, sendResponse);
+                return;
+            }
+            
+            // Strict check: We are on Calculate Duty page if we see "Execution Date" label, "Face Value" label, or "Calculate & Save" button
+            const hasExecutionDate = findInputByLabel("Execution Date") || findInputByLabel("निष्पादन तिथि");
+            const hasFaceValue = findInputByLabel("Face Value") || findInputByLabel("अंकित मूल्य");
+            const hasCalcBtn = Array.from(document.querySelectorAll('button, input[type="button"], a')).some(b => {
+                const txt = b.textContent.trim().toUpperCase();
+                return txt.includes("CALCULATE & SAVE") || txt.includes("गणना और सहेजें");
+            });
+            
+            if (hasExecutionDate || hasFaceValue || hasCalcBtn) {
+                autofillCalculateDuty(data, sendResponse);
+            } else {
+                showStatusToast("Starting Document Details Autofill...");
+                autofillDetails(data, sendResponse, true);
+            }
+            return;
+        }
+
+        // 3. Fallbacks: Route to specific step function based on active URL
+        if (urlLower.includes('/login')) {
+            autofillLogin(data, sendResponse);
+        } else if (urlLower.includes('/party/viewparty') || urlLower.includes('/party/partyadd')) {
+            if (chrome && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.set({ oneClickRunning: false });
+            }
+            sendResponse({ success: false, error: 'Automation paused. For party details (Executant, Claimant, Witness), please use the individual step buttons below.' });
+        } else {
+            sendResponse({ success: false, error: 'No automation matches this URL. Navigate to Dashboard, Login, or Details page first.' });
+        }
+    } catch (e) {
+        console.error("[RM-Maker Autofill] Error in oneClickAutofill:", e);
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
+// Helper: compute gender_card from executants array (same logic as popup.js getGenderCardType)
+function computeGenderCard(executants) {
+    if (!executants || executants.length === 0) return 'MALE_GEN';
+    const genders = executants.map(e => e.gender);
+    const hasMale = genders.includes('MALE');
+    const hasFemale = genders.includes('FEMALE');
+    if (hasMale && hasFemale) return 'JOINT';
+    if (hasFemale) return 'FEMALE_GEN';
+    return 'MALE_GEN';
+}
+
+// Auto-run on page load if one-click automation is active
+try {
+    if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['oneClickRunning', 'activeCaseData'], (res) => {
+            if (res.oneClickRunning && res.activeCaseData) {
+                const urlLower = window.location.href.toLowerCase();
+                // DO NOT auto-run on Dashboard to prevent accidental loops on fresh visits
+                if (urlLower.includes('/citizen/dashboard')) {
+                    console.log("[RM-Maker] Dashboard page detected. Resetting oneClickRunning flag to prevent auto-loops.");
+                    chrome.storage.local.set({ oneClickRunning: false });
+                    return;
+                }
+                
+                // Build the complete data payload, computing gender_card if missing
+                const caseData = res.activeCaseData;
+                if (!caseData.gender_card) {
+                    caseData.gender_card = computeGenderCard(caseData.executants);
+                }
+                
+                console.log("[RM-Maker] Detected active One-Click Autofill. Starting auto-execution in 1.5s...");
+                setTimeout(() => {
+                    oneClickAutofill(caseData, (response) => {
+                        console.log("[RM-Maker] Auto-execution step response:", response);
+                        if (response && !response.success) {
+                            console.error("[RM-Maker] Step auto-execution failed:", response.error);
+                        }
+                    });
+                }, 1500);
+            }
+        });
+    }
+} catch (e) {
+    console.error("[RM-Maker] Error in page-load auto-execution check:", e);
 }
