@@ -62,8 +62,13 @@ This page is divided into multiple sections:
 * **Applicable DLC / लागू डीएलसी**: (Auto-populated or input)
 
 ### Section 4.2: Property Address
-* **Plot No. / प्लॉट नं**: Three side-by-side inputs
-* **Colony/Village / कॉलोनी/गाँव**: (Dropdown)
+* **Plot No. / प्लॉट नं**: Three side-by-side inputs:
+  * Element IDs: `input#plotNo1`, `input#plotNo2`, `input#plotNo3`.
+  * **Splitting Heuristics**:
+    * **Input 1 (`plotNo1`)**: Block / Sector (e.g. `"F"`, `"A"`, `"Sec-3"`). Extracted if the plot number starts with a block letter followed by a hyphen or space (like `"F-101"` $\rightarrow$ `plotNo1="F"`).
+    * **Input 2 (`plotNo2`)**: Primary Plot Number (e.g. `"101 /"`). If the remaining plot number contains a slash (like `"101/200A"`), the part before the slash including the slash is set here (e.g. `"101 /"`).
+    * **Input 3 (`plotNo3`)**: Suffix / Part / Flat Number (e.g. `"200A"`). The part after the slash is set here.
+    * *Fallback*: If no complex patterns are found, leave `plotNo1` and `plotNo3` empty, and write the entire plot string to `plotNo2`.
 * **Issuing Authority / जारी करने वाला प्राधिकरण**: (Dropdown)
 * **Road Width / सड़क की चौड़ाई**: (Input in feet)
 * **Corner Plot / कॉर्नर प्लॉट**: (Radio: Yes / No)
