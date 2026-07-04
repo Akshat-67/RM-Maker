@@ -2656,5 +2656,29 @@ def get_epanjiyan_data(case_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/case/<case_id>/save_valuation_quote", methods=["POST"])
+def save_case_valuation_quote(case_id):
+    try:
+        import datetime
+        req_data = request.json or {}
+        session = load_case_session(case_id)
+        if not session:
+            return jsonify({"error": "Case not found"}), 404
+            
+        session["valuation_quote"] = {
+            "stamp_duty": req_data.get("stamp_duty", ""),
+            "registration_fee": req_data.get("registration_fee", ""),
+            "cess_surcharge": req_data.get("cess_surcharge", ""),
+            "total_fee": req_data.get("total_fee", ""),
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        save_case_session(case_id, session)
+        return jsonify({"success": True, "message": "Valuation quote saved successfully."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
