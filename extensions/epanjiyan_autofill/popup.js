@@ -134,7 +134,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (chrome && chrome.storage && chrome.storage.local) {
                     chrome.storage.local.set({ 
                         oneClickRunning: true,
-                        oneClickData: oneClickData
+                        oneClickData: oneClickData,
+                        partyStage: "EXECUTANT"
                     });
                     chrome.storage.local.remove(['stampDutyCalculated']);
                 }

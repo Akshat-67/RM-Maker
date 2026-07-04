@@ -1313,7 +1313,7 @@ function setPresenter(data, sendResponse) {
 // 7. One-Click Page Autofill
 // =====================================================================
 
-function oneClickAutofill(data, sendResponse) {
+async function oneClickAutofill(data, sendResponse) {
     try {
         // Ensure gender_card is computed if not present
         if (!data.gender_card && data.executants) {
@@ -1418,18 +1418,110 @@ function oneClickAutofill(data, sendResponse) {
         if (urlLower.includes('/login')) {
             autofillLogin(data, sendResponse);
         } else if (urlLower.includes('/party/viewparty') || urlLower.includes('/party/partyadd')) {
+            // Read partyStage from local storage (default to EXECUTANT if not set)
+            const storage = await new Promise(resolve => {
+                chrome.storage.local.get(['partyStage'], resolve);
+            });
+            const stage = storage.partyStage || "EXECUTANT";
+            
+            if (stage === "DONE") {
+                if (chrome && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.set({ oneClickRunning: false });
+                }
+                sendResponse({ success: true, message: 'All parties (Borrower, Bank, Witnesses) have been successfully added!' });
+                return;
+            }
+            
             if (urlLower.includes('/party/partyadd')) {
-                showStatusToast("Filling Executant (Borrower) Details...");
-                autofillExecutants(data, (response) => {
-                    // Stop one-click running after filling details to let user review and click Save manually
-                    if (chrome && chrome.storage && chrome.storage.local) {
-                        chrome.storage.local.set({ oneClickRunning: false });
+                showStatusToast(`Filling ${stage} Details...`);
+                
+                let fillPromise = null;
+                let nextStage = "CLAIMANT";
+                
+                if (stage === "EXECUTANT") {
+                    const exec = data.executants[0];
+                    fillPromise = fillPartyFormFields(exec, true, true);
+                    nextStage = "CLAIMANT";
+                } else if (stage === "CLAIMANT") {
+                    const cl = data.claimant;
+                    fillPromise = fillPartyFormFields(cl, false, false);
+                    nextStage = "WITNESS_1";
+                } else if (stage === "WITNESS_1") {
+                    const wit = data.witnesses[0];
+                    fillPromise = fillPartyFormFields(wit, false, false);
+                    nextStage = "WITNESS_2";
+                } else if (stage === "WITNESS_2") {
+                    const wit = data.witnesses[1];
+                    fillPromise = fillPartyFormFields(wit, false, false);
+                    nextStage = "DONE";
+                }
+                
+                if (fillPromise) {
+                    try {
+                        await fillPromise;
+                        
+                        // Wait 800ms before clicking Save
+                        await new Promise(r => setTimeout(r, 800));
+                        
+                        const saveBtn = document.getElementById('saveDetail') || 
+                                        document.querySelector('button[onclick*="saveForm"]') ||
+                                        Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'SAVE');
+                                        
+                        if (saveBtn) {
+                            showStatusToast("Submitting Party Form (Clicking Save)...");
+                            saveBtn.click();
+                            
+                            // Poll for SweetAlert2 modal to appear
+                            const checkInterval = setInterval(() => {
+                                showStatusToast("Waiting for Party Saved popup...");
+                                const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                                if (swalOkBtn) {
+                                    showStatusToast("Confirming Save (Clicking OK)...");
+                                    clearInterval(checkInterval);
+                                    
+                                    // Update stage in local storage before clicking OK
+                                    const updates = { partyStage: nextStage };
+                                    if (nextStage === "DONE") {
+                                        updates.oneClickRunning = false;
+                                    }
+                                    chrome.storage.local.set(updates, () => {
+                                        swalOkBtn.click();
+                                        setTimeout(() => hideStatusToast(), 1000);
+                                        sendResponse({ success: true, message: `Successfully saved ${stage} and updated stage to ${nextStage}` });
+                                    });
+                                }
+                            }, 250);
+                            
+                            // Safety timeout (clear interval after 10 seconds)
+                            setTimeout(() => {
+                                clearInterval(checkInterval);
+                            }, 10000);
+                        } else {
+                            showStatusToast("Save button not found. Please click Save manually.", false);
+                            sendResponse({ success: false, error: 'Could not find the Save button on the Party form.' });
+                        }
+                    } catch (err) {
+                        showStatusToast(`Error filling ${stage} form.`, false);
+                        sendResponse({ success: false, error: err.message });
                     }
-                    sendResponse(response);
-                });
+                } else {
+                    sendResponse({ success: false, error: `Invalid partyStage: ${stage}` });
+                }
             } else {
-                showStatusToast("Opening Executant Form...");
-                autofillExecutants(data, sendResponse);
+                // We are on Viewparty
+                showStatusToast(`Routing party step: ${stage}...`);
+                if (stage === "EXECUTANT") {
+                    autofillExecutants(data, sendResponse);
+                } else if (stage === "CLAIMANT") {
+                    autofillClaimant(data, sendResponse);
+                } else if (stage === "WITNESS_1") {
+                    autofillWitnessN(data, 0, sendResponse);
+                } else if (stage === "WITNESS_2") {
+                    autofillWitnessN(data, 1, sendResponse);
+                } else {
+                    sendResponse({ success: false, error: `Unknown partyStage: ${stage}` });
+                }
             }
         } else {
             sendResponse({ success: false, error: 'No automation matches this URL. Navigate to Dashboard, Login, or Details page first.' });
