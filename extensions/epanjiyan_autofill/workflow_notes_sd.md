@@ -2,6 +2,16 @@
 
 This document logs the step-by-step requirements for the automated e-Panjiyan autofill process in **Sale Deed (SD)** Mode.
 
+## Data Sources (LSR & Technical Reports)
+Property details are extracted from:
+1. **Legal Search Report (LSR)**: For property address, owner names, chain of title, and boundaries.
+2. **Technical Valuation Report**: For exact plot area, construction area (if any), latitude/longitude coordinates, road width, SRO, Tehsil, and property photos.
+
+## Property Type Detection Rules (Section 4.1 Underlying Select)
+* **Plot**: Extracted plot area > 0 AND construction area is 0/empty. No flat/apartment keywords.
+* **FLAT**: Flat/Apartment keywords detected in address (e.g. Flat, Apartment, Tower, Block) OR only super built-up/constructed area is present with 0 land plot area.
+* **HOUSE**: Both plot area > 0 AND construction area > 0 are present.
+
 ## Step 1: District Selection & Navigation (Dashboard)
 * **Action:** Click "+ Add New Valuation" (`#addnewproperty`), wait for the modal, select "JAIPUR" from the District dropdown (`#ddlDistrict`), and submit the modal.
 
