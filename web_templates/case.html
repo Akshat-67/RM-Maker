@@ -482,27 +482,12 @@
             overflow-y: auto;
         }
 
-        /* Force PDF / Image Preview Console to fill full vertical height */
-        #previewTabContent {
-            display: flex !important;
-            flex-direction: column;
-            flex-grow: 1;
-            min-height: 0;
-            overflow: hidden;
-        }
-        #previewTabContent > .tab-pane {
-            display: none;
-            flex-direction: column;
-            flex-grow: 1;
-            min-height: 0;
-        }
-        #previewTabContent > .tab-pane.active.show {
-            display: flex !important;
-        }
+        /* Force PDF / Image Preview Console to fill full vertical height.
+           Direct viewport calc bypasses the flex-grow chain entirely. */
         .preview-frame-container {
-            flex-grow: 1 !important;
             position: relative;
-            min-height: 0;
+            height: calc(100vh - 250px) !important;
+            min-height: 300px;
         }
         #previewIframe, #previewImg {
             position: absolute !important;
@@ -511,6 +496,7 @@
             width: 100% !important;
             height: 100% !important;
             border: none;
+            object-fit: contain;
         }
         #previewPlaceholder {
             position: absolute;
