@@ -94,7 +94,33 @@
 
 ---
 
-### Task 3: Quotation Scraping and State Pausing
+### Task 3: Calculate Stamp Duty Page Automation
+
+**Files:**
+- Modify: `extensions/epanjiyan_autofill/content.js`
+
+**Interfaces:**
+- Consumes: ATS Consideration Amount (`amount`) and execution date details from case data.
+- Produces: Submits the calculation parameters and triggers the fee summary generation.
+
+- [ ] **Step 1: Automate Calculate Duty navigation**
+  On `/PropertyValuation/PropertyDetail`, find and click the **Calculate Duty** button:
+  `document.querySelector('button[formaction="/PropertyValuation/CalculateDuty"]').click()`.
+- [ ] **Step 2: Automate Calculate Stamp Duty parameters**
+  On `/PropertyValuation/CalculateDuty`:
+  - Set Execution Date: Programmatically select today's date in `input#execution_date`.
+  - Set Face Value: Write the case's **ATS Consideration Amount** (`amount`) into `input#face_value`.
+  - Click Calculate & Save: `document.querySelector('input[type="submit"][value="Calculate & Save"]').click()`.
+- [ ] **Step 3: Test and Commit**
+  Run manual verification and commit.
+  ```bash
+  git add extensions/epanjiyan_autofill/content.js
+  git commit -m "feat: implement Calculate Stamp Duty navigation and fields using ATS consideration amount"
+  ```
+
+---
+
+### Task 4: Quotation Scraping and State Pausing
 
 **Files:**
 - Modify: `extensions/epanjiyan_autofill/content.js`
