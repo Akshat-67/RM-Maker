@@ -41,7 +41,7 @@ This design specification details the implementation plan for adding Sale Deed (
   * **Road Width**: Input road width in feet.
   * **Location**: Check `Interior` (`input[name="Location"][value="0"]` if road width $\le 30$ ft) or `Exterior` (`input[name="Location"][value="1"]` if road width $> 30$ ft).
   * **Property Area**: Input area in Square Meters (`input#txtPlotArea`). Convert from Square Yards if necessary (`gaj * 0.8361`).
-  * **Latitude & Longitude**: Input coordinates from Technical Valuation Report (`input#latitude`, `input#longitude`).
+  * **Latitude & Longitude**: Input coordinates from Technical Valuation Report (`input#latitude`, `input#longitude`). If coordinates are missing/not found, default both to `"0"`.
   * **Boundaries**: Input East (`#east`), West (`#west`), North (`#north`), and South (`#south`) text descriptions.
   * **Intermediate Documents**: Always select `"No"` using `input#radiointermediateNo` (`isChainDocument="0"`).
   * Click Save (`input#btnsaveproperty`).

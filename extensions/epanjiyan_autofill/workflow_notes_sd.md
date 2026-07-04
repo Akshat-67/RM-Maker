@@ -46,10 +46,17 @@ This page is divided into multiple sections:
 ### Section 4.1: DLC Address
 * **Property Type / संपत्ति का प्रकार**: (Dropdown)
 * **Colony / कॉलोनी**: (Dropdown select element ID: `select#ddlColony` / Select2 styled wrapper `span#select2-ddlColony-container`)
+  * **Fuzzy Typo-Resistant Matching**:
+    * Clean both target name (from case) and option names (lowercase, remove spaces, special chars, and common suffixes like "colony", "nagar", "road", "gali", "scheme").
+    * Compute string similarity (using Levenshtein or Jaro-Winkler). If score $\ge 85\%$, treat it as a potential match (resolves typos like `"luv kush"` vs `"lav kush"`).
+  * **Highest DLC Selection Logic**:
+    * If multiple options match the colony (e.g., `"Patrakar Colony Road"`, `"Patrakar Colony Sector"`), the extension will programmatically select each candidate option sequentially.
+    * For each candidate, wait for the portal's AJAX request to finish, read the updated `Applicable DLC` value from the text input field, and compare.
+    * Keep the colony option that yields the **highest DLC rate**.
   * **Selection Hierarchy**:
-    1. Search options for the exact colony name match (e.g. `"Patrakar Colony"`).
-    2. If not found, search for `"JDA Converted"` / `"जे.डी.ए. स्वीकृत"` options.
-    3. If still not found, search for the nearest zone, sector, or landmark, or prompt the user for manual override.
+    1. Highest DLC among fuzzy colony matches.
+    2. JDA Converted fallback (`"JDA Converted"` / `"जे.डी.ए. स्वीकृत"`).
+    3. Manual override/prompt if no matches found.
 * **Area / क्षेत्र**: (Auto-populated upon Colony selection)
 * **Zone / जोन**: (Auto-populated upon Colony selection)
 * **Category Type / श्रेणी का प्रकार**: (Dropdown select element ID: `select#ddlCategoryType` / Select2 wrapper `span#select2-ddlCategoryType-container`)
@@ -82,7 +89,7 @@ This page is divided into multiple sections:
   * **Rule**: Set to property area. If the value in the report is in **Square Yards (Gaj)**, convert it to **Square Meters** by multiplying by **0.8361** (e.g. `gaj * 0.8361`).
 * **Other Detail / अन्य विवरण**: (Input)
 * **Latitude & Longitude**: (Input element IDs: `input#latitude`, `input#longitude`)
-  * **Rule**: Set to coordinates from the Technical Valuation Report.
+  * **Rule**: Set to coordinates from the Technical Valuation Report. If missing/not available, default both values to `"0"`.
 * **Property Id**: (Input)
 
 ### Section 4.3: Other Details & Boundaries
