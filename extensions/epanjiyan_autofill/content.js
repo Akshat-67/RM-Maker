@@ -299,13 +299,7 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         purchaserBox.dispatchEvent(new Event('click', { bubbles: true }));
     }
     
-    // 2. Names (English only, stripped of salutations like MR/MRS)
-    const partyNameEn = getField('partyNameEn');
-    const relNameEn = getField('relNameEn');
-    setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
-    setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
-    
-    // 3. Gender
+    // 2. Gender Selection
     if (partyData.gender === 'FEMALE') {
         const femaleRadio = document.getElementById('rbtfemale') || document.querySelector('input[type="radio"][value="F"]') || document.querySelector('input[type="radio"][id*="female" i]');
         if (femaleRadio) {
@@ -329,91 +323,103 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         }
     }
     
-    // 4. DOB / Age
-    const dobInput = document.getElementById('txtdob') || getField('dob');
-    const ageInput = getField('age');
-    if (dobInput) {
-        let dobValue = "";
-        if (partyData.dob) {
-            // Normalize separators to slashes
-            dobValue = partyData.dob.replace(/[-\.]/g, '/');
-            // If it's just a 4-digit year, pad to 01/01/YYYY
-            if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
-                dobValue = `01/01/${dobValue}`;
+    // 3. Parallel static input fields filling
+    await Promise.all([
+        // Name and Relation
+        (async () => {
+            const partyNameEn = getField('partyNameEn');
+            if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
+        })(),
+        (async () => {
+            const relNameEn = getField('relNameEn');
+            if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
+        })(),
+        
+        // DOB / Age
+        (async () => {
+            const dobInput = document.getElementById('txtdob') || getField('dob');
+            const ageInput = getField('age');
+            if (dobInput) {
+                let dobValue = "";
+                if (partyData.dob) {
+                    dobValue = partyData.dob.replace(/[-\.]/g, '/');
+                    if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
+                        dobValue = `01/01/${dobValue}`;
+                    }
+                } else if (partyData.age) {
+                    const currentYear = new Date().getFullYear();
+                    const birthYear = currentYear - parseInt(partyData.age);
+                    dobValue = `01/01/${birthYear}`;
+                } else {
+                    dobValue = "01/01/1985";
+                }
+                console.log("[RM-Maker] Writing DOB using page-context datepicker:", dobValue);
+                setDatePickerValue(dobInput, dobValue);
+            } else if (ageInput) {
+                setInputValue(ageInput, partyData.age || "40");
             }
-        } else if (partyData.age) {
-            const currentYear = new Date().getFullYear();
-            const birthYear = currentYear - parseInt(partyData.age);
-            dobValue = `01/01/${birthYear}`;
-        } else {
-            dobValue = "01/01/1985";
-        }
+        })(),
         
-        console.log("[RM-Maker] Writing DOB using page-context datepicker:", dobValue);
-        setDatePickerValue(dobInput, dobValue);
-    } else if (ageInput) {
-        setInputValue(ageInput, partyData.age || "40");
-    }
-    
-    // 5. Category (Select)
-    const catSelect = getField('category');
-    if (catSelect) {
-        await setSelectValueByText(catSelect, "General");
-    }
-    
-    // 6. Caste (English field only!) & जाति (Hindi field - hardcoded always to हिन्दू)
-    const casteEn = getField('casteEn');
-    if (casteEn) {
-        setInputValue(casteEn, "HINDU");
-    }
-    const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
-    if (casteHi) {
-        setInputValue(casteHi, "हिन्दू");
-    }
-    
-    // 7. Occupation (Select)
-    const occSelect = getField('occupation');
-    if (occSelect) {
-        await setSelectValueByText(occSelect, "Other");
-    }
-    
-    // 8. Photo ID Proof (Select)
-    const idSelect = getField('idProof');
-    if (idSelect) {
-        await setSelectValueByText(idSelect, "Other than above");
-    }
-    
-    // 9. ID Details (Aadhaar Number) & PAN Card
-    const idDetails = getField('idDetails');
-    const sampleAadhaar = "123456789012"; // Safety sample
-    if (idDetails) {
-        setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
-    }
-    
-    if (partyData.pan) {
-        const panInput = getField('pan');
-        if (panInput) {
-            setInputValue(panInput, partyData.pan);
-        }
-    }
-    
-    // 10. Address
-    if (partyData.address) {
-        const houseInput = getField('houseNo');
-        const colonyInput = getField('colony');
-        const areaInput = getField('area');
-        const cityInput = getField('city');
-        const pinInput = getField('pincode');
+        // Caste (English) & Caste (Hindi)
+        (async () => {
+            const casteEn = getField('casteEn');
+            if (casteEn) setInputValue(casteEn, "HINDU");
+        })(),
+        (async () => {
+            const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
+            if (casteHi) setInputValue(casteHi, "हिन्दू");
+        })(),
         
-        setInputValue(houseInput, partyData.address.house_no || "00");
-        setInputValue(colonyInput, partyData.address.colony || "");
-        setInputValue(areaInput, partyData.address.area || "");
-        setInputValue(cityInput, partyData.address.city || "JAIPUR");
-        setInputValue(pinInput, partyData.address.pincode || "");
-    }
+        // ID & PAN
+        (async () => {
+            const idDetails = getField('idDetails');
+            const sampleAadhaar = "123456789012";
+            if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
+        })(),
+        (async () => {
+            if (partyData.pan) {
+                const panInput = getField('pan');
+                if (panInput) setInputValue(panInput, partyData.pan);
+            }
+        })(),
+        
+        // Address Details
+        (async () => {
+            if (partyData.address) {
+                const houseInput = getField('houseNo');
+                const colonyInput = getField('colony');
+                const areaInput = getField('area');
+                const cityInput = getField('city');
+                const pinInput = getField('pincode');
+                
+                if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
+                if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
+                if (areaInput) setInputValue(areaInput, partyData.address.area || "");
+                if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
+                if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
+            }
+        })()
+    ]);
+    
+    // 4. Parallel dropdown menus filling
+    await Promise.all([
+        (async () => {
+            const catSelect = getField('category');
+            if (catSelect) await setSelectValueByText(catSelect, "General");
+        })(),
+        (async () => {
+            const occSelect = getField('occupation');
+            if (occSelect) await setSelectValueByText(occSelect, "Other");
+        })(),
+        (async () => {
+            const idSelect = getField('idProof');
+            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
+        })()
+    ]);
     
     console.log("[RM-Maker] Completed fillPartyFormFields for:", partyData.name_en);
 }
+
 
 
 function triggerJQuerySelect(elementId, value) {
