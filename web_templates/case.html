@@ -261,13 +261,13 @@
             flex-grow: 1;
             overflow: hidden;
             background-color: #FBFBF9;
-            height: calc(100vh - 52px); /* fill entire height below 52px navbar */
+            height: calc(100vh - 120px); /* fit perfectly within remaining screen height */
             min-height: 0;
         }
         .preview-pane {
             width: 50%;
             border-right: 1px solid #E5E5E0;
-            padding: 1rem;
+            padding: 0.5rem; /* reduced from 1rem to maximize vertical space */
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -519,7 +519,8 @@
         #previewIframe, #previewImg {
             flex-grow: 1;
             width: 100%;
-            height: 100%;
+            height: 100% !important;
+            min-height: 450px; /* ensure substantial minimum height */
             border: none;
         }
     </style>
