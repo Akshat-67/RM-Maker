@@ -41,7 +41,7 @@ This design specification details the implementation plan for adding Sale Deed (
   * **Latitude & Longitude**: Input coordinates from Technical Valuation Report (`input#latitude`, `input#longitude`).
   * **Boundaries**: Input East (`#east`), West (`#west`), North (`#north`), and South (`#south`) text descriptions.
   * **Intermediate Documents**: Always select `"No"` using `input#radiointermediateNo` (`isChainDocument="0"`).
-  * Click Save (underlying submit button).
+  * Click Save (`input#btnsaveproperty`).
 
 ### 3. Calculation & Quotation Extraction (`content.js`)
 * **Goal**: Extract the stamp duty calculation from the portal, send it to the backend database, and pause.

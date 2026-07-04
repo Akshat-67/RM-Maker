@@ -54,10 +54,10 @@ This page is divided into multiple sections:
 * **Zone / जोन**: (Auto-populated upon Colony selection)
 * **Category Type / श्रेणी का प्रकार**: (Dropdown select element ID: `select#ddlCategoryType` / Select2 wrapper `span#select2-ddlCategoryType-container`)
   * **Rule**: Always select **"Residential"** by default.
-* **Location / स्थान**: (Radio buttons)
+* **Location / स्थान**: (Radio buttons: Interior `input[name="Location"][value="0"]` / Exterior `input[name="Location"][value="1"]`)
   * **Rule**: Road width-dependent:
-    * If road width next to property $\le 30\text{ ft} \rightarrow$ select **"Interior"** (आंतरिक) radio button.
-    * If road width next to property $> 30\text{ ft} \rightarrow$ select **"Exterior"** (बाहरी) radio button.
+    * If road width next to property $\le 30\text{ ft} \rightarrow$ select **"Interior"** (value `"0"`).
+    * If road width next to property $> 30\text{ ft} \rightarrow$ select **"Exterior"** (value `"1"`).
   * **Data Source**: Obtained from the boundaries (East/West/North/South) in the LSR, scanning for "Road" (or "सड़क") and its width.
 * **Applicable DLC / लागू डीएलसी**: (Auto-populated or input)
 
@@ -94,7 +94,7 @@ This page is divided into multiple sections:
   * **Rule**: Set to North boundary description from the Legal Search Report.
 * **South / दक्षिण**: (Input element ID: `input#south` / name `south`)
   * **Rule**: Set to South boundary description from the Legal Search Report.
-* **Intermediate Documents / मध्यवर्ती दस्तावेज़**: (Radio: Yes / No, default "No")
+* **Intermediate Documents / मध्यवर्ती दस्तावेज़**: (Radio: Yes / No, ID: `input#radiointermediateNo`, name: `isChainDocument`, value: `"0"`, default "No")
 * **Commission / कमीशन**: (Radios, default "N/A")
-* **Save**: Click Save button at the bottom of the page (`button` or `input` type submit).
+* **Save**: Click Save button at the bottom of the page (`input#btnsaveproperty`).
 
