@@ -30,10 +30,13 @@ This design specification details the implementation plan for adding Sale Deed (
 * **Goal**: Automate the `/PropertyValuation/AddPropertyAddress` page.
 * **Mechanism**:
   * **Property Type**: Select `"Plot"`, `"FLAT"`, or `"HOUSE"` based on construction/flat keywords or area flags.
-  * **Colony**: Select SRO-level colony using the priority hierarchy:
-    1. Exact colony name.
-    2. `"JDA Converted"` / `"जे.डी.ए. स्वीकृत"`.
-    3. Fallback to nearest sector/zone.
+  * **Colony**: Select SRO-level colony (`select#ddlColony`):
+    * **Fuzzy Match (Typo-Resistant)**: Normalize both target and options (lowercase, remove spaces/special characters, strip suffixes like colony, road, nagar, scheme). If Jaro-Winkler/Levenshtein similarity is $\ge 85\%$, it's a match (handles e.g. "luv kush" vs "lav kush").
+    * **Highest DLC Selection**: If multiple fuzzy matching options are found (e.g. main road vs sector options), the extension sequentially selects each, queries the loaded `Applicable DLC` value from the portal via AJAX, and submits the option yielding the highest DLC rate.
+    * **Priority Hierarchy**:
+      1. Highest DLC among fuzzy matched options.
+      2. JDA Converted fallback (`"JDA Converted"` / `"जे.डी.ए. स्वीकृत"`).
+      3. Manual fallback/user prompt if no matches.
   * **Plot No.**: Parse plot number string and split into `plotNo1` (Block/Sector), `plotNo2` (Number + slash), and `plotNo3` (Part/Suffix).
   * **Road Width**: Input road width in feet.
   * **Location**: Check `Interior` (`input[name="Location"][value="0"]` if road width $\le 30$ ft) or `Exterior` (`input[name="Location"][value="1"]` if road width $> 30$ ft).
