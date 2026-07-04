@@ -835,82 +835,67 @@
         
         <!-- Left Panel: Document Preview Console -->
         <div class="preview-pane">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span class="fw-bold text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Document Preview Console</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="fw-bold text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">📄 Source Documents</span>
                 <button class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="switchStep(1)" style="font-size: 0.68rem;">⚙️ Settings & Files</button>
             </div>
             
-            <ul class="nav nav-tabs preview-tabs" id="previewTab" role="tablist" style="margin-bottom: 4px;">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active py-1" id="source-tab" data-bs-toggle="tab" data-bs-target="#source-docs" type="button" role="tab" aria-controls="source-docs" aria-selected="true" style="font-size: 0.78rem;">Source Documents</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link py-1" id="draft-tab" data-bs-toggle="tab" data-bs-target="#generated-draft" type="button" role="tab" aria-controls="generated-draft" aria-selected="false" style="font-size: 0.78rem;">Generated Draft</button>
-                </li>
-            </ul>
-            
-            <div class="tab-content" id="previewTabContent">
-                <!-- Source Docs Tab Pane -->
-                <div class="tab-pane fade show active" id="source-docs" role="tabpanel" aria-labelledby="source-tab">
-                    <!-- Horizontal File Tabs selector -->
-                    <div class="preview-scroll-container">
-                        {% set unique_files = [] %}
-                        {% for f in files %}
-                            {% if f not in unique_files %}
-                                {% set _ = unique_files.append(f) %}
-                            {% endif %}
-                        {% endfor %}
-                        {% for b_name, b_files in buckets.items() %}
-                            {% for f in b_files %}
-                                {% if f not in unique_files %}
-                                    {% set _ = unique_files.append(f) %}
-                                {% endif %}
-                            {% endfor %}
-                        {% endfor %}
-                        
-                        {% for file in unique_files %}
-                            {% set filename = file | basename %}
-                            {% set safeId = 'file-tab-' + filename.replace('.', '_') %}
-                            <button class="btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate" 
-                                    id="{{ safeId }}"
-                                    style="max-width: 140px; font-size: 0.7rem; padding: 0.2rem 0.5rem;" 
-                                    onclick="previewFile('{{ filename }}')"
-                                    title="{{ filename }}">
-                                📄 {{ filename }}
-                            </button>
-                        {% endfor %}
-                    </div>
-                    
-                    <!-- Preview frame container: height is calculated directly from viewport -->
-                    <div style="position: relative; height: calc(100vh - 190px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden;">
-                        <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
-                        <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
-                        <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
-                            <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
-                            <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
-                        </div>
-                    </div>
-                </div>
+            <!-- Horizontal File Tabs selector -->
+            <div class="preview-scroll-container">
+                {% set unique_files = [] %}
+                {% for f in files %}
+                    {% if f not in unique_files %}
+                        {% set _ = unique_files.append(f) %}
+                    {% endif %}
+                {% endfor %}
+                {% for b_name, b_files in buckets.items() %}
+                    {% for f in b_files %}
+                        {% if f not in unique_files %}
+                            {% set _ = unique_files.append(f) %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
                 
-                <!-- Generated Draft Tab Pane -->
-                <div class="tab-pane fade" id="generated-draft" role="tabpanel" aria-labelledby="draft-tab">
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; padding: 6px 10px; margin-bottom: 4px;">
-                        <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
-                        <button class="btn btn-xs btn-primary py-0 px-2 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
-                    </div>
-                    <div id="draftPreviewContent" style="height: calc(100vh - 210px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; font-family: 'Segoe UI', 'Mangal';">
-                        <div style="text-align: center; color: #999; padding: 40px 0;">
-                            <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
-                            <span style="font-size: 0.85rem;">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
-                        </div>
-                    </div>
+                {% for file in unique_files %}
+                    {% set filename = file | basename %}
+                    {% set safeId = 'file-tab-' + filename.replace('.', '_') %}
+                    <button class="btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate" 
+                            id="{{ safeId }}"
+                            style="max-width: 140px; font-size: 0.7rem; padding: 0.2rem 0.5rem;" 
+                            onclick="previewFile('{{ filename }}')"
+                            title="{{ filename }}">
+                        📄 {{ filename }}
+                    </button>
+                {% endfor %}
+            </div>
+            
+            <!-- Preview frame container: height is calculated directly from viewport -->
+            <div style="position: relative; height: calc(100vh - 145px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden;">
+                <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
+                <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
+                <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
+                    <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
+                    <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
                 </div>
             </div>
         </div>
 
         <!-- Right Panel: Case Verification Workspace (tabbed) -->
-        <div class="editor-pane">
-            <h5 class="mb-3 d-flex justify-content-between align-items-center" style="font-size: 0.95rem;">
+        <div class="editor-pane" style="display: flex; flex-direction: column; height: 100%;">
+            <!-- Main Right Tabs -->
+            <ul class="nav nav-tabs mb-3 flex-shrink-0" id="mainRightTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-bold py-2 px-3" id="editor-main-tab" data-bs-toggle="tab" data-bs-target="#pane-editor-main" type="button" role="tab" aria-selected="true" style="font-size: 0.82rem;">✏️ Verification Editor</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold py-2 px-3" id="draft-main-tab" data-bs-toggle="tab" data-bs-target="#pane-draft-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">📄 Generated Draft</button>
+                </li>
+            </ul>
+
+            <div class="tab-content flex-grow-1 overflow-hidden" id="mainRightTabsContent" style="display: flex; flex-direction: column;">
+                <!-- MAIN TAB PANE 1: VERIFICATION EDITOR -->
+                <div class="tab-pane fade show active flex-grow-1" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="display: flex; flex-direction: column; overflow-y: auto;">
+                    <h5 class="mb-3 d-flex justify-content-between align-items-center" style="font-size: 0.95rem;">
                 <span class="fw-bold text-secondary">Verification Workspace Editor</span>
                 <div>
                     <span class="badge bg-info text-dark" id="devlysBadge" style="display: none; margin-right: 5px;">DEVLYS MODE ON</span>
@@ -1577,11 +1562,26 @@
                                 <h5>No Extracted Case Data Found</h5>
                                 <p class="small">Upload Aadhaar/PAN documents in the left panel and click "Start AI Automation" to begin.</p>
                             </div>
-                            {% endif %}                        </div>
+                            {% endif %}
+                        </div> <!-- End of verificationContent -->
+                    </div>
+                </div> <!-- End of MAIN TAB PANE 1 (pane-editor-main) -->
+
+                <!-- MAIN TAB PANE 2: GENERATED DRAFT -->
+                <div class="tab-pane fade flex-grow-1" id="pane-draft-main" role="tabpanel" aria-labelledby="draft-main-tab" style="display: flex; flex-direction: column; height: calc(100vh - 125px); overflow: hidden;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 4px 4px 0 0; padding: 8px 12px; flex-shrink: 0;">
+                        <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
+                        <button class="btn btn-xs btn-primary py-0 px-2.5 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
+                    </div>
+                    <div id="draftPreviewContent" style="flex-grow: 1; overflow-y: auto; padding: 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 0 0 4px 4px; font-family: 'Segoe UI', 'Mangal'; min-height: 0;">
+                        <div style="text-align: center; color: #999; padding: 40px 0;">
+                            <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
+                            <span style="font-size: 0.85rem;">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div> <!-- End of mainRightTabsContent -->
+        </div> <!-- End of editor-pane -->
     </div>
 
 
@@ -2061,7 +2061,7 @@
 
     // Automatically trigger preview when switching to the draft tab
     window.addEventListener('DOMContentLoaded', () => {
-        const draftTab = document.getElementById('draft-tab');
+        const draftTab = document.getElementById('draft-main-tab');
         if (draftTab) {
             draftTab.addEventListener('shown.bs.tab', () => {
                 // Auto-generate if it still has placeholder
