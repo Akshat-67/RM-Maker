@@ -1117,13 +1117,19 @@ async function autofillCalculateDuty(data, sendResponse) {
 // 3. Autofill Executant (Steps 8-10 in notes)
 // =====================================================================
 
-function autofillExecutants(data, sendResponse) {
+function autofillExecutants(data, sendResponse, stage = "EXECUTANT") {
     if (!data.executants || data.executants.length === 0) {
         sendResponse({ success: false, error: 'No executants data available.' });
         return;
     }
     
-    const exec = data.executants[0];
+    const idx = (stage === "EXECUTANT") ? 0 : parseInt(stage.split("_")[1]);
+    if (idx >= data.executants.length) {
+        sendResponse({ success: false, error: `Executant index ${idx} out of range.` });
+        return;
+    }
+    
+    const exec = data.executants[idx];
     const url = window.location.href;
     
     // PHASE A: If on Viewparty page → click Executant button → bypass verification modal
@@ -1151,9 +1157,10 @@ function autofillExecutants(data, sendResponse) {
     
     // PHASE B: If on PartyAdd form page → fill the actual executant details
     if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
-        fillPartyFormFields(exec, true, true)
+        const isFirst = (idx === 0);
+        fillPartyFormFields(exec, isFirst, isFirst)
             .then(() => {
-                sendResponse({ success: true, message: 'Autofilled Executant details! Review and click Save.' });
+                sendResponse({ success: true, message: `Autofilled Executant ${idx + 1} details! Review and click Save.` });
             })
             .catch(err => {
                 sendResponse({ success: false, error: err.message });
@@ -1420,10 +1427,17 @@ async function oneClickAutofill(data, sendResponse) {
                 let fillPromise = null;
                 let nextStage = "CLAIMANT";
                 
-                if (stage === "EXECUTANT") {
-                    const exec = data.executants[0];
-                    fillPromise = fillPartyFormFields(exec, true, true);
-                    nextStage = "CLAIMANT";
+                if (stage.startsWith("EXECUTANT")) {
+                    const idx = (stage === "EXECUTANT") ? 0 : parseInt(stage.split("_")[1]);
+                    const exec = data.executants[idx];
+                    const isFirst = (idx === 0);
+                    fillPromise = fillPartyFormFields(exec, isFirst, isFirst);
+                    
+                    if (idx + 1 < data.executants.length) {
+                        nextStage = `EXECUTANT_${idx + 1}`;
+                    } else {
+                        nextStage = "CLAIMANT";
+                    }
                 } else if (stage === "CLAIMANT") {
                     const cl = data.claimant;
                     fillPromise = fillPartyFormFields(cl, false, false);
@@ -1493,8 +1507,8 @@ async function oneClickAutofill(data, sendResponse) {
             } else {
                 // We are on Viewparty
                 showStatusToast(`Routing party step: ${stage}...`);
-                if (stage === "EXECUTANT") {
-                    autofillExecutants(data, sendResponse);
+                if (stage.startsWith("EXECUTANT")) {
+                    autofillExecutants(data, sendResponse, stage);
                 } else if (stage === "CLAIMANT") {
                     autofillClaimant(data, sendResponse);
                 } else if (stage === "WITNESS_1") {
