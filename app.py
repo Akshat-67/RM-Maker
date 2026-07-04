@@ -1613,6 +1613,7 @@ def preview_draft(case_id):
         from docxtpl import DocxTemplate
         from docx.text.paragraph import Paragraph
         from docx.table import Table
+        from utils.devlys_to_unicode import DevLysToUnicodeConverter
 
         doc = DocxTemplate(template_path)
         doc.render(context)
@@ -1623,7 +1624,8 @@ def preview_draft(case_id):
                 p = Paragraph(element, doc)
                 txt = p.text.strip()
                 if txt:
-                    escaped = html.escape(txt)
+                    unicode_txt = DevLysToUnicodeConverter.devlys_to_unicode_text(txt)
+                    escaped = html.escape(unicode_txt)
                     escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
                     html_parts.append(f"<p style='margin-bottom: 0.8rem; line-height: 1.5; text-align: justify; font-family: Segoe UI, Mangal; font-size: 0.92rem;'>{escaped}</p>")
             elif element.tag.endswith('tbl'):
@@ -1632,7 +1634,9 @@ def preview_draft(case_id):
                 for row in t.rows:
                     table_html.append("<tr>")
                     for cell in row.cells:
-                        table_html.append(f"<td style='padding: 6px 10px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(cell.text.strip())}</td>")
+                        cell_txt = cell.text.strip()
+                        unicode_cell = DevLysToUnicodeConverter.devlys_to_unicode_text(cell_txt)
+                        table_html.append(f"<td style='padding: 6px 10px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(unicode_cell)}</td>")
                     table_html.append("</tr>")
                 table_html.append("</table>")
                 html_parts.append("".join(table_html))
