@@ -679,3 +679,145 @@ async function autofillAddress(data, sendResponse) {
     }
 }
 
+// Set Datepicker value via page jQuery context injection
+function setDatePickerValue(inputEl, value) {
+    if (!inputEl) return;
+    if (!inputEl.id) {
+        inputEl.id = 'date_' + Math.random().toString(36).substring(2, 9);
+    }
+    inputEl.removeAttribute('readonly');
+    setInputValue(inputEl, value);
+    inputEl.setAttribute('readonly', 'readonly');
+    
+    try {
+        const script = document.createElement('script');
+        script.textContent = `
+            (function() {
+                const el = document.getElementById("${inputEl.id}");
+                const $ = window.jQuery || window.$;
+                if (el && $) {
+                    $(el).removeAttr('readonly');
+                    $(el).val("${value}").trigger('change').trigger('input');
+                    if (typeof $(el).datepicker === 'function') {
+                        try {
+                            $(el).datepicker('setDate', "${value}");
+                        } catch(e) {}
+                    }
+                    $(el).attr('readonly', 'readonly');
+                }
+            })();
+        `;
+        (document.head || document.documentElement).appendChild(script);
+        script.remove();
+    } catch (e) {
+        console.error("[SD Autofill] Error injecting datepicker script:", e);
+    }
+}
+
+function setInputValue(inputEl, value) {
+    if (!inputEl) return false;
+    inputEl.value = value;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    inputEl.dispatchEvent(new Event('blur', { bubbles: true }));
+    return true;
+}
+
+function triggerButtonByText(text) {
+    const buttons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn'));
+    const matchedBtn = buttons.find(b => b.textContent.trim().toUpperCase().includes(text.toUpperCase()) || (b.value && b.value.toUpperCase().includes(text.toUpperCase())));
+    if (matchedBtn) {
+        matchedBtn.click();
+        return true;
+    }
+    return false;
+}
+
+// 3. Calculate Stamp Duty Automation
+async function autofillCalculateDuty(data, sendResponse) {
+    try {
+        const url = window.location.href.toLowerCase();
+        
+        if (url.includes('/propertyvaluation/propertydetail')) {
+            showStatusToast("Navigating to Calculate Stamp Duty...");
+            const calcBtn = document.querySelector('button[formaction*="/PropertyValuation/CalculateDuty" i]') || 
+                            document.querySelector('button[formaction*="calculateduty" i]') ||
+                            Array.from(document.querySelectorAll('button, a')).find(b => {
+                                const txt = b.textContent.toUpperCase();
+                                return txt.includes('CALCULATE DUTY') || txt.includes('ड्यूटी की गणना करें');
+                            });
+                            
+            if (calcBtn) {
+                calcBtn.click();
+                sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
+            } else {
+                sendResponse({ success: false, error: 'Could not find Calculate Duty button.' });
+            }
+            return;
+        }
+        
+        if (url.includes('/propertyvaluation/calculateduty')) {
+            const dateInput = document.getElementById('execution_date');
+            const faceValueInput = document.getElementById('face_value');
+            
+            if (dateInput && faceValueInput) {
+                let execDate = data.execution_date;
+                if (!execDate) {
+                    const today = new Date();
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const yyyy = today.getFullYear();
+                    execDate = `${dd}-${mm}-${yyyy}`;
+                }
+                
+                const valAmount = (data.amount || data.face_value || 0).toString();
+                showStatusToast(`Setting Date: ${execDate} & Face Value: ${valAmount}...`);
+                setDatePickerValue(dateInput, execDate);
+                setInputValue(faceValueInput, valAmount);
+                
+                await new Promise(r => setTimeout(r, 600));
+                
+                showStatusToast("Submitting Stamp Duty (Clicking Calculate & Save)...");
+                const calcSaveBtn = document.querySelector('input[type="submit"][value="Calculate & Save"]') || 
+                                    document.querySelector('button[value="Calculate & Save"]') ||
+                                    triggerButtonByText("Calculate & Save") || 
+                                    triggerButtonByText("गणना और सहेजें");
+                
+                if (calcSaveBtn) {
+                    chrome.storage.local.set({ stampDutyCalculated: true }, () => {
+                        calcSaveBtn.click();
+                        
+                        // Poll for SweetAlert2 modal to appear
+                        const checkInterval = setInterval(() => {
+                            showStatusToast("Waiting for Calculation Saved popup...");
+                            const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                            if (swalOkBtn) {
+                                showStatusToast("Confirming calculation (Clicking OK)...");
+                                clearInterval(checkInterval);
+                                swalOkBtn.click();
+                                setTimeout(() => {
+                                    hideStatusToast();
+                                }, 100);
+                                sendResponse({ success: true, message: 'Autofilled execution date, face value, saved, and confirmed!' });
+                            }
+                        }, 50);
+                        
+                        // Safety timeout (clear interval after 8 seconds)
+                        setTimeout(() => {
+                            clearInterval(checkInterval);
+                        }, 8000);
+                    });
+                } else {
+                    sendResponse({ success: false, error: 'Could not find Calculate & Save button.' });
+                }
+            } else {
+                sendResponse({ success: false, error: 'Date or Face Value inputs not found.' });
+            }
+        }
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
+
