@@ -1368,21 +1368,14 @@ function oneClickAutofill(data, sendResponse) {
                 autofillCalculateDuty(data, sendResponse);
                 return;
             }
-            
-            // Strict check: We are on Calculate Duty page if we see "Execution Date" label, "Face Value" label, or "Calculate & Save" button
-            const hasExecutionDate = findInputByLabel("Execution Date") || findInputByLabel("निष्पादन तिथि");
-            const hasFaceValue = findInputByLabel("Face Value") || findInputByLabel("अंकित मूल्य");
-            const hasCalcBtn = Array.from(document.querySelectorAll('button, input[type="button"], a')).some(b => {
-                const txt = b.textContent.trim().toUpperCase();
-                return txt.includes("CALCULATE & SAVE") || txt.includes("गणना और सहेजें");
-            });
-            
-            if (hasExecutionDate || hasFaceValue || hasCalcBtn) {
+            if (urlLower.includes('/propertyvaluation/calculateduty')) {
                 autofillCalculateDuty(data, sendResponse);
-            } else {
-                showStatusToast("Starting Document Details Autofill...");
-                autofillDetails(data, sendResponse, true);
+                return;
             }
+            
+            // Otherwise, we are on the main Document Details page
+            showStatusToast("Starting Document Details Autofill...");
+            autofillDetails(data, sendResponse, true);
             return;
         }
 
