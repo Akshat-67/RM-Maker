@@ -521,12 +521,12 @@ async function setSelectValueByText(selectEl, text) {
         
         // Bilingual fallbacks mapping if direct string match fails
         if (!isMatch) {
-            if (query.includes("MORTGAGE/ CHARGE") || query.includes("MORTGAGE")) {
-                isMatch = optText.includes("बंधक/भार") || optText.includes("MORTGAGE");
+            if (query === "MORTGAGE/ CHARGE") {
+                isMatch = optText.includes("बंधक/भार");
             } else if (query.includes("WITHOUT POSSESSION")) {
-                isMatch = optText.includes("बिना कब्जे") || optText.includes("WITHOUT POSSESSION");
-            } else if (query.includes("GENERAL")) {
-                isMatch = optText.includes("सामान्य") || optText.includes("GENERAL");
+                isMatch = optText.includes("बिना कब्जे");
+            } else if (query === "GENERAL") {
+                isMatch = optText.includes("सामान्य");
             }
         }
         return isMatch;
@@ -902,35 +902,60 @@ async function autofillDetails(data, sendResponse, autoSave = false) {
                 // Fill Document Type using exact select element ID
                 showStatusToast("Setting Document Type: Mortgage...");
                 const docTypeSelect = document.getElementById('parentarticle_id');
-                await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
+                let docTypeSet = false;
+                for (let i = 0; i < 10; i++) {
+                    docTypeSet = await setSelectValueByText(docTypeSelect, "Mortgage/ Charge");
+                    if (docTypeSet) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
                 
                 await new Promise(r => setTimeout(r, 600));
                 
                 // Fill SubType using exact select element ID
                 showStatusToast("Setting SubType: Mortgage without possession...");
                 const subTypeSelect = document.getElementById('ddlDocSubType');
-                await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
+                let subTypeSet = false;
+                for (let i = 0; i < 15; i++) {
+                    subTypeSet = await setSelectValueByText(subTypeSelect, "(b)Mortgage deed without possession");
+                    if (subTypeSet) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
                 
                 await new Promise(r => setTimeout(r, 600));
                 
                 // Fill Category using exact select element ID
                 showStatusToast("Setting Category: General...");
                 const catSelect = document.getElementById('ddlCategory');
-                await setSelectValueByText(catSelect, "General");
+                let catSet = false;
+                for (let i = 0; i < 10; i++) {
+                    catSet = await setSelectValueByText(catSelect, "General");
+                    if (catSet) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
                 
                 await new Promise(r => setTimeout(r, 600));
                 
                 // Fill SRO using exact select element ID
                 showStatusToast(`Setting SRO to ${data.sro || 'JAIPUR-VII'}...`);
                 const sroSelect = document.getElementById('ddlSRO');
-                await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
+                let sroSet = false;
+                for (let i = 0; i < 15; i++) {
+                    sroSet = await setSelectValueByText(sroSelect, data.sro || "JAIPUR-VII");
+                    if (sroSet) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
                 
                 await new Promise(r => setTimeout(r, 600));
                 
                 // Fill Tehsil using exact select element ID
                 showStatusToast(`Setting Tehsil to ${data.tehsil || 'JAIPUR'}...`);
                 const tehsilSelect = document.getElementById('ddlTehsil');
-                await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
+                let tehsilSet = false;
+                for (let i = 0; i < 15; i++) {
+                    tehsilSet = await setSelectValueByText(tehsilSelect, data.tehsil || "JAIPUR");
+                    if (tehsilSet) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
                 
                 if (autoSave) {
                     setTimeout(() => {
