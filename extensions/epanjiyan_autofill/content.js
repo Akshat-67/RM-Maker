@@ -1418,10 +1418,19 @@ function oneClickAutofill(data, sendResponse) {
         if (urlLower.includes('/login')) {
             autofillLogin(data, sendResponse);
         } else if (urlLower.includes('/party/viewparty') || urlLower.includes('/party/partyadd')) {
-            if (chrome && chrome.storage && chrome.storage.local) {
-                chrome.storage.local.set({ oneClickRunning: false });
+            if (urlLower.includes('/party/partyadd')) {
+                showStatusToast("Filling Executant (Borrower) Details...");
+                autofillExecutants(data, (response) => {
+                    // Stop one-click running after filling details to let user review and click Save manually
+                    if (chrome && chrome.storage && chrome.storage.local) {
+                        chrome.storage.local.set({ oneClickRunning: false });
+                    }
+                    sendResponse(response);
+                });
+            } else {
+                showStatusToast("Opening Executant Form...");
+                autofillExecutants(data, sendResponse);
             }
-            sendResponse({ success: false, error: 'Automation paused. For party details (Executant, Claimant, Witness), please use the individual step buttons below.' });
         } else {
             sendResponse({ success: false, error: 'No automation matches this URL. Navigate to Dashboard, Login, or Details page first.' });
         }
