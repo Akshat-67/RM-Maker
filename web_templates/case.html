@@ -258,41 +258,33 @@
         }
         .split-workspace {
             display: flex;
-            flex-grow: 1;
             overflow: hidden;
             background-color: #FBFBF9;
-            height: calc(100vh - 120px); /* fit perfectly within remaining screen height */
-            min-height: 0;
+            height: calc(100vh - 56px);
         }
         .preview-pane {
             width: 50%;
             border-right: 1px solid #E5E5E0;
-            padding: 0.5rem; /* reduced from 1rem to maximize vertical space */
-            display: flex;
-            flex-direction: column;
+            padding: 8px;
             overflow: hidden;
             background-color: #ffffff;
-            height: 100%;
         }
         .editor-pane {
             width: 50%;
             padding: 1.25rem;
-            display: flex;
-            flex-direction: column;
             overflow-y: auto;
             background-color: #FBFBF9;
-            height: 100%;
         }
         .preview-tabs {
             border-bottom: 1px solid #E5E5E0;
-            margin-bottom: 0.75rem;
+            margin-bottom: 4px;
         }
         .preview-tabs .nav-link {
             border: none;
             color: #86868B;
             font-weight: 600;
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
+            padding: 0.4rem 1rem;
+            font-size: 0.82rem;
             letter-spacing: 0.3px;
         }
         .preview-tabs .nav-link.active {
@@ -304,9 +296,9 @@
             display: flex;
             overflow-x: auto;
             white-space: nowrap;
-            gap: 0.5rem;
-            padding-bottom: 0.5rem;
-            margin-bottom: 0.75rem;
+            gap: 0.25rem;
+            padding-bottom: 4px;
+            margin-bottom: 4px;
             align-items: center;
         }
         .preview-scroll-container::-webkit-scrollbar {
@@ -351,10 +343,9 @@
         }
         .step-nav-btn.active-step {
             color: #1e293b !important;
-            background-color: #38bdf8 !important; /* Sky 400 */
+            background-color: #38bdf8 !important;
             box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
         }
-        
 
         /* Step 3: Timeline Track Styles */
         .timeline-track-wrapper {
@@ -480,29 +471,6 @@
         .file-list-scroll {
             max-height: 120px;
             overflow-y: auto;
-        }
-
-        /* Force PDF / Image Preview Console to fill full vertical height.
-           Direct viewport calc bypasses the flex-grow chain entirely. */
-        .preview-frame-container {
-            position: relative;
-            height: calc(100vh - 250px) !important;
-            min-height: 300px;
-        }
-        #previewIframe, #previewImg {
-            position: absolute !important;
-            top: 0;
-            left: 0;
-            width: 100% !important;
-            height: 100% !important;
-            border: none;
-            object-fit: contain;
-        }
-        #previewPlaceholder {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
         }
     </style>
 </head>
@@ -867,12 +835,12 @@
         
         <!-- Left Panel: Document Preview Console -->
         <div class="preview-pane">
-            <h6 class="fw-bold text-muted mb-2 text-uppercase d-flex justify-content-between align-items-center" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-                <span>Document Preview Console</span>
-                <button class="btn btn-xs btn-outline-secondary py-0.5 px-2" onclick="switchStep(1)" style="font-size: 0.68rem;">⚙️ Settings & Files</button>
-            </h6>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="fw-bold text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Document Preview Console</span>
+                <button class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="switchStep(1)" style="font-size: 0.68rem;">⚙️ Settings & Files</button>
+            </div>
             
-            <ul class="nav nav-tabs preview-tabs" id="previewTab" role="tablist" style="margin-bottom: 0.5rem;">
+            <ul class="nav nav-tabs preview-tabs" id="previewTab" role="tablist" style="margin-bottom: 4px;">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active py-1" id="source-tab" data-bs-toggle="tab" data-bs-target="#source-docs" type="button" role="tab" aria-controls="source-docs" aria-selected="true" style="font-size: 0.78rem;">Source Documents</button>
                 </li>
@@ -881,9 +849,9 @@
                 </li>
             </ul>
             
-            <div class="tab-content flex-grow-1 d-flex flex-column overflow-hidden" id="previewTabContent">
+            <div class="tab-content" id="previewTabContent">
                 <!-- Source Docs Tab Pane -->
-                <div class="tab-pane fade show active flex-grow-1 d-flex flex-column overflow-hidden" id="source-docs" role="tabpanel" aria-labelledby="source-tab">
+                <div class="tab-pane fade show active" id="source-docs" role="tabpanel" aria-labelledby="source-tab">
                     <!-- Horizontal File Tabs selector -->
                     <div class="preview-scroll-container">
                         {% set unique_files = [] %}
@@ -913,27 +881,27 @@
                         {% endfor %}
                     </div>
                     
-                    <!-- Preview frame container -->
-                    <div class="preview-frame-container flex-grow-1 border rounded bg-light d-flex overflow-hidden position-relative">
-                        <iframe id="previewIframe" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
-                        <img id="previewImg" style="width: 100%; height: 100%; object-fit: contain; display: none;" alt="Preview image" />
-                        <div id="previewPlaceholder" class="text-center text-muted p-4">
+                    <!-- Preview frame container: height is calculated directly from viewport -->
+                    <div style="position: relative; height: calc(100vh - 190px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden;">
+                        <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
+                        <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
+                        <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
                             <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
-                            <span class="small">Select an uploaded file tab above to preview it in this pane.</span>
+                            <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Generated Draft Tab Pane -->
-                <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="generated-draft" role="tabpanel" aria-labelledby="draft-tab">
-                    <div class="d-flex justify-content-between align-items-center bg-light border-bottom p-2 flex-shrink-0">
+                <div class="tab-pane fade" id="generated-draft" role="tabpanel" aria-labelledby="draft-tab">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; padding: 6px 10px; margin-bottom: 4px;">
                         <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
-                        <button class="btn btn-xs btn-primary py-0.5 px-2.5 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
+                        <button class="btn btn-xs btn-primary py-0 px-2 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
                     </div>
-                    <div class="flex-grow-1 p-3 overflow-y-auto bg-white border rounded" id="draftPreviewContent" style="min-height: 0; font-family: 'Segoe UI', 'Mangal';">
-                        <div class="text-center text-muted py-5">
+                    <div id="draftPreviewContent" style="height: calc(100vh - 210px); overflow-y: auto; padding: 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; font-family: 'Segoe UI', 'Mangal';">
+                        <div style="text-align: center; color: #999; padding: 40px 0;">
                             <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
-                            <span class="small">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
+                            <span style="font-size: 0.85rem;">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
                         </div>
                     </div>
                 </div>
