@@ -1620,15 +1620,30 @@ try {
                     caseData.gender_card = computeGenderCard(caseData.executants);
                 }
                 
-                console.log("[RM-Maker] Detected active One-Click Autofill. Starting auto-execution in 1.5s...");
-                setTimeout(() => {
+                const runAutofill = () => {
+                    console.log("[RM-Maker] Starting auto-execution immediately...");
                     oneClickAutofill(caseData, (response) => {
                         console.log("[RM-Maker] Auto-execution step response:", response);
                         if (response && !response.success) {
                             console.error("[RM-Maker] Step auto-execution failed:", response.error);
                         }
                     });
-                }, 1500);
+                };
+
+                // Check readiness immediately or bind to DOMContentLoaded/load with 250ms fallback
+                if (document.readyState === "complete" || document.readyState === "interactive") {
+                    runAutofill();
+                } else {
+                    let triggered = false;
+                    const triggerOnce = () => {
+                        if (triggered) return;
+                        triggered = true;
+                        runAutofill();
+                    };
+                    document.addEventListener("DOMContentLoaded", triggerOnce);
+                    window.addEventListener("load", triggerOnce);
+                    setTimeout(triggerOnce, 250);
+                }
             }
         });
     }
