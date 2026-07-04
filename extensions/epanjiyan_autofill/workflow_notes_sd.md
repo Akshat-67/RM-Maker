@@ -105,3 +105,12 @@ This page is divided into multiple sections:
 * **Commission / कमीशन**: (Radios, default "N/A")
 * **Save**: Click Save button at the bottom of the page (`input#btnsaveproperty`).
 
+## Step 5: Calculate Duty Navigation (`/PropertyValuation/PropertyDetail`)
+* **Action 5.1 (Click Calculate Duty):** Click the **Calculate Duty** button (HTML element: `button[formaction="/PropertyValuation/CalculateDuty"]` with class `"btn-success submit-btn"`).
+
+## Step 6: Calculate Stamp Duty (`/PropertyValuation/CalculateDuty`)
+* **Action 6.1 (Set Execution Date):** Programmatically select today's date in the read-only Execution Date input (`input#execution_date`).
+* **Action 6.2 (Set Face Value):** Enter the **Consideration Amount / ATS Transaction Value** from the case data (instead of loan amount) in the Face Value input (`input#face_value`).
+* **Action 6.3 (Calculate & Save):** Click **Calculate & Save** button (HTML input/button with value `"Calculate & Save"`).
+
+
