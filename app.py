@@ -1636,25 +1636,38 @@ def preview_draft(case_id):
                     current_page_elements = []
 
                 if txt:
-                    unicode_txt = DevLysToUnicodeConverter.devlys_to_unicode_text(txt)
-                    escaped = html.escape(unicode_txt)
-                    escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+                    # Run-by-run conversion to support paragraphs with mixed DevLys and injected Unicode fields
+                    unicode_parts = []
+                    for run in p.runs:
+                        run_txt = run.text
+                        if not run_txt:
+                            continue
+                        if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
+                            unicode_parts.append(run_txt)
+                        else:
+                            unicode_parts.append(DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt))
                     
-                    # Apply specific header/title styles (red color, bold, centered) as seen in user's Word screenshots
-                    normalized_txt = unicode_txt.replace(" ", "")
-                    if len(unicode_txt.strip()) < 20 and "!!श्री!!" in normalized_txt:
-                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: 'Segoe UI', 'Mangal';"
-                        current_page_elements.append(f"<p style=\"{p_style}\">!! श्री !!</p>")
-                    elif len(unicode_txt.strip()) < 20 and ("विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt):
-                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: 'Segoe UI', 'Mangal';"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
-                    elif len(unicode_txt.strip()) < 30 and unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
-                        p_style = "text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: 'Segoe UI', 'Mangal';"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
-                    else:
-                        # Standard Word Paragraph Styling with first-line indent, clean spacing and justification
-                        p_style = "text-align: justify; text-indent: 45px; font-size: 1.05rem; line-height: 1.75; margin-bottom: 1.2rem; font-family: 'Segoe UI', 'Mangal'; color: #111827;"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                    unicode_txt = "".join(unicode_parts).strip()
+                    
+                    if unicode_txt:
+                        escaped = html.escape(unicode_txt)
+                        escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+                        
+                        # Apply specific header/title styles (red color, bold, centered) as seen in user's Word screenshots
+                        normalized_txt = unicode_txt.replace(" ", "")
+                        if len(unicode_txt.strip()) < 20 and "!!श्री!!" in normalized_txt:
+                            p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: 'Segoe UI', 'Mangal';"
+                            current_page_elements.append(f"<p style=\"{p_style}\">!! श्री !!</p>")
+                        elif len(unicode_txt.strip()) < 20 and ("विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt):
+                            p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: 'Segoe UI', 'Mangal';"
+                            current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                        elif len(unicode_txt.strip()) < 30 and unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
+                            p_style = "text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: 'Segoe UI', 'Mangal';"
+                            current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                        else:
+                            # Standard Word Paragraph Styling with first-line indent, clean spacing and justification
+                            p_style = "text-align: justify; text-indent: 45px; font-size: 1.05rem; line-height: 1.75; margin-bottom: 1.2rem; font-family: 'Segoe UI', 'Mangal'; color: #111827;"
+                            current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
             
             elif element.tag.endswith('tbl'):
                 t = Table(element, doc)
@@ -1662,8 +1675,20 @@ def preview_draft(case_id):
                 for row in t.rows:
                     table_html.append("<tr>")
                     for cell in row.cells:
-                        cell_txt = cell.text.strip()
-                        unicode_cell = DevLysToUnicodeConverter.devlys_to_unicode_text(cell_txt)
+                        # Support mixed runs inside table cells as well
+                        cell_parts = []
+                        for cell_p in cell.paragraphs:
+                            cell_unicode_parts = []
+                            for run in cell_p.runs:
+                                run_txt = run.text
+                                if not run_txt:
+                                    continue
+                                if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
+                                    cell_unicode_parts.append(run_txt)
+                                else:
+                                    cell_unicode_parts.append(DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt))
+                            cell_parts.append("".join(cell_unicode_parts))
+                        unicode_cell = "\n".join(cell_parts).strip()
                         table_html.append(f"<td style='padding: 8px 12px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(unicode_cell)}</td>")
                     table_html.append("</tr>")
                 table_html.append("</table>")
