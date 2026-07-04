@@ -226,3 +226,223 @@ function cleanStringForColony(s) {
         .replace(/\s+/g, '')
         .trim();
 }
+
+// =====================================================================
+// 3. One-Click Page Autofill
+// =====================================================================
+
+async function oneClickAutofill(data, sendResponse) {
+    try {
+        const url = window.location.href.toLowerCase();
+        
+        if (url.includes('/citizen/dashboard')) {
+            autofillDistrict(data, sendResponse);
+            return;
+        }
+        
+        if (url.includes('/propertyvaluation')) {
+            if (url.includes('/propertyvaluation/propertydetail')) {
+                autofillCalculateDuty(data, sendResponse);
+                return;
+            }
+            if (url.includes('/propertyvaluation/calculateduty')) {
+                autofillCalculateDuty(data, sendResponse);
+                return;
+            }
+            if (url.includes('/propertyvaluation/addpropertyaddress')) {
+                autofillAddress(data, sendResponse);
+                return;
+            }
+            // Main Document details page
+            autofillDetails(data, sendResponse);
+            return;
+        }
+        
+        sendResponse({ success: false, error: 'Not on e-Panjiyan dashboard or valuation page.' });
+    } catch (e) {
+        console.error("[SD Autofill] Error in oneClickAutofill:", e);
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
+// 0. District Selection & Dashboard Modal Navigation
+async function autofillDistrict(data, sendResponse) {
+    try {
+        const distSelect = document.getElementById('ddlDistrict');
+        const isModalOpen = distSelect && (distSelect.offsetWidth > 0 || distSelect.offsetHeight > 0);
+        
+        async function submitJaipur(selectEl) {
+            showStatusToast("Selecting District 'JAIPUR'...");
+            const success = await setSelectValueByText(selectEl, "JAIPUR");
+            if (success) {
+                showStatusToast("District selected! Submitting...");
+                setTimeout(() => {
+                    const modalEl = selectEl.closest('.modal-content, .modal, .modal-dialog');
+                    const submitBtn = modalEl?.querySelector('button[type="submit"], button.btn-primary, #btnsubmit') ||
+                                      document.querySelector('.login-arrow') ||
+                                      document.querySelector('.fa-arrow-right');
+                    if (submitBtn) {
+                        submitBtn.click();
+                        sendResponse({ success: true, message: 'District selected and submitted.' });
+                    } else {
+                        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                        sendResponse({ success: true, message: 'District selected.' });
+                    }
+                }, 1000);
+            } else {
+                sendResponse({ success: false, error: 'Could not select JAIPUR.' });
+            }
+        }
+        
+        if (isModalOpen) {
+            await submitJaipur(distSelect);
+        } else {
+            showStatusToast("Opening Valuation Modal...");
+            const addValuationBtn = document.getElementById('addnewproperty') ||
+                                    Array.from(document.querySelectorAll('button, a')).find(el => el.textContent.trim().includes('Add New Valuation') || el.textContent.trim().includes('मूल्यांकन जोड़ें'));
+            if (addValuationBtn) {
+                addValuationBtn.click();
+                setTimeout(async () => {
+                    const newDistSelect = document.getElementById('ddlDistrict');
+                    if (newDistSelect) {
+                        await submitJaipur(newDistSelect);
+                    } else {
+                        sendResponse({ success: false, error: 'District selector not found.' });
+                    }
+                }, 1000);
+            } else {
+                sendResponse({ success: false, error: 'Add Valuation button not found.' });
+            }
+        }
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
+// Helper to determine the SD Category
+function determineSDCategory(caseData) {
+    const gender = (caseData.gender || 'male').toLowerCase();
+    const caste = (caseData.caste || 'General').toUpperCase();
+    const isFemale = gender === 'female';
+    const isSCSTBPL = caste === 'SC' || caste === 'ST' || !!caseData.isBPL;
+    
+    if (isFemale && isSCSTBPL) return '4'; // Female SC/ST/BPL card
+    if (isFemale) return '3'; // Female other than SC/ST/BPL card
+    if (caseData.isJoint) return '6'; // Male/Female Joint card
+    return '1'; // Male (GEN) card
+}
+
+// 1. Document Details Form Page (/PropertyValuation)
+async function autofillDetails(data, sendResponse) {
+    try {
+        showStatusToast("Setting Location Type: Urban...");
+        clickRadioByValueOrLabel("Urban (शहरी)");
+        
+        await new Promise(r => setTimeout(r, 400));
+        
+        showStatusToast("Selecting Transfer Status: Self...");
+        const selfRadio = document.getElementById('radioself') || document.querySelector('input#radioself');
+        if (selfRadio) {
+            selfRadio.checked = true;
+            selfRadio.click();
+            selfRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+            clickRadioByValueOrLabel("Self (स्वयं)");
+        }
+        
+        // Wait for Self Category Modal
+        showStatusToast("Waiting for Gender/Category Modal...");
+        let modalBody = null;
+        for (let i = 0; i < 20; i++) {
+            const modals = Array.from(document.querySelectorAll('.modal-body, .modal-dialog, .modal-content, .modal'));
+            modalBody = modals.find(m => m.offsetWidth > 0 || m.offsetHeight > 0);
+            if (modalBody) break;
+            await new Promise(r => setTimeout(r, 150));
+        }
+        
+        if (!modalBody) {
+            sendResponse({ success: false, error: 'Gender/Category modal did not load.' });
+            return;
+        }
+        
+        const radioValue = determineSDCategory(data);
+        showStatusToast(`Selecting Category Card option: ${radioValue}...`);
+        const radioBtn = modalBody.querySelector(`input[name="individualdata"][value="${radioValue}"]`);
+        if (radioBtn) {
+            radioBtn.checked = true;
+            radioBtn.click();
+            radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            await new Promise(r => setTimeout(r, 300));
+            
+            const continueBtn = modalBody.querySelector('button[onclick*="setdatass"]') || 
+                                modalBody.querySelector('button[onclick*="return setdatass()"]') ||
+                                Array.from(modalBody.querySelectorAll('button')).find(b => b.textContent.trim().includes('Continue') || b.textContent.trim().includes('आगे बढ़ें'));
+            if (continueBtn) {
+                continueBtn.click();
+            }
+        }
+        
+        await new Promise(r => setTimeout(r, 600));
+        
+        // Document Type: Sale Deed (Conveyance)
+        showStatusToast("Selecting Document Type: Sale Deed...");
+        const docTypeSelect = document.getElementById('parentarticle_id');
+        await setSelectValueByText(docTypeSelect, "Sale Deed (Conveyance)");
+        
+        await new Promise(r => setTimeout(r, 400));
+        
+        // SubType: Sale Deed
+        showStatusToast("Selecting SubType: Sale Deed...");
+        const subTypeSelect = document.getElementById('ddlDocSubType');
+        await setSelectValueByText(subTypeSelect, "Sale Deed");
+        
+        await new Promise(r => setTimeout(r, 400));
+        
+        // Category dropdown
+        showStatusToast("Selecting Category Dropdown...");
+        const catSelect = document.getElementById('ddlCategory');
+        let categoryVal = "General";
+        if (radioValue === '4') {
+            categoryVal = "Female SC/ST/BPL";
+        } else if (radioValue === '3') {
+            categoryVal = "Female other than SC/ST/BPL";
+        }
+        await setSelectValueByText(catSelect, categoryVal);
+        
+        // SRO & Tehsil
+        showStatusToast("Selecting SRO & Tehsil...");
+        const sroSelect = document.getElementById('ddlSRO');
+        const tehsilSelect = document.getElementById('ddlTehsil');
+        if (data.sro) await setSelectValueByText(sroSelect, data.sro);
+        if (data.tehsil) await setSelectValueByText(tehsilSelect, data.tehsil);
+        
+        // Seva Pradata Name & Mobile
+        showStatusToast("Filling Service Provider info...");
+        const providerName = document.getElementById('sevaPradataName');
+        const providerMobile = document.getElementById('sevaPradataMobile');
+        if (providerName) {
+            providerName.value = "SANKALP LAW ASSOCIATES";
+            providerName.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (providerMobile) {
+            providerMobile.value = "9799967384";
+            providerMobile.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        await new Promise(r => setTimeout(r, 500));
+        
+        // Click Save
+        showStatusToast("Saving document details...");
+        const saveBtn = document.getElementById('savedocument');
+        if (saveBtn) {
+            saveBtn.click();
+            sendResponse({ success: true, message: 'Document details successfully saved!' });
+        } else {
+            sendResponse({ success: false, error: 'Could not find the Save button.' });
+        }
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
