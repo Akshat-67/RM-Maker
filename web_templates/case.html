@@ -321,6 +321,9 @@
         .tab-content > .tab-pane {
             display: none !important;
         }
+        #verificationTabs {
+            display: none !important;
+        }
         .tab-content > .tab-pane.active {
             display: flex !important;
             flex-direction: column;
@@ -906,23 +909,37 @@
 
             <div class="tab-content flex-grow-1 overflow-hidden" id="mainRightTabsContent" style="display: flex; flex-direction: column;">
                 <!-- MAIN TAB PANE 1: VERIFICATION EDITOR -->
-                <div class="tab-pane fade show active flex-grow-1" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="overflow-y: auto; height: 100%;">
-                    <h5 class="mb-3 d-flex justify-content-between align-items-center" style="font-size: 0.95rem;">
-                <span class="fw-bold text-secondary">Verification Workspace Editor</span>
-                <div>
-                    <span class="badge bg-info text-dark" id="devlysBadge" style="display: none; margin-right: 5px;">DEVLYS MODE ON</span>
-                    <span class="badge bg-warning text-dark" id="transliterationBadge" style="display: none; margin-right: 5px;">ITRANS HINDI ON</span>
-                    <span class="badge bg-secondary" style="font-size: 0.72rem;">{{ doc_type }} Mode</span>
-                </div>
-            </h5>
-
-            <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
-                <button id="btnToggleItrans" class="btn btn-outline-warning btn-sm text-dark fw-bold" style="font-size: 0.72rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
-                <button id="btnToggleDevLys" class="btn btn-outline-info btn-sm text-dark fw-bold" style="font-size: 0.72rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
-                <button class="btn btn-outline-secondary btn-sm fw-bold ms-auto" style="font-size: 0.72rem;" onclick="verifyAllFields()">Verify All Fields</button>
-            </div>
-            
-            <div id="verificationContent">
+                <div class="tab-pane fade show active flex-grow-1" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="overflow-y: auto; height: 100%; padding: 4px;">
+                    <!-- Unified Compact Control Bar -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-shrink-0" style="gap: 8px;">
+                        <!-- Section Dropdown Selector -->
+                        <div style="flex-grow: 1; max-width: 250px;">
+                            <select class="form-select form-select-sm fw-bold text-secondary" id="verificationSectionSelector" onchange="switchVerificationSection(this.value)" style="font-size: 0.8rem; border-color: #cbd5e1; height: 31px; padding: 4px 8px;">
+                                {% if doc_type == 'RM' %}
+                                    <option value="pane-parties">👤 Borrowers & Signatory</option>
+                                    <option value="pane-witnesses">👥 Witnesses</option>
+                                    <option value="pane-property">🏠 Property</option>
+                                    <option value="pane-loan">💰 Loan Accounts</option>
+                                    <option value="pane-schedules">📋 Schedules</option>
+                                {% else %}
+                                    <option value="pane-parties">👤 Sellers & Buyers</option>
+                                    <option value="pane-witnesses">👥 Witnesses</option>
+                                    <option value="pane-property">🏠 Property</option>
+                                    <option value="pane-payments">💳 Payments & Execution</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        
+                        <!-- Mini Toggles & Badges -->
+                        <div class="d-flex gap-1.5 align-items-center flex-shrink-0">
+                            <span class="badge bg-secondary me-1" style="font-size: 0.68rem;">{{ doc_type }} Mode</span>
+                            <button id="btnToggleItrans" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                            <button id="btnToggleDevLys" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                            <button class="btn btn-xs btn-outline-secondary fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="verifyAllFields()">Verify All</button>
+                        </div>
+                    </div>
+                    
+                    <div id="verificationContent">
                 {% if data %}
                             <!-- Tab Navigation Header -->
                             <ul class="nav nav-pills nav-fill mb-3" id="verificationTabs" role="tablist">
@@ -2071,8 +2088,26 @@
         });
     }
 
+    function switchVerificationSection(targetId) {
+        const tabBtn = document.querySelector(`#verificationTabs button[data-bs-target="#${targetId}"]`);
+        if (tabBtn) {
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+        }
+    }
+
     // Automatically trigger preview when switching to the draft tab
     window.addEventListener('DOMContentLoaded', () => {
+        // Sync Dropdown selector with Bootstrap Tab changes
+        document.querySelectorAll('#verificationTabs button').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', (e) => {
+                const targetId = e.target.getAttribute('data-bs-target').replace('#', '');
+                const selector = document.getElementById('verificationSectionSelector');
+                if (selector) {
+                    selector.value = targetId;
+                }
+            });
+        });
+
         const draftTab = document.getElementById('draft-main-tab');
         if (draftTab) {
             draftTab.addEventListener('shown.bs.tab', () => {
