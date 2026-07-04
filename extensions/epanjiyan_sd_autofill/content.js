@@ -446,3 +446,236 @@ async function autofillDetails(data, sendResponse) {
     }
 }
 
+// Helper to determine Property Type (Plot/FLAT/HOUSE)
+function determinePropertyType(propertyData) {
+    const address = (propertyData.address || "").toLowerCase();
+    const plotArea = parseFloat(propertyData.area || propertyData.plot_area || 0);
+    const constArea = parseFloat(propertyData.constructed_area || 0);
+    const isFlatKey = address.includes("flat") || address.includes("apartment") || address.includes("tower") || address.includes("unit") || address.includes("block");
+    
+    if (plotArea > 0 && constArea === 0 && !isFlatKey) {
+        return "Plot";
+    }
+    if (isFlatKey || (constArea > 0 && plotArea === 0)) {
+        return "FLAT";
+    }
+    if (plotArea > 0 && constArea > 0) {
+        return "HOUSE";
+    }
+    return "Plot"; // Default fallback
+}
+
+// Helper to split plot number into three input boxes
+function splitPlotNumber(plotStr) {
+    let plot1 = "";
+    let plot2 = "";
+    let plot3 = "";
+    
+    const cleanPlot = (plotStr || "").trim();
+    
+    // Match block/sector prefix like "F-", "A-", "Sec-3 "
+    const blockMatch = cleanPlot.match(/^([A-Z0-9]+)\s*[-/]\s*(.*)$/i);
+    if (blockMatch) {
+        plot1 = blockMatch[1];
+        const rest = blockMatch[2].trim();
+        
+        const slashIndex = rest.indexOf('/');
+        if (slashIndex !== -1) {
+            plot2 = rest.substring(0, slashIndex + 1).trim(); // includes the slash
+            plot3 = rest.substring(slashIndex + 1).trim();
+        } else {
+            plot2 = rest;
+        }
+    } else {
+        const slashIndex = cleanPlot.indexOf('/');
+        if (slashIndex !== -1) {
+            plot2 = cleanPlot.substring(0, slashIndex + 1).trim();
+            plot3 = cleanPlot.substring(slashIndex + 1).trim();
+        } else {
+            plot2 = cleanPlot;
+        }
+    }
+    return { plot1, plot2, plot3 };
+}
+
+// 2. Add Property Address Page (/PropertyValuation/AddPropertyAddress)
+async function autofillAddress(data, sendResponse) {
+    try {
+        const prop = data.property || {};
+        
+        // 2.1 Set Property Type
+        showStatusToast("Selecting Property Type...");
+        const propTypeSelect = document.getElementById('ddlpropertytype');
+        const detectedType = determinePropertyType(prop);
+        await setSelectValueByText(propTypeSelect, detectedType);
+        
+        await new Promise(r => setTimeout(r, 400));
+        
+        // 2.2 Select Colony (Fuzzy Match & Highest DLC comparison)
+        showStatusToast("Analyzing Colony DLC rates...");
+        const ddlColony = document.getElementById('ddlColony');
+        let bestOption = null;
+        let maxDLC = 0;
+        
+        if (ddlColony) {
+            const cleanTarget = cleanStringForColony(prop.colony);
+            let candidates = [];
+            
+            // Search fuzzy matches
+            for (let opt of ddlColony.options) {
+                if (!opt.value) continue;
+                const cleanOpt = cleanStringForColony(opt.text);
+                const score = stringSimilarity(cleanTarget, cleanOpt);
+                if (score >= 0.85) {
+                    candidates.push({ option: opt, score: score });
+                }
+            }
+            
+            // Search JDA fallback if no fuzzy match
+            if (candidates.length === 0) {
+                for (let opt of ddlColony.options) {
+                    const txt = opt.text.toLowerCase();
+                    if (txt.includes("jda") || txt.includes("जे.डी.ए")) {
+                        candidates.push({ option: opt, score: 0.5 });
+                    }
+                }
+            }
+            
+            // Sequentially check and choose highest DLC
+            const dlcInput = document.getElementById('txtDLC') || document.querySelector('input[id*="dlc" i]') || document.querySelector('input[id*="Dlc" i]');
+            
+            for (let cand of candidates) {
+                showStatusToast(`Checking: ${cand.option.text}...`);
+                ddlColony.value = cand.option.value;
+                ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Select2 UI rendering update
+                const select2Container = ddlColony.nextElementSibling;
+                if (select2Container && select2Container.classList.contains('select2-container')) {
+                    const renderSpan = select2Container.querySelector('.select2-selection__rendered');
+                    if (renderSpan) renderSpan.textContent = cand.option.text;
+                }
+                
+                await new Promise(r => setTimeout(r, 600)); // wait for ajax load
+                
+                if (dlcInput) {
+                    const dlcText = dlcInput.value || "";
+                    const cleanDlc = parseFloat(dlcText.replace(/[^0-9.]/g, '')) || 0;
+                    if (cleanDlc > maxDLC) {
+                        maxDLC = cleanDlc;
+                        bestOption = cand.option;
+                    }
+                }
+            }
+            
+            if (bestOption) {
+                showStatusToast(`Selecting Colony: ${bestOption.text} (DLC: ${maxDLC})...`);
+                ddlColony.value = bestOption.value;
+                ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+                const select2Container = ddlColony.nextElementSibling;
+                if (select2Container && select2Container.classList.contains('select2-container')) {
+                    const renderSpan = select2Container.querySelector('.select2-selection__rendered');
+                    if (renderSpan) renderSpan.textContent = bestOption.text;
+                }
+                await new Promise(r => setTimeout(r, 600));
+            } else if (ddlColony.options.length > 1) {
+                // Default to first real option if nothing else matches
+                ddlColony.value = ddlColony.options[1].value;
+                ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+        
+        // 2.3 Set Category Type: Residential
+        showStatusToast("Selecting Category Type: Residential...");
+        const ddlCatType = document.getElementById('ddlCategoryType');
+        await setSelectValueByText(ddlCatType, "Residential");
+        
+        // 2.4 Set Location (Interior / Exterior)
+        const roadWidth = parseFloat(prop.road_width || 30);
+        showStatusToast(`Setting Location based on Road Width: ${roadWidth} ft...`);
+        const locValue = roadWidth <= 30 ? "0" : "1"; // 0 is Interior, 1 is Exterior
+        const locRadio = document.querySelector(`input[name="Location"][value="${locValue}"]`);
+        if (locRadio) {
+            locRadio.checked = true;
+            locRadio.click();
+            locRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        
+        // 2.5 Plot Number
+        showStatusToast("Entering Plot Number details...");
+        const { plot1, plot2, plot3 } = splitPlotNumber(prop.plot_no);
+        const p1Input = document.getElementById('plotNo1');
+        const p2Input = document.getElementById('plotNo2');
+        const p3Input = document.getElementById('plotNo3');
+        if (p1Input) p1Input.value = plot1;
+        if (p2Input) p2Input.value = plot2;
+        if (p3Input) p3Input.value = plot3;
+        
+        // 2.6 Colony/Village (Property Address)
+        const otherColonySelect = document.getElementById('othercolonyvillage');
+        if (otherColonySelect && bestOption) {
+            await setSelectValueByText(otherColonySelect, bestOption.text);
+        }
+        
+        // 2.7 City / District
+        const citySelect = document.getElementById('city');
+        await setSelectValueByText(citySelect, "JAIPUR");
+        
+        // 2.8 Road Width Input
+        const rwInput = document.getElementById('txtRoadWidth') || document.querySelector('input[name*="roadwidth" i]') || document.querySelector('input[id*="roadwidth" i]');
+        if (rwInput) {
+            rwInput.value = roadWidth;
+            rwInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        // 2.9 Property Area (Gaj/SqYards to SqMtrs)
+        showStatusToast("Setting Property Area...");
+        const plotAreaInput = document.getElementById('txtPlotArea');
+        if (plotAreaInput) {
+            const rawArea = parseFloat(prop.area || 0);
+            // Check if conversion is needed (default is Sq. Yards)
+            const convertedArea = rawArea * 0.836127;
+            plotAreaInput.value = convertedArea.toFixed(2);
+            plotAreaInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        // 2.10 Coordinates (Lat/Long)
+        const latInput = document.getElementById('latitude');
+        const lngInput = document.getElementById('longitude');
+        if (latInput) latInput.value = prop.latitude || "0";
+        if (lngInput) lngInput.value = prop.longitude || "0";
+        
+        // 2.11 Boundaries
+        const eastInput = document.getElementById('east');
+        const westInput = document.getElementById('west');
+        const northInput = document.getElementById('north');
+        const southInput = document.getElementById('south');
+        if (eastInput) eastInput.value = prop.east || "";
+        if (westInput) westInput.value = prop.west || "";
+        if (northInput) northInput.value = prop.north || "";
+        if (southInput) southInput.value = prop.south || "";
+        
+        // 2.12 Intermediate Documents: No
+        const intermediateRadio = document.getElementById('radiointermediateNo');
+        if (intermediateRadio) {
+            intermediateRadio.checked = true;
+            intermediateRadio.click();
+            intermediateRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        
+        await new Promise(r => setTimeout(r, 600));
+        
+        // 2.13 Click Save
+        showStatusToast("Saving property address...");
+        const saveAddressBtn = document.getElementById('btnsaveproperty');
+        if (saveAddressBtn) {
+            saveAddressBtn.click();
+            sendResponse({ success: true, message: 'Property address successfully saved!' });
+        } else {
+            sendResponse({ success: false, error: 'Could not find the Save button (btnsaveproperty).' });
+        }
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
