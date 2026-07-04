@@ -502,25 +502,29 @@
         }
         .preview-frame-container {
             flex-grow: 1 !important;
-            height: 100% !important;
+            position: relative;
             min-height: 0;
-            display: flex;
-            flex-direction: column;
         }
         /* High specificity overrides to stretch preview tabs to full height */
         #source-docs, #generated-draft {
             display: flex !important;
             flex-direction: column !important;
             flex-grow: 1 !important;
-            height: 100% !important;
             min-height: 0 !important;
         }
         #previewIframe, #previewImg {
-            flex-grow: 1;
-            width: 100%;
+            position: absolute !important;
+            top: 0;
+            left: 0;
+            width: 100% !important;
             height: 100% !important;
-            min-height: 450px; /* ensure substantial minimum height */
             border: none;
+        }
+        #previewPlaceholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
     </style>
 </head>
