@@ -26,3 +26,40 @@ This document logs the step-by-step requirements for the automated e-Panjiyan au
 * **Action 2.9 (Seva Pradata Name):** Populate `input#sevaPradataName` with `"SANKALP LAW ASSOCIATES"`.
 * **Action 2.10 (Seva Pradata Mob. No.):** Populate `input#sevaPradataMobile` with `"9799967384"`.
 * **Action 2.11 (Save Form):** Click **Save** button (`button#savedocument`).
+
+## Step 3: Add Property Navigation (`/PropertyValuation/PropertyDetail`)
+* **Action 3.1 (Click Add Property):** Find and click the **Add Property** button (HTML: `button[formaction="/PropertyValuation/AddPropertyAddress"]`).
+
+## Step 4: Location Details / Property Address Form (`/PropertyValuation/AddPropertyAddress`)
+This page is divided into multiple sections:
+
+### Section 4.1: DLC Address
+* **Property Type / संपत्ति का प्रकार**: (Dropdown)
+* **Area / क्षेत्र**: (Dropdown)
+* **Category Type / श्रेणी का प्रकार**: (Dropdown)
+* **Colony / कॉलोनी**: (Dropdown)
+* **Zone / जोन**: (Dropdown)
+* **Location / स्थान**: (Radio: Interior / Exterior)
+* **Applicable DLC / लागू डीएलसी**: (Auto-populated or input)
+
+### Section 4.2: Property Address
+* **Plot No. / प्लॉट नं**: Three side-by-side inputs
+* **Colony/Village / कॉलोनी/गाँव**: (Dropdown)
+* **Issuing Authority / जारी करने वाला प्राधिकरण**: (Dropdown)
+* **Road Width / सड़क की चौड़ाई**: (Input in feet)
+* **Corner Plot / कॉर्नर प्लॉट**: (Radio: Yes / No)
+* **Property Area / संपत्ति क्षेत्र**: (Input)
+* **Other Detail / अन्य विवरण**: (Input)
+* **City / शहर**: (Dropdown / Input)
+* **Latitude & Longitude**: (Inputs)
+* **Property Id**: (Input)
+
+### Section 4.3: Other Details & Boundaries
+* **East / पूर्व**: (Input)
+* **West / पश्चिम**: (Input)
+* **North / उत्तर**: (Input)
+* **South / दक्षिण**: (Input)
+* **Intermediate Documents / मध्यवर्ती दस्तावेज़**: (Radio: Yes / No, default No)
+* **Commission / कमीशन**: (Radios, default N/A)
+* **Save**: Click Save button at the bottom of the page.
+
