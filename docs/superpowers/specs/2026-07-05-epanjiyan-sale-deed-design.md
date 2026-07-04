@@ -46,7 +46,14 @@ This design specification details the implementation plan for adding Sale Deed (
   * **Intermediate Documents**: Always select `"No"` using `input#radiointermediateNo` (`isChainDocument="0"`).
   * Click Save (`input#btnsaveproperty`).
 
-### 3. Calculation & Quotation Extraction (`content.js`)
+### 3. Calculate Stamp Duty Automation (`content.js`)
+* **Goal**: Trigger duty calculation on the portal.
+* **Mechanism**:
+  * On `/PropertyValuation/PropertyDetail`, click **Calculate Duty** button (`button[formaction="/PropertyValuation/CalculateDuty"]`).
+  * On `/PropertyValuation/CalculateDuty`, select today's date in `input#execution_date` and write the **ATS Consideration Amount** from case details into `input#face_value`.
+  * Click **Calculate & Save** button.
+
+### 4. Calculation & Quotation Extraction (`content.js`)
 * **Goal**: Extract the stamp duty calculation from the portal, send it to the backend database, and pause.
 * **Mechanism**:
   * After the portal calculates the fees, the extension reads the breakdown table (Stamp Duty, Registration Fee, Surcharges, Total) and saves it to local storage.
