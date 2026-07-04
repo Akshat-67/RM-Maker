@@ -1618,28 +1618,66 @@ def preview_draft(case_id):
         doc = DocxTemplate(template_path)
         doc.render(context)
 
-        html_parts = []
+        # Split body into physical pages based on paragraph page breaks to match MS Word layout
+        pages = []
+        current_page_elements = []
+
         for element in doc.element.body:
             if element.tag.endswith('p'):
                 p = Paragraph(element, doc)
                 txt = p.text.strip()
+                
+                # Check for page break in paragraph XML
+                p_xml = element.xml
+                has_page_break = ('w:br' in p_xml and 'w:type="page"' in p_xml) or ('w:lastRenderedPageBreak' in p_xml)
+                
+                if has_page_break and current_page_elements:
+                    pages.append(current_page_elements)
+                    current_page_elements = []
+
                 if txt:
                     unicode_txt = DevLysToUnicodeConverter.devlys_to_unicode_text(txt)
                     escaped = html.escape(unicode_txt)
                     escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
-                    html_parts.append(f"<p style='margin-bottom: 0.8rem; line-height: 1.5; text-align: justify; font-family: Segoe UI, Mangal; font-size: 0.92rem;'>{escaped}</p>")
+                    
+                    # Apply specific header/title styles (red color, bold, centered) as seen in user's Word screenshots
+                    normalized_txt = unicode_txt.replace(" ", "")
+                    if "!!श्री!!" in normalized_txt:
+                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: 'Segoe UI', 'Mangal';"
+                        current_page_elements.append(f"<p style=\"{p_style}\">!! श्री !!</p>")
+                    elif "विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt:
+                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: 'Segoe UI', 'Mangal';"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                    elif unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
+                        p_style = "text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: 'Segoe UI', 'Mangal';"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                    else:
+                        # Standard Word Paragraph Styling with first-line indent, clean spacing and justification
+                        p_style = "text-align: justify; text-indent: 45px; font-size: 1.05rem; line-height: 1.75; margin-bottom: 1.2rem; font-family: 'Segoe UI', 'Mangal'; color: #111827;"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+            
             elif element.tag.endswith('tbl'):
                 t = Table(element, doc)
-                table_html = ["<table class='table table-sm table-bordered shadow-sm bg-white' style='margin-bottom: 1.2rem; font-size: 0.82rem; font-family: Segoe UI, Mangal;'>"]
+                table_html = ["<table class='table table-sm table-bordered shadow-sm bg-white' style='margin-bottom: 1.2rem; font-size: 0.85rem; font-family: Segoe UI, Mangal;'>"]
                 for row in t.rows:
                     table_html.append("<tr>")
                     for cell in row.cells:
                         cell_txt = cell.text.strip()
                         unicode_cell = DevLysToUnicodeConverter.devlys_to_unicode_text(cell_txt)
-                        table_html.append(f"<td style='padding: 6px 10px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(unicode_cell)}</td>")
+                        table_html.append(f"<td style='padding: 8px 12px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(unicode_cell)}</td>")
                     table_html.append("</tr>")
                 table_html.append("</table>")
-                html_parts.append("".join(table_html))
+                current_page_elements.append("".join(table_html))
+
+        if current_page_elements:
+            pages.append(current_page_elements)
+
+        # Wrap pages in HTML containers to resemble centered A4 sheets of paper
+        html_parts = []
+        for idx, page_elems in enumerate(pages):
+            page_content = "".join(page_elems)
+            page_header = f"<div class='word-page-number' style='text-align: center; font-size: 0.85rem; color: #64748b; margin-bottom: 35px; font-family: sans-serif;'>{idx + 1}</div>" if idx > 0 else ""
+            html_parts.append(f"<div class='word-page' style='background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.09); border: 1px solid #cbd5e1; border-radius: 2px; max-width: 800px; margin: 15px auto 25px auto; padding: 50px 65px; min-height: 297mm; box-sizing: border-box; text-align: left;'>{page_header}{page_content}</div>")
 
         preview_html = "".join(html_parts)
         if not preview_html:
