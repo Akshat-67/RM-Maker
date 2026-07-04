@@ -52,8 +52,13 @@ This page is divided into multiple sections:
     3. If still not found, search for the nearest zone, sector, or landmark, or prompt the user for manual override.
 * **Area / क्षेत्र**: (Auto-populated upon Colony selection)
 * **Zone / जोन**: (Auto-populated upon Colony selection)
-* **Category Type / श्रेणी का प्रकार**: (Dropdown)
-* **Location / स्थान**: (Radio: Interior / Exterior)
+* **Category Type / श्रेणी का प्रकार**: (Dropdown select element ID: `select#ddlCategoryType` / Select2 wrapper `span#select2-ddlCategoryType-container`)
+  * **Rule**: Always select **"Residential"** by default.
+* **Location / स्थान**: (Radio buttons)
+  * **Rule**: Road width-dependent:
+    * If road width next to property $\le 30\text{ ft} \rightarrow$ select **"Interior"** (आंतरिक) radio button.
+    * If road width next to property $> 30\text{ ft} \rightarrow$ select **"Exterior"** (बाहरी) radio button.
+  * **Data Source**: Obtained from the boundaries (East/West/North/South) in the LSR, scanning for "Road" (or "सड़क") and its width.
 * **Applicable DLC / लागू डीएलसी**: (Auto-populated or input)
 
 ### Section 4.2: Property Address
