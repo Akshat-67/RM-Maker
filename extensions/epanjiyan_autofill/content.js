@@ -1453,7 +1453,7 @@ async function oneClickAutofill(data, sendResponse) {
                 } else if (stage === "WITNESS_2") {
                     const wit = data.witnesses[1];
                     fillPromise = fillPartyFormFields(wit, false, false);
-                    nextStage = "DONE";
+                    nextStage = "PRESENTER";
                 }
                 
                 if (fillPromise) {
@@ -1519,6 +1519,64 @@ async function oneClickAutofill(data, sendResponse) {
                     autofillWitnessN(data, 0, sendResponse);
                 } else if (stage === "WITNESS_2") {
                     autofillWitnessN(data, 1, sendResponse);
+                } else if (stage === "PRESENTER") {
+                    showStatusToast("Opening Presenter Details...");
+                    const presenterBtn = document.querySelector('button[onclick*="PresenterDetailClick"]') ||
+                                         Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Presenter Details'));
+                    if (presenterBtn) {
+                        presenterBtn.click();
+                        
+                        // Wait 1.5 seconds for the modal to open
+                        setTimeout(() => {
+                            showStatusToast("Selecting Presenter Option: Self...");
+                            const selfRadio = document.getElementById('rblpoa_0') || 
+                                              document.querySelector('input[name="rblpoa"][value="0"]');
+                            if (selfRadio) {
+                                selfRadio.click();
+                                selfRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                                
+                                // Wait 800ms before saving
+                                setTimeout(() => {
+                                    showStatusToast("Saving Presenter Details...");
+                                    const saveBtn = document.getElementById('poadetailssave') || 
+                                                    document.querySelector('button[id*="poadetails" i]');
+                                    if (saveBtn) {
+                                        saveBtn.click();
+                                        
+                                        // Poll for SweetAlert2 OK button
+                                        const checkInterval = setInterval(() => {
+                                            showStatusToast("Waiting for Presenter Saved popup...");
+                                            const swalOkBtn = document.querySelector('.swal2-confirm') || 
+                                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
+                                            if (swalOkBtn) {
+                                                showStatusToast("Presenter details saved successfully!");
+                                                clearInterval(checkInterval);
+                                                
+                                                // Set stage to DONE and stop automation
+                                                chrome.storage.local.set({ partyStage: "DONE", oneClickRunning: false }, () => {
+                                                    swalOkBtn.click();
+                                                    setTimeout(() => hideStatusToast(), 1000);
+                                                    sendResponse({ success: true, message: 'Presenter Details saved! One-Click Autofill Complete.' });
+                                                });
+                                            }
+                                        }, 250);
+                                        
+                                        // Safety timeout (clear interval after 8 seconds)
+                                        setTimeout(() => clearInterval(checkInterval), 8000);
+                                    } else {
+                                        showStatusToast("Save button not found in Presenter modal.", false);
+                                        sendResponse({ success: false, error: 'Could not find Presenter modal Save button.' });
+                                    }
+                                }, 800);
+                            } else {
+                                showStatusToast("Self radio option not found in Presenter modal.", false);
+                                sendResponse({ success: false, error: 'Could not locate Self radio button in Presenter modal.' });
+                            }
+                        }, 1500);
+                    } else {
+                        showStatusToast("Presenter Details button not found.", false);
+                        sendResponse({ success: false, error: 'Could not find Presenter Details button.' });
+                    }
                 } else {
                     sendResponse({ success: false, error: `Unknown partyStage: ${stage}` });
                 }
