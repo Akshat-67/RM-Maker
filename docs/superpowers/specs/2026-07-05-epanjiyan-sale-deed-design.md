@@ -40,6 +40,7 @@ This design specification details the implementation plan for adding Sale Deed (
   * **Property Area**: Input area in Square Meters (`input#txtPlotArea`). Convert from Square Yards if necessary (`gaj * 0.8361`).
   * **Latitude & Longitude**: Input coordinates from Technical Valuation Report (`input#latitude`, `input#longitude`).
   * **Boundaries**: Input East (`#east`), West (`#west`), North (`#north`), and South (`#south`) text descriptions.
+  * **Intermediate Documents**: Always select `"No"` using `input#radiointermediateNo` (`isChainDocument="0"`).
   * Click Save (underlying submit button).
 
 ### 3. Calculation & Quotation Extraction (`content.js`)
