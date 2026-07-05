@@ -278,7 +278,12 @@ function getField(fieldName) {
 
 function cleanSalutation(name) {
     if (!name) return "";
-    return name.replace(/^(MR|MRS|MS|SHRI|SMT|SH|DR|LATE)\b\.?\s*/i, '').trim();
+    let cleaned = name.replace(/^(MR|MRS|MS|SHRI|SMT|SH|DR|LATE)\b\.?\s*/i, '').trim();
+    // Strip special characters like dots, commas, dashes, keeping only alphanumeric and spaces
+    cleaned = cleaned.replace(/[^A-Za-z0-9\s]/g, ' ');
+    // Collapse multiple spaces into one space
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    return cleaned;
 }
 
 async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
