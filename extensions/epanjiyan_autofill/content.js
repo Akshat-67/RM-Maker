@@ -240,7 +240,7 @@ function getField(fieldName) {
         occupation: ['#ddloccupation', '#occupation', 'select[name*="occupation" i]', 'select[id*="occupation" i]'],
         idProof: ['#ddlidproof', '#ddlIdproof', '#ddlIdProof', 'select[name*="idproof" i]', 'select[id*="idproof" i]', 'select[name*="id_proof" i]'],
         idDetails: ['#txtiddetails', '#txtidproofno', '#txtidno', '#txtidproofdetails', '#iddetails', 'input[name*="iddetails" i]', 'input[id*="iddetails" i]', 'input[name*="idno" i]', 'input[id*="idno" i]', 'input[name*="idproof" i]', 'input[id*="idproof" i]'],
-        pan: ['#txtpancardno', '#txtpan', '#pan', 'input[name*="pan" i]', 'input[id*="pan" i]'],
+        pan: ['#txtPanCardNo', '#txtpancardno', '#txtpan', '#pan', 'input[name*="pan" i]', 'input[id*="pan" i]'],
         houseNo: ['#txthouseno', '#txthouse_no', '#houseno', 'input[name*="house" i]', 'input[id*="house" i]'],
         colony: ['#txtpartycolony', '#txtcolony', '#colony', 'input[name*="colony" i]', 'input[id*="colony" i]'],
         area: ['#txtpartyarea', '#txtarea', '#area', '#txtlocation', 'input[name*="area" i]', 'input[id*="area" i]', 'input[name*="location" i]'],

@@ -1777,7 +1777,7 @@ function getField(fieldName) {
         occupation: ['#ddloccupation', '#occupation', 'select[name*="occupation" i]', 'select[id*="occupation" i]'],
         idProof: ['#ddlidproof', '#ddlIdproof', '#ddlIdProof', 'select[name*="idproof" i]', 'select[id*="idproof" i]', 'select[name*="id_proof" i]'],
         idDetails: ['#txtiddetails', '#txtidproofno', '#txtidno', '#txtidproofdetails', '#iddetails', 'input[name*="iddetails" i]', 'input[id*="iddetails" i]', 'input[name*="idno" i]', 'input[id*="idno" i]', 'input[name*="idproof" i]', 'input[id*="idproof" i]'],
-        pan: ['#txtpancardno', '#txtpan', '#pan', 'input[name*="pan" i]', 'input[id*="pan" i]'],
+        pan: ['#txtPanCardNo', '#txtpancardno', '#txtpan', '#pan', 'input[name*="pan" i]', 'input[id*="pan" i]'],
         houseNo: ['#txthouseno', '#txthouse_no', '#houseno', 'input[name*="house" i]', 'input[id*="house" i]'],
         colony: ['#txtpartycolony', '#txtcolony', '#colony', 'input[name*="colony" i]', 'input[id*="colony" i]'],
         area: ['#txtpartyarea', '#txtarea', '#area', '#txtlocation', 'input[name*="area" i]', 'input[id*="area" i]', 'input[name*="location" i]'],
@@ -2051,6 +2051,41 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         })()
     ]);
     
+    // 5. Contact Details (Mobile Number OTP verification)
+    await (async () => {
+        let mobileVal = "";
+        if (chrome && chrome.storage && chrome.storage.local) {
+            const res = await new Promise(r => chrome.storage.local.get(['defaultMobile'], r));
+            mobileVal = res.defaultMobile || "";
+        }
+        if (!mobileVal) {
+            mobileVal = "9799967384";
+        }
+
+        const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]');
+        if (chkMobile) {
+            console.log("[SD-Autofill] Found Enter Mobile checkbox. Checking it...");
+            chkMobile.checked = true;
+            chkMobile.dispatchEvent(new Event('change', { bubbles: true }));
+            chkMobile.click();
+            
+            await new Promise(r => setTimeout(r, 200));
+            
+            const contactInput = document.getElementById('txtcontact') || document.querySelector('input[name="contactno"]');
+            if (contactInput) {
+                console.log("[SD-Autofill] Found contact input. Filling with:", mobileVal);
+                setInputValue(contactInput, mobileVal);
+                
+                const verifyBtn = document.getElementById('btnotpforvaluation') || 
+                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'VERIFY');
+                if (verifyBtn) {
+                    console.log("[SD-Autofill] Clicking Verify button to trigger OTP...");
+                    verifyBtn.click();
+                }
+            }
+        }
+    })();
+    
     console.log("[SD-Autofill] Completed fillPartyFormFields for:", partyData.name_en);
 }
 
@@ -2276,7 +2311,7 @@ async function runPartyFeedingLoop(data) {
                 } else {
                     showStatusToast("Executant button not found.", false);
                 }
-            } else if (stage === "CLAIMANT") {
+            } else if (stage.startsWith("CLAIMANT")) {
                 const claimantBtn = document.getElementById('clmnt') || 
                                      document.getElementById('claim') || 
                                      document.getElementById('claimant') || 
@@ -2331,10 +2366,17 @@ async function runPartyFeedingLoop(data) {
                 } else {
                     nextStage = "CLAIMANT";
                 }
-            } else if (stage === "CLAIMANT") {
-                if (data.claimant) {
-                    fillPromise = fillPartyFormFields(data.claimant, false, true);
-                    nextStage = "WITNESS_1";
+            } else if (stage.startsWith("CLAIMANT")) {
+                const idx = (stage === "CLAIMANT") ? 0 : parseInt(stage.split("_")[1]);
+                const claimantsList = data.claimants || (data.claimant ? [data.claimant] : []);
+                if (claimantsList && claimantsList[idx]) {
+                    fillPromise = fillPartyFormFields(claimantsList[idx], false, true);
+                    
+                    if (idx + 1 < claimantsList.length) {
+                        nextStage = `CLAIMANT_${idx + 1}`;
+                    } else {
+                        nextStage = "WITNESS_1";
+                    }
                 } else {
                     nextStage = "WITNESS_1";
                 }
@@ -2356,8 +2398,31 @@ async function runPartyFeedingLoop(data) {
             
             if (fillPromise) {
                 await fillPromise;
-                chrome.storage.local.set({ partyStage: nextStage });
-                showStatusToast(`Filled ${stage}! Saving...`, false);
+                
+                // Read verification elements to check if mobile verification is active
+                const chkMobile = document.getElementById('chkMobile');
+                const verifiedInput = document.getElementById('ismobileverified');
+                
+                if (chkMobile && chkMobile.checked && verifiedInput) {
+                    chrome.storage.local.set({ partyStage: nextStage });
+                    showStatusToast(`OTP Sent! Waiting for you to verify...`, false);
+                    
+                    // Poll until verifiedInput.value is 'true' (representing OTP verified)
+                    await new Promise((resolve) => {
+                        const interval = setInterval(() => {
+                            if (verifiedInput.value === 'true') {
+                                clearInterval(interval);
+                                resolve();
+                            }
+                        }, 500);
+                    });
+                    
+                    showStatusToast(`OTP Verified! Auto-saving...`, false);
+                } else {
+                    chrome.storage.local.set({ partyStage: nextStage });
+                    showStatusToast(`Filled ${stage}! Auto-saving...`, false);
+                }
+                
                 setTimeout(() => {
                     const saved = triggerButtonByText("Save");
                     if (!saved) {

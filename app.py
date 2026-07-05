@@ -2469,6 +2469,37 @@ def split_address(address_str):
     }
 
 
+@app.route("/api/case/<case_id>/public_dlc", methods=["POST"])
+def save_public_dlc(case_id):
+    try:
+        session = load_case_session(case_id)
+        if not session:
+            return jsonify({"success": False, "error": "Case not found"}), 404
+            
+        req_data = request.json or {}
+        dlc_profile = req_data.get("public_dlc_profile", {})
+        
+        if "data" not in session:
+            session["data"] = {}
+        session["data"]["public_dlc_profile"] = dlc_profile
+        
+        save_case_session(
+            case_id=case_id,
+            data=session["data"],
+            files=session.get("files", []),
+            verified_fields=set(session.get("verified_fields", [])),
+            bank=session.get("bank", ""),
+            borrower_count=session.get("borrower_count", "1"),
+            loan_count=session.get("loan_count", "1"),
+            properties_count=session.get("properties_count", "1"),
+            doc_type=session.get("doc_type", "SD"),
+            sellers_count=session.get("sellers_count", "1"),
+            buyers_count=session.get("buyers_count", "1")
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/case/<case_id>/epanjiyan_data")
 def get_epanjiyan_data(case_id):
     try:
@@ -2482,6 +2513,15 @@ def get_epanjiyan_data(case_id):
         # Dynamically resolve SRO and Tehsil based on title chain or property details
         sro = "JAIPUR-VII"
         tehsil = "JAIPUR"
+        
+        # Override SRO/Tehsil with publicly matched SRO if available
+        public_dlc = data.get("public_dlc_profile", {})
+        if public_dlc and isinstance(public_dlc, dict) and public_dlc.get("sro"):
+            sro = public_dlc.get("sro")
+            if "-" in sro:
+                tehsil = sro.split("-")[0]
+            else:
+                tehsil = sro
         
         city_map = {
             "जयपुर": "JAIPUR",
@@ -2617,36 +2657,36 @@ def get_epanjiyan_data(case_id):
             })
             
         claimant = {}
+        claimants = []
         if is_sd:
             buyers = data.get("bs", [])
-            if buyers:
-                first_buyer = buyers[0]
-                buyer_name_en = clean_val(first_buyer.get("n_en", "")) or clean_val(first_buyer.get("n", ""))
-                buyer_rel_name_en = clean_val(first_buyer.get("rn_en", "")) or clean_val(first_buyer.get("rn", ""))
+            for b in buyers:
+                buyer_name_en = clean_val(b.get("n_en", "")) or clean_val(b.get("n", ""))
+                buyer_rel_name_en = clean_val(b.get("rn_en", "")) or clean_val(b.get("rn", ""))
                 
-                buyer_sal = clean_val(first_buyer.get("s", ""))
+                buyer_sal = clean_val(b.get("s", ""))
                 buyer_gender = "MALE"
-                if "MRS" in buyer_sal or "MS" in buyer_sal or "FEMALE" in buyer_sal or clean_val(first_buyer.get("gender", "")) == "FEMALE":
+                if "MRS" in buyer_sal or "MS" in buyer_sal or "FEMALE" in buyer_sal or clean_val(b.get("gender", "")) == "FEMALE":
                     buyer_gender = "FEMALE"
                     
-                buyer_addr_str = first_buyer.get("adr_en", "") or first_buyer.get("adr", "")
+                buyer_addr_str = b.get("adr_en", "") or b.get("adr", "")
                 buyer_addr_split = split_address(buyer_addr_str)
                 
-                buyer_rel_type = clean_val(first_buyer.get("r", "S/O"))
+                buyer_rel_type = clean_val(b.get("r", "S/O"))
                 if "W/O" in buyer_rel_type or "WIFE" in buyer_rel_type:
                     buyer_rel_type = "HUSBAND"
                 else:
                     buyer_rel_type = "FATHER"
                     
-                claimant = {
+                c_data = {
                     "name_en": buyer_name_en,
                     "relation_type": buyer_rel_type,
                     "relation_name_en": buyer_rel_name_en,
                     "gender": buyer_gender,
-                    "age": clean_val(first_buyer.get("a", "")),
-                    "dob": clean_val(first_buyer.get("dob", "")),
-                    "aadhaar": clean_val(first_buyer.get("id", "")).replace(" ", ""),
-                    "pan": clean_val(first_buyer.get("pan", "")).replace(" ", ""),
+                    "age": clean_val(b.get("a", "")),
+                    "dob": clean_val(b.get("dob", "")),
+                    "aadhaar": clean_val(b.get("id", "")).replace(" ", ""),
+                    "pan": clean_val(b.get("pan", "")).replace(" ", ""),
                     "address": {
                         "house_no": clean_val(buyer_addr_split["house_no"]),
                         "colony": clean_val(buyer_addr_split["colony"]),
@@ -2655,6 +2695,10 @@ def get_epanjiyan_data(case_id):
                         "pincode": clean_val(buyer_addr_split["pincode"])
                     }
                 }
+                claimants.append(c_data)
+                
+            if claimants:
+                claimant = claimants[0]
         else:
             bank_map = {
                 "CHOLA": {
@@ -2780,6 +2824,7 @@ def get_epanjiyan_data(case_id):
             "emi_w": clean_val(emi_w),
             "executants": executants,
             "claimant": claimant,
+            "claimants": claimants,
             "witnesses": witnesses,
             "properties": properties
         }

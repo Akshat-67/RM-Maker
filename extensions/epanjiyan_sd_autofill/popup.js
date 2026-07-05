@@ -8,6 +8,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log("[popup.js] DOMContentLoaded triggered for SD Autofill.");
     const caseSelect = document.getElementById('caseSelect');
     const statusBadge = document.getElementById('statusBadge');
+    const inputMobile = document.getElementById('inputMobileNumber');
+    
+    if (chrome && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['defaultMobile'], (res) => {
+            if (res.defaultMobile) {
+                inputMobile.value = res.defaultMobile;
+            } else {
+                inputMobile.value = FIRM_MOBILE;
+                chrome.storage.local.set({ defaultMobile: FIRM_MOBILE });
+            }
+        });
+    } else {
+        inputMobile.value = FIRM_MOBILE;
+    }
+    
+    inputMobile.addEventListener('input', (e) => {
+        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+        e.target.value = val;
+        if (chrome && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ defaultMobile: val });
+        }
+    });
     
     async function loadCaseData(caseId) {
         console.log("[popup.js] loadCaseData called with caseId:", caseId);
