@@ -561,6 +561,23 @@ async function autofillAddress(data, sendResponse) {
         await setSelectValueByText(propTypeSelect, detectedType);
         
         await new Promise(r => setTimeout(r, 400));
+
+        // Pre-select Category Type and Location (Interior/Exterior) so DLC rate populates during comparison loop
+        showStatusToast("Pre-selecting Category Type (Residential)...");
+        const ddlCatType = document.getElementById('ddlCategoryType');
+        await setSelectValueByText(ddlCatType, "Residential");
+        await new Promise(r => setTimeout(r, 350));
+        
+        const roadWidth = parseFloat(prop.road_width || 30);
+        showStatusToast(`Pre-setting Location (Road Width: ${roadWidth} ft)...`);
+        const locValue = roadWidth <= 30 ? "0" : "1"; // 0 is Interior, 1 is Exterior
+        const locRadio = document.querySelector(`input[name="Location"][value="${locValue}"]`);
+        if (locRadio) {
+            locRadio.checked = true;
+            locRadio.click();
+            locRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        await new Promise(r => setTimeout(r, 500));
         
         // 2.2 Select Colony (Fuzzy Match & Highest DLC comparison)
         showStatusToast("Analyzing Colony DLC rates...");
@@ -594,9 +611,11 @@ async function autofillAddress(data, sendResponse) {
             
             // Sequentially check and choose highest DLC
             const dlcInput = document.getElementById('txtDLC') || document.querySelector('input[id*="dlc" i]') || document.querySelector('input[id*="Dlc" i]');
+            const checkedRatesLog = [];
             
+            console.log("[SD Autofill] Starting Colony DLC rate verification checks...");
             for (let cand of candidates) {
-                showStatusToast(`Checking: ${cand.option.text}...`);
+                showStatusToast(`Checking DLC rate for: ${cand.option.text}...`);
                 ddlColony.value = cand.option.value;
                 ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
                 
@@ -607,20 +626,32 @@ async function autofillAddress(data, sendResponse) {
                     if (renderSpan) renderSpan.textContent = cand.option.text;
                 }
                 
-                await new Promise(r => setTimeout(r, 600)); // wait for ajax load
+                await new Promise(r => setTimeout(r, 800)); // wait for ajax load
                 
+                let cleanDlc = 0;
                 if (dlcInput) {
                     const dlcText = dlcInput.value || "";
-                    const cleanDlc = parseFloat(dlcText.replace(/[^0-9.]/g, '')) || 0;
+                    cleanDlc = parseFloat(dlcText.replace(/[^0-9.]/g, '')) || 0;
                     if (cleanDlc > maxDLC) {
                         maxDLC = cleanDlc;
                         bestOption = cand.option;
                     }
                 }
+                checkedRatesLog.push({ colony: cand.option.text, rate: cleanDlc });
+                console.log(`[SD Autofill] Checked option: "${cand.option.text}" -> DLC Rate: ${cleanDlc}`);
             }
             
+            console.log("[SD Autofill] --- DLC Comparison Log Summary ---");
+            checkedRatesLog.forEach((item, index) => {
+                console.log(`  [${index + 1}] Colony: "${item.colony}" | Rate: ${item.rate}`);
+            });
+            console.log(`[SD Autofill] Selected best candidate: "${bestOption ? bestOption.text : 'None'}" with rate ${maxDLC}`);
+            
             if (bestOption) {
-                showStatusToast(`Selecting Colony: ${bestOption.text} (DLC: ${maxDLC})...`);
+                // Show a comprehensive toast to the user listing all rates
+                const summaryText = checkedRatesLog.map(r => `${r.colony.substring(0, 18)}..: Rs ${r.rate}`).join('\n');
+                showStatusToast(`DLC Rates Checked:\n${summaryText}\nSelecting: ${bestOption.text} (DLC: ${maxDLC})...`, true);
+                
                 ddlColony.value = bestOption.value;
                 ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
                 const select2Container = ddlColony.nextElementSibling;
@@ -630,27 +661,25 @@ async function autofillAddress(data, sendResponse) {
                 }
                 await new Promise(r => setTimeout(r, 600));
             } else if (ddlColony.options.length > 1) {
-                // Default to first real option if nothing else matches
                 ddlColony.value = ddlColony.options[1].value;
                 ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+                await new Promise(r => setTimeout(r, 600));
             }
         }
         
-        // 2.3 Set Category Type: Residential
-        showStatusToast("Selecting Category Type: Residential...");
-        const ddlCatType = document.getElementById('ddlCategoryType');
+        // Confirm Category Type is selected
+        showStatusToast("Confirming Category Type: Residential...");
         await setSelectValueByText(ddlCatType, "Residential");
+        await new Promise(r => setTimeout(r, 300));
         
-        // 2.4 Set Location (Interior / Exterior)
-        const roadWidth = parseFloat(prop.road_width || 30);
-        showStatusToast(`Setting Location based on Road Width: ${roadWidth} ft...`);
-        const locValue = roadWidth <= 30 ? "0" : "1"; // 0 is Interior, 1 is Exterior
-        const locRadio = document.querySelector(`input[name="Location"][value="${locValue}"]`);
+        // Confirm Location (Interior / Exterior) is selected
+        showStatusToast(`Confirming Location...`);
         if (locRadio) {
             locRadio.checked = true;
             locRadio.click();
             locRadio.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        await new Promise(r => setTimeout(r, 450));
         
         // 2.5 Plot Number
         showStatusToast("Entering Plot Number details...");
