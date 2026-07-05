@@ -469,7 +469,26 @@ async function autofillDetails(data, sendResponse) {
         const saveBtn = document.getElementById('savedocument');
         if (saveBtn) {
             saveBtn.click();
-            sendResponse({ success: true, message: 'Document details successfully saved!' });
+            
+            // Wait for and click SweetAlert2 success modal confirmation button
+            showStatusToast("Waiting for success confirmation...");
+            let clickedOk = false;
+            for (let i = 0; i < 40; i++) {
+                const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('OK') || b.textContent.trim().includes('ठीक है'));
+                if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                    okBtn.click();
+                    clickedOk = true;
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 150));
+            }
+            
+            if (clickedOk) {
+                sendResponse({ success: true, message: 'Document details successfully saved and confirmed!' });
+            } else {
+                sendResponse({ success: true, message: 'Document details saved (modal confirmation timed out).' });
+            }
         } else {
             sendResponse({ success: false, error: 'Could not find the Save button.' });
         }
