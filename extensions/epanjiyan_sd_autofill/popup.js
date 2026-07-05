@@ -119,6 +119,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
                 showMsg('Automation stopped.', 'success');
             } else {
+                const prop = activeCaseData.properties?.[0] || {};
+                const propAddress = prop.address || {};
                 const oneClickData = {
                     case_id: activeCaseData.case_id,
                     sro: activeCaseData.sro,
@@ -126,19 +128,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     amount: activeCaseData.amount || activeCaseData.face_value,
                     gender: activeCaseData.executants?.[0]?.gender?.toLowerCase() || 'male',
                     caste: activeCaseData.executants?.[0]?.caste || 'General',
-                    isBPL: activeCaseData.isBPL || false,
+                    isBPL: activeCaseData.executants?.[0]?.is_bpl || false,
                     isJoint: activeCaseData.executants?.length > 1,
-                    property: activeCaseData.property || {
-                        colony: activeCaseData.colony || '',
-                        plot_no: activeCaseData.plot_no || '',
-                        area: activeCaseData.area || 0,
-                        road_width: activeCaseData.road_width || 30,
-                        latitude: activeCaseData.latitude || '0',
-                        longitude: activeCaseData.longitude || '0',
-                        east: activeCaseData.east || '',
-                        west: activeCaseData.west || '',
-                        north: activeCaseData.north || '',
-                        south: activeCaseData.south || ''
+                    property: {
+                        colony: propAddress.colony || '',
+                        plot_no: propAddress.house_no || '',
+                        area: prop.area || 0,
+                        road_width: prop.road_width || 30,
+                        latitude: prop.latitude || '0',
+                        longitude: prop.longitude || '0',
+                        east: prop.east || '',
+                        west: prop.west || '',
+                        north: prop.north || '',
+                        south: prop.south || ''
                     }
                 };
 
@@ -169,24 +171,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             tehsil: activeCaseData.tehsil,
             gender: activeCaseData.executants?.[0]?.gender?.toLowerCase() || 'male',
             caste: activeCaseData.executants?.[0]?.caste || 'General',
-            isBPL: activeCaseData.isBPL || false,
+            isBPL: activeCaseData.executants?.[0]?.is_bpl || false,
             isJoint: activeCaseData.executants?.length > 1
         });
     });
     
     document.getElementById('btnAutofillAddress').addEventListener('click', () => {
+        const prop = activeCaseData.properties?.[0] || {};
+        const propAddress = prop.address || {};
         sendTabMessage('autofill_address', {
-            property: activeCaseData.property || {
-                colony: activeCaseData.colony || '',
-                plot_no: activeCaseData.plot_no || '',
-                area: activeCaseData.area || 0,
-                road_width: activeCaseData.road_width || 30,
-                latitude: activeCaseData.latitude || '0',
-                longitude: activeCaseData.longitude || '0',
-                east: activeCaseData.east || '',
-                west: activeCaseData.west || '',
-                north: activeCaseData.north || '',
-                south: activeCaseData.south || ''
+            property: {
+                colony: propAddress.colony || '',
+                plot_no: propAddress.house_no || '',
+                area: prop.area || 0,
+                road_width: prop.road_width || 30,
+                latitude: prop.latitude || '0',
+                longitude: prop.longitude || '0',
+                east: prop.east || '',
+                west: prop.west || '',
+                north: prop.north || '',
+                south: prop.south || ''
             }
         });
     });
