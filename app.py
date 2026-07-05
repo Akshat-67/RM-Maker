@@ -2100,6 +2100,21 @@ def delete_case(case_id):
         shutil.rmtree(case_path)
     return redirect(url_for("dashboard"))
 
+@app.route("/api/cases/bulk_delete", methods=["POST"])
+def bulk_delete_cases():
+    req_data = request.json or {}
+    case_ids = req_data.get("case_ids", [])
+    deleted = 0
+    for case_id in case_ids:
+        safe_case_id = os.path.basename(case_id)
+        if safe_case_id:
+            case_path = os.path.join(CASES_DIR, safe_case_id)
+            if os.path.exists(case_path):
+                import shutil
+                shutil.rmtree(case_path)
+                deleted += 1
+    return jsonify({"success": True, "deleted": deleted})
+
 @app.route("/case/<case_id>/file/<path:filename>")
 def serve_case_file(case_id, filename):
     from flask import send_from_directory
@@ -2464,8 +2479,73 @@ def get_epanjiyan_data(case_id):
         data = session.get("data", {})
         doc_type = session.get("doc_type", "RM")
         
+        # Dynamically resolve SRO and Tehsil based on title chain or property details
         sro = "JAIPUR-VII"
         tehsil = "JAIPUR"
+        
+        city_map = {
+            "जयपुर": "JAIPUR",
+            "जोधपुर": "JODHPUR",
+            "उदयपुर": "UDAIPUR",
+            "कोटा": "KOTA",
+            "बीकानेर": "BIKANER",
+            "अजमेर": "AJMER",
+            "अलवर": "ALWAR",
+            "भरतपुर": "BHARATPUR",
+            "भीलवाड़ा": "BHILWARA",
+            "सीकर": "SIKAR",
+            "झुंझुनू": "JHUNJHUNU"
+        }
+        
+        chain = data.get("chain", []) or data.get("title_chain", [])
+        resolved = False
+        if chain and isinstance(chain, list):
+            for event in reversed(chain):
+                if not isinstance(event, dict): continue
+                office = event.get("reg_office") or event.get("reg_office_en")
+                if office:
+                    office_str = str(office).upper()
+                    detected_city = None
+                    for h_city, e_city in city_map.items():
+                        if h_city in office_str or e_city in office_str:
+                            detected_city = e_city
+                            break
+                    
+                    detected_num = None
+                    roman_numerals = ["VIII", "VII", "III", "II", "IX", "VI", "IV", "V", "I", "X"]
+                    for rom in roman_numerals:
+                        import re
+                        if re.search(r'\b' + rom + r'\b', office_str) or f"-{rom}" in office_str or f" {rom}" in office_str or f"_{rom}" in office_str or f"({rom})" in office_str:
+                            detected_num = rom
+                            break
+                            
+                    if detected_city:
+                        tehsil = detected_city
+                        if detected_num:
+                            sro = f"{detected_city}-{detected_num}"
+                        else:
+                            sro = detected_city
+                        resolved = True
+                        break
+                        
+        if not resolved:
+            ps = data.get("ps", [])
+            if ps and isinstance(ps, list) and isinstance(ps[0], dict):
+                p_tehsil = ps[0].get("tehsil")
+                p_dist = ps[0].get("dist")
+                if p_dist:
+                    dist_clean = str(p_dist).strip().upper()
+                    for h_city, e_city in city_map.items():
+                        if h_city in dist_clean or e_city in dist_clean:
+                            tehsil = e_city
+                            sro = e_city
+                            break
+                if p_tehsil:
+                    tehsil_clean = str(p_tehsil).strip().upper()
+                    for h_city, e_city in city_map.items():
+                        if h_city in tehsil_clean or e_city in tehsil_clean:
+                            tehsil = e_city
+                            break
         
         face_value = 0
         r_rate = "12.00%"
