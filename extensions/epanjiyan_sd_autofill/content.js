@@ -32,6 +32,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'autofill_calculate_duty':
                 autofillCalculateDuty(request.data, sendResponse);
                 break;
+            case 'autofill_executant_sd':
+                autofillExecutantSD(request.data, 0, sendResponse);
+                break;
+            case 'autofill_claimant_sd':
+                autofillClaimantSD(request.data, 0, sendResponse);
+                break;
+            case 'autofill_witness_sd':
+                autofillWitnessSD(request.data.data, request.data.index, sendResponse);
+                break;
+            case 'set_presenter_sd':
+                setPresenter(request.data, sendResponse);
+                break;
             default:
                 sendResponse({ success: false, error: 'Unknown action' });
         }
@@ -1642,6 +1654,535 @@ window.addEventListener('hashchange', () => {
     dlcLookupInProgress = false; // Reset lock on navigation
     setTimeout(checkAutomatedStateOnLoad, 600);
 });
+
+// =====================================================================
+// PARTY DETAILS (KYC) AUTOFILL WORKFLOW
+// =====================================================================
+
+function findInputByLabel(text) {
+    const cleanText = text.replace(/\s+/g, ' ').trim().toUpperCase();
+    const labels = Array.from(document.querySelectorAll('label'));
+    const matchedLabel = labels.find(l => {
+        const cleanLabelText = l.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+        return cleanLabelText.includes(cleanText);
+    });
+    
+    if (matchedLabel) {
+        if (matchedLabel.htmlFor) {
+            const input = document.getElementById(matchedLabel.htmlFor);
+            if (input) return input;
+        }
+        const childInput = matchedLabel.querySelector('input, select, textarea');
+        if (childInput) return childInput;
+        
+        const nextEl = matchedLabel.nextElementSibling;
+        if (nextEl) {
+            const input = nextEl.querySelector('input, select, textarea') || (nextEl.tagName === 'INPUT' || nextEl.tagName === 'SELECT' || nextEl.tagName === 'TEXTAREA' ? nextEl : null);
+            if (input) return input;
+        }
+        
+        const parent = matchedLabel.parentElement;
+        if (parent) {
+            const input = parent.querySelector('input, select, textarea');
+            if (input) return input;
+        }
+    }
+    
+    // Fallback: search inputs directly by placeholder, name, or id (case-insensitive substring match)
+    const inputs = Array.from(document.querySelectorAll('input, textarea'));
+    const cleanQuery = text.toLowerCase();
+    
+    const match = inputs.find(i => {
+        const ph = (i.placeholder || "").toLowerCase();
+        const name = (i.name || "").toLowerCase();
+        const id = (i.id || "").toLowerCase();
+        return ph.includes(cleanQuery) || name.includes(cleanQuery) || id.includes(cleanQuery);
+    });
+    
+    return match || null;
+}
+
+function findSelectByLabel(text) {
+    const cleanText = text.replace(/\s+/g, ' ').trim().toUpperCase();
+    const labels = Array.from(document.querySelectorAll('label'));
+    const matchedLabel = labels.find(l => {
+        const cleanLabelText = l.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+        return cleanLabelText.includes(cleanText);
+    });
+    
+    if (matchedLabel) {
+        if (matchedLabel.htmlFor) {
+            const select = document.getElementById(matchedLabel.htmlFor);
+            if (select && (select.tagName === 'SELECT' || select.tagName === 'NG-SELECT')) return select;
+        }
+        const sibling = matchedLabel.nextElementSibling;
+        if (sibling) {
+            const select = sibling.querySelector('select, ng-select') || (sibling.tagName === 'SELECT' || sibling.tagName === 'NG-SELECT' ? sibling : null);
+            if (select) return select;
+        }
+        const parent = matchedLabel.parentElement;
+        if (parent) {
+            const select = parent.querySelector('select, ng-select');
+            if (select) return select;
+        }
+    }
+    
+    // Fallback: search selects directly
+    const selects = Array.from(document.querySelectorAll('select, ng-select'));
+    const cleanQuery = text.toLowerCase();
+    
+    const match = selects.find(s => {
+        const name = (s.name || "").toLowerCase();
+        const id = (s.id || "").toLowerCase();
+        return name.includes(cleanQuery) || id.includes(cleanQuery);
+    });
+    
+    return match || null;
+}
+
+function findIdDetailsInput() {
+    return findInputByLabel("id Details") || 
+           findInputByLabel("आईडी विवरण") || 
+           findInputByLabel("ID Number") ||
+           document.querySelector('input[id*="idno" i], input[name*="idno" i], input[id*="idProof" i], input[name*="idProof" i], input[id*="uid" i], input[name*="uid" i], input[id*="aadhar" i], input[name*="aadhar" i]') ||
+           Array.from(document.querySelectorAll('input')).find(i => {
+               const id = (i.id || "").toLowerCase();
+               const name = (i.name || "").toLowerCase();
+               const ph = (i.placeholder || "").toLowerCase();
+               return id.includes('proof') || name.includes('proof') || id.includes('idno') || name.includes('idno') || ph.includes('aadhar') || ph.includes('id');
+           });
+}
+
+function getField(fieldName) {
+    const selectorMap = {
+        presenter: ['#is_presentor', '#is_presenter', 'input[name*="present" i]', 'input[id*="present" i]'],
+        stamppurchaser: ['#chkstampPurchaser', '#chkstamp_purchaser', 'input[name*="stamp" i]', 'input[id*="stamp" i]'],
+        partyNameEn: ['#txtpartyname', 'input[name="partyname" i]', 'input[id*="partyname" i]', 'input[name*="partyname" i]'],
+        relNameEn: ['#txtfathername', '#txtrelationname', '#txtfhname', '#txtfh_name', 'input[name*="father" i]', 'input[id*="father" i]', 'input[name*="relation" i]', 'input[id*="relation" i]', 'input[id*="fh" i]', 'input[name*="fh" i]'],
+        dob: ['#txtdob', 'input[name="dob" i]', 'input[id*="dob" i]', 'input[name*="dob" i]'],
+        age: ['#txtAge', '#txtage', 'input[name="age" i]', 'input[id*="age" i]', 'input[name*="age" i]'],
+        category: ['#ddlcategory', '#category', 'select[name*="category" i]', 'select[id*="category" i]'],
+        casteEn: ['#txtcaste', 'input[name="caste" i]', 'input[id*="caste" i]', 'input[name*="caste" i]'],
+        occupation: ['#ddloccupation', '#occupation', 'select[name*="occupation" i]', 'select[id*="occupation" i]'],
+        idProof: ['#ddlidproof', '#ddlIdproof', '#ddlIdProof', 'select[name*="idproof" i]', 'select[id*="idproof" i]', 'select[name*="id_proof" i]'],
+        idDetails: ['#txtiddetails', '#txtidproofno', '#txtidno', '#txtidproofdetails', '#iddetails', 'input[name*="iddetails" i]', 'input[id*="iddetails" i]', 'input[name*="idno" i]', 'input[id*="idno" i]', 'input[name*="idproof" i]', 'input[id*="idproof" i]'],
+        pan: ['#txtpancardno', '#txtpan', '#pan', 'input[name*="pan" i]', 'input[id*="pan" i]'],
+        houseNo: ['#txthouseno', '#txthouse_no', '#houseno', 'input[name*="house" i]', 'input[id*="house" i]'],
+        colony: ['#txtpartycolony', '#txtcolony', '#colony', 'input[name*="colony" i]', 'input[id*="colony" i]'],
+        area: ['#txtpartyarea', '#txtarea', '#area', '#txtlocation', 'input[name*="area" i]', 'input[id*="area" i]', 'input[name*="location" i]'],
+        city: ['#txtCity', '#txtcity', '#city', 'input[name*="city" i]', 'input[id*="city" i]'],
+        pincode: ['#txtpincode', '#pincode', 'input[name*="pin" i]', 'input[id*="pin" i]']
+    };
+    
+    const selectors = selectorMap[fieldName];
+    if (!selectors) return null;
+    
+    for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) return el;
+    }
+    
+    if (fieldName === 'partyNameEn') return findInputByLabel("Party Name") || findInputByLabel("पक्षकार का नाम");
+    if (fieldName === 'relNameEn') return findInputByLabel("Father/Husband Name") || findInputByLabel("Father/Husband") || findInputByLabel("पिता/पति का नाम");
+    if (fieldName === 'dob') return findInputByLabel("DOB") || findInputByLabel("जन्मतिथि");
+    if (fieldName === 'age') return findInputByLabel("Age") || findInputByLabel("आयु");
+    if (fieldName === 'category') return findSelectByLabel("Category") || findSelectByLabel("श्रेणी");
+    if (fieldName === 'casteEn') return findInputByLabel("Caste") || findInputByLabel("जाति");
+    if (fieldName === 'occupation') return findSelectByLabel("Occupation") || findSelectByLabel("व्यवसाय");
+    if (fieldName === 'idProof') return findSelectByLabel("Photo id Proof") || findSelectByLabel("फोटो आईडी प्रूफ");
+    if (fieldName === 'idDetails') return findIdDetailsInput();
+    if (fieldName === 'pan') return findInputByLabel("PAN Card No") || findInputByLabel("पैन कार्ड नं");
+    if (fieldName === 'houseNo') return findInputByLabel("House No") || findInputByLabel("मकान नं");
+    if (fieldName === 'colony') return findInputByLabel("Colony") || findInputByLabel("कालोनी");
+    if (fieldName === 'area') return findInputByLabel("Area / Location") || findInputByLabel("क्षेत्र / स्थान");
+    if (fieldName === 'city') return findInputByLabel("City") || findInputByLabel("शहर");
+    if (fieldName === 'pincode') return findInputByLabel("Pin Code") || findInputByLabel("पिन कोड");
+    
+    return null;
+}
+
+function cleanSalutation(name) {
+    if (!name) return "";
+    return name.replace(/^(MR|MRS|MS|SHRI|SMT|SH|DR|LATE)\b\.?\s*/i, '').trim();
+}
+
+function clickRadioByValueOrLabel(labelText) {
+    const labels = Array.from(document.querySelectorAll('label, span, div'));
+    const matchedLabel = labels.find(l => l.textContent.trim().toUpperCase() === labelText.toUpperCase());
+    if (matchedLabel) {
+        matchedLabel.click();
+        const parent = matchedLabel.parentElement;
+        if (parent) {
+            const radio = parent.querySelector('input[type="radio"]');
+            if (radio) {
+                radio.checked = true;
+                radio.click();
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+        }
+    }
+    
+    const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+    const valueMatch = radios.find(r => r.value && r.value.toUpperCase() === labelText.toUpperCase());
+    if (valueMatch) {
+        valueMatch.checked = true;
+        valueMatch.click();
+        valueMatch.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+    }
+    return false;
+}
+
+async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
+    console.log(`[SD-Autofill] Starting bypassVerificationModal for type: ${verifyType}`);
+    try {
+        let verificationTypeSelect = null;
+        for (let i = 0; i < 40; i++) {
+            const allSelects = Array.from(document.querySelectorAll('select'));
+            verificationTypeSelect = allSelects.find(s => {
+                const opts = Array.from(s.options).map(o => o.text.toUpperCase());
+                return opts.some(t => t.includes('PUBLIC') || t.includes('BANK') || t.includes('सार्वजनिक'));
+            });
+            if (verificationTypeSelect) break;
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        if (!verificationTypeSelect) {
+            sendResponse({ success: false, error: 'Verification modal dropdown not found.' });
+            return;
+        }
+        
+        await setSelectValueByText(verificationTypeSelect, verifyType);
+        
+        let withoutOtpRadio = null;
+        for (let i = 0; i < 30; i++) {
+            const allRadios = Array.from(document.querySelectorAll('input[type="radio"]'));
+            withoutOtpRadio = allRadios.find(r => {
+                const combined = [
+                    r.labels?.[0]?.textContent || "",
+                    r.nextSibling?.textContent || "",
+                    r.parentElement?.textContent || "",
+                    r.value || "",
+                    r.id || ""
+                ].join(" ").toLowerCase();
+                return combined.includes("without otp") || 
+                       combined.includes("without_otp") ||
+                       combined.includes("ओटीपी के बिना") || 
+                       combined.includes("ओटीपी सत्यापन के बिना");
+            });
+            if (withoutOtpRadio) break;
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        if (!withoutOtpRadio) {
+            sendResponse({ success: false, error: 'Without OTP option not found.' });
+            return;
+        }
+        
+        withoutOtpRadio.checked = true;
+        withoutOtpRadio.click();
+        withoutOtpRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        let submitBtn = null;
+        for (let i = 0; i < 30; i++) {
+            submitBtn = document.getElementById('btnsubmit') || 
+                        Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a')).find(b => {
+                            const txt = b.textContent.trim().toUpperCase();
+                            return txt === 'SUBMIT' || txt.includes('प्रस्तुत करें');
+                        });
+            if (submitBtn && (submitBtn.offsetWidth > 0 || submitBtn.offsetHeight > 0)) {
+                break;
+            }
+            submitBtn = null;
+            await new Promise(r => setTimeout(r, 50));
+        }
+        
+        if (submitBtn) {
+            submitBtn.click();
+            sendResponse({ success: true, message: successMsg });
+        } else {
+            sendResponse({ success: false, error: 'Submit button not found.' });
+        }
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
+}
+
+async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
+    console.log("[SD-Autofill] Starting fillPartyFormFields for:", partyData.name_en);
+    
+    // 1. Checkboxes
+    const presenterBox = getField('presenter');
+    const purchaserBox = getField('stamppurchaser');
+    
+    if (presenterBox) {
+        presenterBox.checked = isPresenter;
+        presenterBox.dispatchEvent(new Event('change', { bubbles: true }));
+        presenterBox.dispatchEvent(new Event('click', { bubbles: true }));
+    }
+    if (purchaserBox) {
+        purchaserBox.checked = isPurchaser;
+        purchaserBox.dispatchEvent(new Event('change', { bubbles: true }));
+        purchaserBox.dispatchEvent(new Event('click', { bubbles: true }));
+    }
+    
+    // 2. Gender Selection
+    if (partyData.gender === 'FEMALE') {
+        const femaleRadio = document.getElementById('rbtfemale') || document.querySelector('input[type="radio"][value="F"]') || document.querySelector('input[type="radio"][id*="female" i]');
+        if (femaleRadio) {
+            femaleRadio.checked = true;
+            femaleRadio.click();
+            femaleRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    } else if (partyData.gender === 'TRANSGENDER' || partyData.gender === 'TRANS') {
+        const transRadio = document.getElementById('rbttransgender') || document.querySelector('input[type="radio"][value="T"]') || document.querySelector('input[type="radio"][id*="trans" i]');
+        if (transRadio) {
+            transRadio.checked = true;
+            transRadio.click();
+            transRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    } else {
+        const maleRadio = document.getElementById('rbtmale') || document.querySelector('input[type="radio"][value="M"]') || document.querySelector('input[type="radio"][id*="male" i]');
+        if (maleRadio) {
+            maleRadio.checked = true;
+            maleRadio.click();
+            maleRadio.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+    
+    // 3. Dropdowns (Category, Occupation, ID Proof)
+    await Promise.all([
+        (async () => {
+            const catSelect = getField('category');
+            if (catSelect) await setSelectValueByText(catSelect, "General");
+        })(),
+        (async () => {
+            const occSelect = getField('occupation');
+            if (occSelect) await setSelectValueByText(occSelect, "Other");
+        })(),
+        (async () => {
+            const idSelect = getField('idProof');
+            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
+        })()
+    ]);
+    
+    // 4. Input Fields
+    await Promise.all([
+        (async () => {
+            const partyNameEn = getField('partyNameEn');
+            if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
+        })(),
+        (async () => {
+            const relNameEn = getField('relNameEn');
+            if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
+        })(),
+        (async () => {
+            const dobInput = document.getElementById('txtdob') || getField('dob');
+            const ageInput = getField('age');
+            if (dobInput) {
+                let dobValue = "";
+                if (partyData.dob) {
+                    dobValue = partyData.dob.replace(/[-\.]/g, '/');
+                    if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
+                        dobValue = `01/01/${dobValue}`;
+                    }
+                } else if (partyData.age) {
+                    const currentYear = new Date().getFullYear();
+                    const birthYear = currentYear - parseInt(partyData.age);
+                    dobValue = `01/01/${birthYear}`;
+                } else {
+                    dobValue = "01/01/1985";
+                }
+                setDatePickerValue(dobInput, dobValue);
+            } else if (ageInput) {
+                setInputValue(ageInput, partyData.age || "40");
+            }
+        })(),
+        (async () => {
+            const casteEn = getField('casteEn');
+            if (casteEn) setInputValue(casteEn, "HINDU");
+        })(),
+        (async () => {
+            const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
+            if (casteHi) setInputValue(casteHi, "हिन्दू");
+        })(),
+        (async () => {
+            const idDetails = getField('idDetails');
+            const sampleAadhaar = "123456789012";
+            if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
+        })(),
+        (async () => {
+            if (partyData.pan) {
+                const panInput = getField('pan');
+                if (panInput) setInputValue(panInput, partyData.pan);
+            }
+        })(),
+        (async () => {
+            if (partyData.address) {
+                const houseInput = getField('houseNo');
+                const colonyInput = getField('colony');
+                const areaInput = getField('area');
+                const cityInput = getField('city');
+                const pinInput = getField('pincode');
+                
+                if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
+                if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
+                if (areaInput) setInputValue(areaInput, partyData.address.area || "");
+                if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
+                if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
+            }
+        })()
+    ]);
+    
+    console.log("[SD-Autofill] Completed fillPartyFormFields for:", partyData.name_en);
+}
+
+function autofillExecutantSD(data, index, sendResponse) {
+    if (!data.executants || !data.executants[index]) {
+        sendResponse({ success: false, error: `No executant data available for index ${index}.` });
+        return;
+    }
+    
+    const exec = data.executants[index];
+    const url = window.location.href;
+    
+    if (url.includes('/Party/Viewparty')) {
+        const executantBtn = document.getElementById('exect') || 
+                             document.querySelector('button[id*="exec" i]') || 
+                             Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                 const txt = el.textContent.trim().toUpperCase();
+                                 return txt === 'EXECUTANT' || txt.includes('निष्पादक') || (el.src && el.src.includes('executnt'));
+                             });
+        if (executantBtn) {
+            executantBtn.click();
+        } else {
+            sendResponse({ success: false, error: 'Could not find the Executant button.' });
+            return;
+        }
+        
+        bypassVerificationModal("Public", sendResponse, `Modal bypassed! Click Autofill Executant ${index + 1} again once the form loads.`);
+        return;
+    }
+    
+    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+        fillPartyFormFields(exec, true, false)
+            .then(() => {
+                sendResponse({ success: true, message: `Autofilled Executant (Seller) ${index + 1} details! Review and click Save.` });
+            })
+            .catch(err => {
+                sendResponse({ success: false, error: err.message });
+            });
+        return;
+    }
+    
+    sendResponse({ success: false, error: 'Not on Viewparty or PartyAdd page.' });
+}
+
+function autofillClaimantSD(data, index, sendResponse) {
+    if (!data.claimant) {
+        sendResponse({ success: false, error: 'No claimant (buyer) data available.' });
+        return;
+    }
+    
+    const cl = data.claimant;
+    const url = window.location.href;
+    
+    if (url.includes('/Party/Viewparty')) {
+        const claimantBtn = document.getElementById('clmnt') || 
+                             document.getElementById('claim') || 
+                             document.getElementById('claimant') || 
+                             document.querySelector('button[id*="claim" i]') || 
+                             Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                 const txt = el.textContent.trim().toUpperCase();
+                                 return txt === 'CLAIMANT' || txt.includes('दावेदार') || txt.includes('क्लेमेंट') || (el.src && el.src.includes('claimant'));
+                             });
+        if (claimantBtn) {
+            claimantBtn.click();
+        } else {
+            sendResponse({ success: false, error: 'Could not find the Claimant button.' });
+            return;
+        }
+        
+        bypassVerificationModal("Public", sendResponse, `Modal bypassed! Click Autofill Claimant ${index + 1} again once the form loads.`);
+        return;
+    }
+    
+    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+        fillPartyFormFields(cl, false, true)
+            .then(() => {
+                sendResponse({ success: true, message: `Autofilled Claimant (Buyer) ${index + 1} details! Review and click Save.` });
+            })
+            .catch(err => {
+                sendResponse({ success: false, error: err.message });
+            });
+        return;
+    }
+    
+    sendResponse({ success: false, error: 'Not on Viewparty or PartyAdd page.' });
+}
+
+function autofillWitnessSD(data, index, sendResponse) {
+    if (!data.witnesses || !data.witnesses[index]) {
+        sendResponse({ success: false, error: `No witness data available for index ${index}.` });
+        return;
+    }
+    
+    const wit = data.witnesses[index];
+    const url = window.location.href;
+    
+    if (url.includes('/Party/Viewparty')) {
+        const witnessBtn = document.getElementById('witns') || 
+                            document.getElementById('witness') || 
+                            document.querySelector('button[id*="witn" i]') || 
+                            Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                const txt = el.textContent.trim().toUpperCase();
+                                return txt === 'WITNESS' || txt.includes('गवाह') || (el.src && el.src.includes('witnes'));
+                            });
+        if (witnessBtn) {
+            witnessBtn.click();
+        } else {
+            sendResponse({ success: false, error: 'Could not find the Witness button.' });
+            return;
+        }
+        
+        bypassVerificationModal("Public", sendResponse, `Modal bypassed! Click Autofill Witness ${index + 1} again once the form loads.`);
+        return;
+    }
+    
+    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+        fillPartyFormFields(wit, false, false)
+            .then(() => {
+                sendResponse({ success: true, message: `Autofilled Witness ${index + 1} details! Review and click Save.` });
+            })
+            .catch(err => {
+                sendResponse({ success: false, error: err.message });
+            });
+        return;
+    }
+    
+    sendResponse({ success: false, error: 'Not on Viewparty or PartyAdd page.' });
+}
+
+function setPresenter(data, sendResponse) {
+    try {
+        const clicked = clickRadioByValueOrLabel("दस्तावेज प्रस्तुतकर्ता पक्षकार स्वयं है");
+        if (clicked) {
+            setTimeout(() => {
+                const saved = triggerButtonByText("Save");
+                if (saved) {
+                    sendResponse({ success: true, message: 'Selected Presenter as Self and saved!' });
+                } else {
+                    sendResponse({ success: true, message: 'Selected Presenter as Self. Please click Save manually.' });
+                }
+            }, 100);
+        } else {
+            sendResponse({ success: false, error: 'Could not find the presenter option.' });
+        }
+    } catch (err) {
+        sendResponse({ success: false, error: err.message });
+    }
+}
 
 
 

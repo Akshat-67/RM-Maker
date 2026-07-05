@@ -200,6 +200,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             amount: activeCaseData.amount || activeCaseData.face_value
         });
     });
+    
+    document.getElementById('btnAutofillExecutants').addEventListener('click', () => {
+        sendTabMessage('autofill_executant_sd', activeCaseData);
+    });
+    
+    document.getElementById('btnAutofillClaimant').addEventListener('click', () => {
+        sendTabMessage('autofill_claimant_sd', activeCaseData);
+    });
+    
+    document.getElementById('btnAutofillWitness1').addEventListener('click', () => {
+        sendTabMessage('autofill_witness_sd', { data: activeCaseData, index: 0 });
+    });
+    
+    document.getElementById('btnAutofillWitness2').addEventListener('click', () => {
+        sendTabMessage('autofill_witness_sd', { data: activeCaseData, index: 1 });
+    });
+    
+    document.getElementById('btnSetPresenter').addEventListener('click', () => {
+        sendTabMessage('set_presenter_sd', activeCaseData);
+    });
+
 
     document.getElementById('btnPublicDlcLookup').addEventListener('click', () => {
         if (!activeCaseData) return;
