@@ -1522,6 +1522,16 @@
                                                         </div>
                                                     </div>
                                                     <input class="form-control" id="field_rd" value="{{ data.get('rd','') }}" placeholder="e.g. 25-05-2026">
+                                                 </div>
+                                                 <div class="mb-2 mt-3">
+                                                     <div class="d-flex justify-content-between align-items-center">
+                                                         <label class="form-label small fw-bold">Consideration Amount (from ATS)</label>
+                                                         <div class="form-check form-check-inline">
+                                                             <input class="form-check-input verify-check" type="checkbox" data-path="amount" {% if 'amount' in verified_fields %}checked{% endif %}>
+                                                             <label class="form-check-label small text-muted">Verify</label>
+                                                         </div>
+                                                     </div>
+                                                     <input class="form-control" id="field_amount" value="{{ data.get('amount','') }}" placeholder="e.g. 2000000">
                                                 </div>
                                             </div>
                                         </div>
@@ -3234,6 +3244,7 @@
         if (docType === "SD") {
             const data = {
                 rd: document.getElementById('field_rd')?.value || '',
+                amount: document.getElementById('field_amount')?.value || '',
                 sellers: [],
                 buyers: [],
                 ps: [],
