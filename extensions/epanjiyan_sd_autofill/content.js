@@ -1340,8 +1340,21 @@ async function runPublicDlcLookup(data, sendResponse) {
                 }
             };
             
-            showStatusToast("Public SRO & DLC lookup completed!", false);
-            sendResponse({ success: true, message: `Successfully matched SRO: ${trueSro}`, data: publicDlcProfile });
+            showStatusToast("DLC Rate found! Saving to backend...");
+            
+            const resp = await fetch(`http://localhost:5000/api/case/${data.case_id}/public_dlc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ public_dlc_profile: publicDlcProfile })
+            });
+            const respJson = await resp.json();
+            
+            if (respJson.success) {
+                showStatusToast("⚡ True SRO & DLC rate lookup complete!", false);
+                sendResponse({ success: true, message: `Successfully matched SRO: ${trueSro}`, data: publicDlcProfile });
+            } else {
+                sendResponse({ success: false, error: 'Failed to save DLC details to server.' });
+            }
             return;
         }
         
@@ -1386,16 +1399,29 @@ async function runPublicDlcLookupAutomated(caseData) {
             if (sroBtn && ddlColony) {
                 clearInterval(checkSRO);
                 
-                // 1. Select the SRO pill
+                // 1. Select SRO
                 showStatusToast(`Selecting SRO: ${sroVal}...`);
                 sroBtn.click();
-                await new Promise(r => setTimeout(r, 1000)); // wait for SRO selection to load colony list
                 
-                // Continue with colony selection and table parsing
-                await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
+                // Poll for colony options list to populate after SRO click
+                showStatusToast("Loading colony options list...");
+                let colAttempts = 0;
+                const checkColOptions = setInterval(async () => {
+                    if (ddlColony.options && ddlColony.options.length > 2) {
+                        clearInterval(checkColOptions);
+                        await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
+                    } else {
+                        colAttempts++;
+                        if (colAttempts >= 20) {
+                            clearInterval(checkColOptions);
+                            showStatusToast("Colony options list failed to load.", false);
+                            chrome.storage.local.set({ publicLookupRunning: false });
+                        }
+                    }
+                }, 300);
             } else {
                 attempts++;
-                if (attempts >= 15) {
+                if (attempts >= 20) {
                     clearInterval(checkSRO);
                     showStatusToast("SRO search elements failed to load.", false);
                     chrome.storage.local.set({ publicLookupRunning: false });
@@ -1471,17 +1497,31 @@ async function continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, 
             }
         }
         
-        // Wait for table to load
-        await new Promise(r => setTimeout(r, 1500));
-        
-        // 3. Parse the SRO rate table
-        const table = document.querySelector('table');
-        if (!table) {
-            showStatusToast("Could not find rates table.", false);
-            chrome.storage.local.set({ publicLookupRunning: false });
-            return;
-        }
-        
+        // Wait dynamically for table to load
+        showStatusToast("Waiting for rates table to render...");
+        let tableAttempts = 0;
+        const checkTable = setInterval(async () => {
+            const table = document.querySelector('table');
+            if (table) {
+                clearInterval(checkTable);
+                await parseTableAndSave(table, bestOption, sroVal, caseData);
+            } else {
+                tableAttempts++;
+                if (tableAttempts >= 25) {
+                    clearInterval(checkTable);
+                    showStatusToast("Could not find rates table.", false);
+                    chrome.storage.local.set({ publicLookupRunning: false });
+                }
+            }
+        }, 300);
+    } catch (e) {
+        showStatusToast("Error: " + e.message, false);
+        chrome.storage.local.set({ publicLookupRunning: false });
+    }
+}
+
+async function parseTableAndSave(table, bestOption, sroVal, caseData) {
+    try {
         const rows = Array.from(table.querySelectorAll('tr'));
         const matchingRow = rows.find(row => {
             const text = row.textContent.toUpperCase();
