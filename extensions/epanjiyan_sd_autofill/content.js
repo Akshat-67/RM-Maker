@@ -790,19 +790,33 @@ async function autofillCalculateDuty(data, sendResponse) {
         const url = window.location.href.toLowerCase();
         
         if (url.includes('/propertyvaluation/propertydetail')) {
+            // First look for the "Add Property" button if details are being filled
+            const addPropertyBtn = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]')).find(b => {
+                const txt = b.textContent.toUpperCase();
+                return txt.includes('ADD PROPERTY') || txt.includes('प्रॉपर्टी जोड़ें') || (b.value && b.value.toUpperCase().includes('ADD PROPERTY'));
+            });
+            
+            if (addPropertyBtn && (addPropertyBtn.offsetWidth > 0 || addPropertyBtn.offsetHeight > 0)) {
+                showStatusToast("Saving Property Details (Clicking Add Property)...");
+                addPropertyBtn.click();
+                sendResponse({ success: true, message: 'Clicked Add Property!' });
+                return;
+            }
+
+            // Otherwise, look for the "Calculate Stamp Duty" button to proceed
             showStatusToast("Navigating to Calculate Stamp Duty...");
             const calcBtn = document.querySelector('button[formaction*="/PropertyValuation/CalculateDuty" i]') || 
                             document.querySelector('button[formaction*="calculateduty" i]') ||
                             Array.from(document.querySelectorAll('button, a')).find(b => {
                                 const txt = b.textContent.toUpperCase();
-                                return txt.includes('CALCULATE DUTY') || txt.includes('ड्यूटी की गणना करें');
+                                return txt.includes('CALCULATE DUTY') || txt.includes('ड्यूटी की गणना करें') || txt.includes('CALCULATE STAMP DUTY');
                             });
                             
             if (calcBtn) {
                 calcBtn.click();
                 sendResponse({ success: true, message: 'Clicked Calculate Duty!' });
             } else {
-                sendResponse({ success: false, error: 'Could not find Calculate Duty button.' });
+                sendResponse({ success: false, error: 'Could not find Add Property or Calculate Duty button.' });
             }
             return;
         }
