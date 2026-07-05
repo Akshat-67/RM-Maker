@@ -288,8 +288,27 @@
           });
       }
 
-      tbody.addEventListener('change', function (e) {
+      let lastChecked = null;
+
+      tbody.addEventListener('click', function (e) {
           if (e.target.classList.contains('case-select-checkbox')) {
+              const checkboxes = rowCheckboxes().filter(cb => cb.closest('tr').style.display !== 'none');
+              
+              if (e.shiftKey && lastChecked && lastChecked !== e.target) {
+                  let start = checkboxes.indexOf(lastChecked);
+                  let end = checkboxes.indexOf(e.target);
+                  
+                  if (start !== -1 && end !== -1) {
+                      const checkedState = e.target.checked;
+                      const [minIdx, maxIdx] = start < end ? [start, end] : [end, start];
+                      
+                      for (let i = minIdx; i <= maxIdx; i++) {
+                          checkboxes[i].checked = checkedState;
+                      }
+                  }
+              }
+              
+              lastChecked = e.target;
               updateBulkActionBar();
           }
       });
