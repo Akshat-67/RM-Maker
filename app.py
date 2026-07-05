@@ -947,6 +947,11 @@ def run_ai(case_id):
         files_to_process = [f for f in all_files if f not in processed_files]
 
     buckets = session.get("buckets", {})
+    if selected_filenames:
+        filtered_buckets = {}
+        for b_name, b_files in buckets.items():
+            filtered_buckets[b_name] = [f for f in b_files if os.path.basename(f) in selected_filenames]
+        buckets = filtered_buckets
     has_bucket_files = any(len(b) > 0 for b in buckets.values())
 
     if not files_to_process and not has_bucket_files:

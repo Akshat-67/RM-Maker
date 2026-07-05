@@ -699,7 +699,10 @@
                                         <div class="file-list-scroll mt-2" id="kycFileList">
                                             {% for f in buckets.get('kyc', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-2.5 py-1 mb-1" style="font-size: 0.72rem;">
-                                                <span class="text-truncate fw-medium" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="kyc" data-filename="{{ f | basename }}" checked style="width: 12px; height: 12px; cursor: pointer;" />
+                                                    <span class="text-truncate fw-medium" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'kyc')">×</span>
                                             </div>
                                             {% endfor %}
@@ -725,7 +728,10 @@
                                         <div class="file-list-scroll mt-2" id="legalFileList">
                                             {% for f in buckets.get('legal', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-2.5 py-1 mb-1" style="font-size: 0.72rem;">
-                                                <span class="text-truncate fw-medium" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="legal" data-filename="{{ f | basename }}" checked style="width: 12px; height: 12px; cursor: pointer;" />
+                                                    <span class="text-truncate fw-medium" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'legal')">×</span>
                                             </div>
                                             {% endfor %}
@@ -750,7 +756,10 @@
                                         <div class="file-list-scroll mt-2" id="atsFileList">
                                             {% for f in buckets.get('ats', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem;">
-                                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="ats" data-filename="{{ f | basename }}" checked style="width: 11px; height: 11px; cursor: pointer;" />
+                                                    <span class="text-truncate" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'ats')">×</span>
                                             </div>
                                             {% endfor %}
@@ -774,7 +783,10 @@
                                         <div class="file-list-scroll mt-2" id="titleFileList">
                                             {% for f in buckets.get('title_chain', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem;">
-                                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="title_chain" data-filename="{{ f | basename }}" checked style="width: 11px; height: 11px; cursor: pointer;" />
+                                                    <span class="text-truncate" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'title_chain')">×</span>
                                             </div>
                                             {% endfor %}
@@ -3491,9 +3503,20 @@
 
     function startAIForBucket(bucket, btn, isRegenerate = false) {
         const oldText = btn.textContent;
+        const statusMsg = document.getElementById('statusMsg');
+        
+        const checkboxes = Array.from(document.querySelectorAll(`.file-select-chk[data-bucket="${bucket}"]`));
+        let selectedFiles = null;
+        if (checkboxes.length > 0) {
+            selectedFiles = checkboxes.filter(chk => chk.checked).map(chk => chk.getAttribute('data-filename'));
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one file to process.');
+                return;
+            }
+        }
+        
         btn.disabled = true;
         btn.textContent = isRegenerate ? '⏳ Re-generating...' : '⏳ Extracting...';
-        const statusMsg = document.getElementById('statusMsg');
         if (statusMsg) statusMsg.textContent = isRegenerate ? `AI is re-generating narrative from ${bucket} documents...` : `AI is extracting details from ${bucket} documents...`;
 
         saveCase(() => {
@@ -3511,7 +3534,8 @@
                     property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
                     model: document.getElementById('modelSelect').value,
                     bucket: bucket,
-                    regenerate: isRegenerate
+                    regenerate: isRegenerate,
+                    selected_files: selectedFiles
                 })
             })
             .then(r => r.json())

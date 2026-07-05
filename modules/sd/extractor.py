@@ -596,9 +596,11 @@ class SDDataExtractor:
         for path in effective_paths:
             ext = os.path.splitext(path)[1].lower()
             mime_type, _ = mimetypes.guess_type(path)
+            filename = os.path.basename(path)
             if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
                 with open(path, 'rb') as f:
                     raw = f.read()
+                contents.append(types.Part.from_text(text=f"[Document: {filename}]"))
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
             elif ext == '.txt':
                 with open(path, 'r', encoding='utf-8') as f:
@@ -1006,7 +1008,7 @@ class SDDataExtractor:
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
                     person["r"], person["rn"] = parse_relation_text(person["relation_text"])
 
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "dob", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "dob", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id", "pan"])
 
         self._normalize_list(data, "title_chain", [
             "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
@@ -1050,9 +1052,11 @@ class SDDataExtractor:
         for path in effective_paths:
             ext = os.path.splitext(path)[1].lower()
             mime_type, _ = mimetypes.guess_type(path)
+            filename = os.path.basename(path)
             if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
                 with open(path, 'rb') as f:
                     raw = f.read()
+                contents.append(types.Part.from_text(text=f"[Document: {filename}]"))
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
             elif ext == '.txt':
                 with open(path, 'r', encoding='utf-8') as f:
@@ -1218,10 +1222,10 @@ class SDDataExtractor:
         data["consideration"] = str(data.get("consideration", "")).strip()
         data["tds"] = str(data.get("tds", "")).strip()
         
-        self._normalize_list(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
-        self._normalize_list(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
+        self._normalize_list(data, "ss", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
+        self._normalize_list(data, "bs", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"])
         self._normalize_list(data, "ps", ["adr", "adr_en", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "parking_type", "parking_number", "area_type", "covered_area", "property_portion", "lat", "lng", "road_width"])
-        self._normalize_list(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"])
+        self._normalize_list(data, "ws", ["n", "n_en", "dob", "relation_text", "rn_en", "adr", "adr_en"])
 
         # Move extraction-compensation upstream (cleaning OCR commas between names and relations)
         for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
@@ -1285,9 +1289,9 @@ class SDDataExtractor:
             p["dimension_text"] = self.generate_dimension_text(p)
             p["boundary_text"] = self.generate_boundary_text(p)
 
-        self._force_count(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_sellers)
-        self._force_count(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_buyers)
-        self._force_count(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"], expected_witnesses)
+        self._force_count(data, "ss", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_sellers)
+        self._force_count(data, "bs", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan", "is_bpl"], expected_buyers)
+        self._force_count(data, "ws", ["n", "n_en", "dob", "relation_text", "rn_en", "adr", "adr_en"], expected_witnesses)
         
         if not data.get("title_chain"):
             data["title_chain"] = [{"event_type": "SALE_DEED", "document_name": "", "date": "", "consideration_amount": "", "executant_name": "", "claimant_name": "", "is_registered": "true", "reg_office": "", "reg_date": "", "reg_book": "", "reg_vol": "", "reg_page": "", "reg_no": "", "reg_add_book": "", "reg_add_vol": "", "reg_add_page": "", "confidence": "", "source_text": ""}]
