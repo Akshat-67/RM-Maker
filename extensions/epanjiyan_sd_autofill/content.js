@@ -44,6 +44,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'set_presenter_sd':
                 setPresenter(request.data, sendResponse);
                 break;
+            case 'start_party_details':
+                startPartyDetails(request.data, sendResponse);
+                break;
             default:
                 sendResponse({ success: false, error: 'Unknown action' });
         }
@@ -2182,6 +2185,39 @@ function setPresenter(data, sendResponse) {
     } catch (err) {
         sendResponse({ success: false, error: err.message });
     }
+}
+
+function startPartyDetails(data, sendResponse) {
+    const url = window.location.href;
+    
+    // 1. If on PropertyDetail page (where the user needs to press the Party Detail button)
+    if (url.includes('/PropertyValuation/PropertyDetail') || url.includes('/propertyvaluation/propertydetail')) {
+        const partyDetailBtn = document.querySelector('button[formaction*="/Party/Viewparty" i]') || 
+                               document.querySelector('button[title*="Party Detail" i]') ||
+                               Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase().includes('PARTY DETAIL'));
+        if (partyDetailBtn) {
+            console.log("[SD-Autofill] Found Party Detail button. Clicking to navigate...");
+            partyDetailBtn.click();
+            sendResponse({ success: true, message: 'Navigating to Party Details dashboard...' });
+        } else {
+            sendResponse({ success: false, error: 'Could not find the "Party Detail" button on this page.' });
+        }
+        return;
+    }
+    
+    // 2. If already on Viewparty, start the Executant autofill
+    if (url.includes('/Party/Viewparty')) {
+        autofillExecutantSD(data, 0, sendResponse);
+        return;
+    }
+    
+    // 3. If on PartyAdd, autofill the first executant
+    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+        autofillExecutantSD(data, 0, sendResponse);
+        return;
+    }
+    
+    sendResponse({ success: false, error: 'Navigate to the Property Detail or Party Details tab first.' });
 }
 
 

@@ -221,6 +221,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         sendTabMessage('set_presenter_sd', activeCaseData);
     });
 
+    document.getElementById('btnStartPartyDetails').addEventListener('click', () => {
+        sendTabMessage('start_party_details', activeCaseData);
+    });
+
+
 
     document.getElementById('btnPublicDlcLookup').addEventListener('click', () => {
         if (!activeCaseData) return;
