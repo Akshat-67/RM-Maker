@@ -1,5 +1,6 @@
 // Content script for Rajasthan e-Panjiyan Sale Deed (SD) Autofill
 console.log("[SD Autofill] Content script loaded on:", window.location.href);
+let dlcLookupInProgress = false;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("[SD Autofill] Message received:", request.action);
@@ -1052,6 +1053,9 @@ async function checkAutomatedStateOnLoad() {
         
         // A. Handle public SRO and DLC rate lookup workflow
         if (res.publicLookupRunning && res.oneClickData) {
+            if (dlcLookupInProgress) return;
+            dlcLookupInProgress = true;
+            
             if (url.includes('/#/public/home')) {
                 showStatusToast("Clicking DLC Profile...");
                 const dlcProfileBtn = document.querySelector('div[name="dlcprofile"]') || 
@@ -1416,6 +1420,7 @@ async function runPublicDlcLookupAutomated(caseData) {
                             clearInterval(checkColOptions);
                             showStatusToast("Colony options list failed to load.", false);
                             chrome.storage.local.set({ publicLookupRunning: false });
+                            dlcLookupInProgress = false;
                         }
                     }
                 }, 300);
@@ -1425,12 +1430,14 @@ async function runPublicDlcLookupAutomated(caseData) {
                     clearInterval(checkSRO);
                     showStatusToast("SRO search elements failed to load.", false);
                     chrome.storage.local.set({ publicLookupRunning: false });
+                    dlcLookupInProgress = false;
                 }
             }
         }, 300);
     } catch (e) {
         showStatusToast("Error: " + e.message, false);
         chrome.storage.local.set({ publicLookupRunning: false });
+        dlcLookupInProgress = false;
     }
 }
 
@@ -1487,7 +1494,19 @@ async function continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, 
         ddlColony.value = bestOption.value;
         ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
         
-        // Update Select2 UI
+        // Trigger Select2 update via jQuery if jQuery is present on the page
+        try {
+            if (window.$ || window.jQuery || typeof $ !== 'undefined') {
+                const jq = window.$ || window.jQuery || $;
+                if (jq && typeof jq === 'function') {
+                    jq(ddlColony).val(bestOption.value).trigger('change');
+                }
+            }
+        } catch (jqErr) {
+            console.warn("[SD Autofill] jQuery select2 trigger failed:", jqErr);
+        }
+        
+        // Update Select2 UI text fallback
         const select2Container = ddlColony.nextElementSibling;
         if (select2Container && select2Container.classList.contains('select2-container')) {
             const renderSpan = select2Container.querySelector('.select2-selection__rendered');
@@ -1511,12 +1530,14 @@ async function continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, 
                     clearInterval(checkTable);
                     showStatusToast("Could not find rates table.", false);
                     chrome.storage.local.set({ publicLookupRunning: false });
+                    dlcLookupInProgress = false;
                 }
             }
         }, 300);
     } catch (e) {
         showStatusToast("Error: " + e.message, false);
         chrome.storage.local.set({ publicLookupRunning: false });
+        dlcLookupInProgress = false;
     }
 }
 
@@ -1599,14 +1620,17 @@ async function parseTableAndSave(table, bestOption, sroVal, caseData) {
         if (respJson.success) {
             showStatusToast("⚡ True SRO & DLC rate lookup complete!", false);
             chrome.storage.local.set({ publicLookupRunning: false });
+            dlcLookupInProgress = false;
             alert(`SRO & DLC rate lookup complete!\n\nTrue SRO: ${trueSro}\nZone: ${zoneName}\nColony: ${matchedColName}\nResidential Interior Rate: Rs ${publicDlcProfile.residential.interior}`);
         } else {
             showStatusToast("Failed to save DLC details to server.", false);
             chrome.storage.local.set({ publicLookupRunning: false });
+            dlcLookupInProgress = false;
         }
     } catch (e) {
         showStatusToast("Error: " + e.message, false);
         chrome.storage.local.set({ publicLookupRunning: false });
+        dlcLookupInProgress = false;
     }
 }
 
@@ -1623,6 +1647,7 @@ setInterval(() => {
     if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
         console.log("[SD Autofill] SPA URL change detected:", lastUrl);
+        dlcLookupInProgress = false; // Reset lock on navigation
         // Clear old toast to prevent stale text overlap
         const oldToast = document.getElementById('sd-status-toast');
         if (oldToast) oldToast.remove();
@@ -1632,6 +1657,7 @@ setInterval(() => {
 
 window.addEventListener('hashchange', () => {
     console.log("[SD Autofill] Hash changed:", window.location.href);
+    dlcLookupInProgress = false; // Reset lock on navigation
     setTimeout(checkAutomatedStateOnLoad, 600);
 });
 
