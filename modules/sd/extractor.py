@@ -686,11 +686,14 @@ class SDDataExtractor:
                     k_item = kyc_list[i]
                     c_item = current_list[i]
                     if self._is_meaningful(k_item.get("n")): c_item["n"] = k_item["n"]
+                    if self._is_meaningful(k_item.get("n_en")): c_item["n_en"] = k_item["n_en"]
                     if self._is_meaningful(k_item.get("adr")): c_item["adr"] = k_item["adr"]
+                    if self._is_meaningful(k_item.get("adr_en")): c_item["adr_en"] = k_item["adr_en"]
                     if self._is_meaningful(k_item.get("a")): c_item["a"] = k_item["a"]
                     if self._is_meaningful(k_item.get("id")): c_item["id"] = k_item["id"]
                     if self._is_meaningful(k_item.get("pan")): c_item["pan"] = k_item["pan"]
                     if self._is_meaningful(k_item.get("relation_text")): c_item["relation_text"] = k_item["relation_text"]
+                    if self._is_meaningful(k_item.get("rn_en")): c_item["rn_en"] = k_item["rn_en"]
             current[key] = current_list
 
         # Preserve unassigned Aadhaar cards for Role Assignment UI in SD mode
@@ -723,6 +726,8 @@ class SDDataExtractor:
             for i in range(min(len(current_list), len(legal_list))):
                 if not self._is_meaningful(current_list[i].get("adr")) and self._is_meaningful(legal_list[i].get("adr")):
                     current_list[i]["adr"] = legal_list[i]["adr"]
+                if not self._is_meaningful(current_list[i].get("adr_en")) and self._is_meaningful(legal_list[i].get("adr_en")):
+                    current_list[i]["adr_en"] = legal_list[i]["adr_en"]
         return current
 
     def _merge_ats_results(self, current, ats):
@@ -737,8 +742,12 @@ class SDDataExtractor:
             for i in range(min(len(current_list), len(ats_list))):
                 if not self._is_meaningful(current_list[i].get("n")) and self._is_meaningful(ats_list[i].get("n")):
                     current_list[i]["n"] = ats_list[i]["n"]
+                if not self._is_meaningful(current_list[i].get("n_en")) and self._is_meaningful(ats_list[i].get("n_en")):
+                    current_list[i]["n_en"] = ats_list[i]["n_en"]
                 if not self._is_meaningful(current_list[i].get("adr")) and self._is_meaningful(ats_list[i].get("adr")):
                     current_list[i]["adr"] = ats_list[i]["adr"]
+                if not self._is_meaningful(current_list[i].get("adr_en")) and self._is_meaningful(ats_list[i].get("adr_en")):
+                    current_list[i]["adr_en"] = ats_list[i]["adr_en"]
 
         current_ps = current.get("ps", [{}])
         ats_ps = ats.get("ps", [{}])
@@ -945,10 +954,7 @@ class SDDataExtractor:
         {
           "amount": "Consideration Amount (digits only)",
           "amount_words": "Amount in Words (Unicode Hindi)",
-          "consideration": "Consideration details/value (Unicode Hindi)",
-          "ss": [{"n":"Name", "adr":"Address"}],
-          "bs": [{"n":"Name", "adr":"Address"}],
-          "ps": [{"adr": "Property Address (Unicode Hindi)"}]
+          "consideration": "Consideration details/value (Unicode Hindi)"
         }
         """
 
@@ -976,22 +982,28 @@ class SDDataExtractor:
 
     def _normalize_final_data(self, data, expected_sellers, expected_buyers, expected_witnesses):
         # Apply the same normalization as the legacy method
-        self._normalize_list(data, "ss", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
-        self._normalize_list(data, "bs", ["n", "a", "c", "relation_text", "adr", "id", "pan"])
-        self._normalize_list(data, "ps", ["adr", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "east_west_dim", "north_south_dim", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
-        self._normalize_list(data, "ws", ["n", "relation_text", "adr"])
+        self._normalize_list(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
+        self._normalize_list(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
+        self._normalize_list(data, "ps", ["adr", "adr_en", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "east_west_dim", "north_south_dim", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
+        self._normalize_list(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"])
 
         import re
         for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
             for person in data.get(key, []):
                 if person.get("n"):
                     person["n"] = re.sub(r',\s*$', '', person["n"]).strip()
+                if person.get("n_en"):
+                    person["n_en"] = re.sub(r',\s*$', '', person["n_en"]).strip().upper()
+                if person.get("rn_en"):
+                    person["rn_en"] = person["rn_en"].strip().upper()
+                if person.get("adr_en"):
+                    person["adr_en"] = person["adr_en"].strip().upper()
                 if person.get("relation_text"):
                     from utils.helpers import normalize_relation_prefix, parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
                     person["r"], person["rn"] = parse_relation_text(person["relation_text"])
 
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "r", "rn", "relation_text", "adr", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id"])
 
         self._normalize_list(data, "title_chain", [
             "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
