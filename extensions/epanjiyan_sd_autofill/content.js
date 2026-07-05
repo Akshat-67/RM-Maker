@@ -1063,8 +1063,16 @@ async function saveQuoteToBackend(caseId, quote) {
 async function checkAutomatedStateOnLoad() {
     if (!chrome || !chrome.storage || !chrome.storage.local) return;
     
-    chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'stampDutyCalculated', 'publicLookupRunning'], async (res) => {
+    chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'stampDutyCalculated', 'publicLookupRunning', 'partyFeedingRunning', 'partyStage'], async (res) => {
         const url = window.location.href.toLowerCase();
+        
+        // B. Handle Party Details (KYC) feeding loop
+        if (res.partyFeedingRunning && res.oneClickData && url.includes('/party/')) {
+            setTimeout(async () => {
+                await runPartyFeedingLoop(res.oneClickData);
+            }, 800);
+            return;
+        }
         
         // A. Handle public SRO and DLC rate lookup workflow
         if (res.publicLookupRunning && res.oneClickData) {
@@ -2190,6 +2198,13 @@ function setPresenter(data, sendResponse) {
 function startPartyDetails(data, sendResponse) {
     const url = window.location.href;
     
+    // Save persistent feeding state so it remains active across page loads/redirects
+    chrome.storage.local.set({
+        partyFeedingRunning: true,
+        partyStage: "EXECUTANT",
+        oneClickData: data
+    });
+    
     // 1. If on PropertyDetail page (where the user needs to press the Party Detail button)
     if (url.includes('/PropertyValuation/PropertyDetail') || url.includes('/propertyvaluation/propertydetail')) {
         const partyDetailBtn = document.querySelector('button[formaction*="/Party/Viewparty" i]') || 
@@ -2218,6 +2233,134 @@ function startPartyDetails(data, sendResponse) {
     }
     
     sendResponse({ success: false, error: 'Navigate to the Property Detail or Party Details tab first.' });
+}
+
+async function runPartyFeedingLoop(data) {
+    try {
+        const url = window.location.href.toLowerCase();
+        
+        // Only run if we are on party-related pages
+        if (!url.includes('/party/')) return;
+        
+        const storage = await new Promise(resolve => {
+            chrome.storage.local.get(['partyStage'], resolve);
+        });
+        const stage = storage.partyStage || "EXECUTANT";
+        
+        if (stage === "DONE") {
+            chrome.storage.local.set({ partyFeedingRunning: false });
+            showStatusToast("⚡ All parties have been successfully filled!", false);
+            return;
+        }
+        
+        // 1. If on Viewparty dashboard page
+        if (url.includes('/party/viewparty')) {
+            showStatusToast(`Stage: ${stage}. Navigating to input form...`);
+            
+            if (stage.startsWith("EXECUTANT")) {
+                const executantBtn = document.getElementById('exect') || 
+                                     document.querySelector('button[id*="exec" i]') || 
+                                     Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                         const txt = el.textContent.trim().toUpperCase();
+                                         return txt === 'EXECUTANT' || txt.includes('निष्पादक') || (el.src && el.src.includes('executnt'));
+                                     });
+                if (executantBtn) {
+                    executantBtn.click();
+                    await new Promise(r => setTimeout(r, 400));
+                    await bypassVerificationModal("Public", () => {}, "Navigating to Executant Add page...");
+                } else {
+                    showStatusToast("Executant button not found.", false);
+                }
+            } else if (stage === "CLAIMANT") {
+                const claimantBtn = document.getElementById('clmnt') || 
+                                     document.getElementById('claim') || 
+                                     document.getElementById('claimant') || 
+                                     document.querySelector('button[id*="claim" i]') || 
+                                     Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                         const txt = el.textContent.trim().toUpperCase();
+                                         return txt === 'CLAIMANT' || txt.includes('दावेदार') || txt.includes('क्लेमेंट') || (el.src && el.src.includes('claimant'));
+                                     });
+                if (claimantBtn) {
+                    claimantBtn.click();
+                    await new Promise(r => setTimeout(r, 400));
+                    await bypassVerificationModal("Public", () => {}, "Navigating to Claimant Add page...");
+                } else {
+                    showStatusToast("Claimant button not found.", false);
+                }
+            } else if (stage.startsWith("WITNESS")) {
+                const witnessBtn = document.getElementById('witns') || 
+                                    document.getElementById('witness') || 
+                                    document.querySelector('button[id*="witn" i]') || 
+                                    Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
+                                        const txt = el.textContent.trim().toUpperCase();
+                                        return txt === 'WITNESS' || txt.includes('गवाह') || (el.src && el.src.includes('witnes'));
+                                    });
+                if (witnessBtn) {
+                    witnessBtn.click();
+                    await new Promise(r => setTimeout(r, 400));
+                    await bypassVerificationModal("Public", () => {}, "Navigating to Witness Add page...");
+                } else {
+                    showStatusToast("Witness button not found.", false);
+                }
+            }
+            return;
+        }
+        
+        // 2. If on PartyAdd input form page
+        if (url.includes('/party/partyadd')) {
+            showStatusToast(`Autofilling ${stage} details...`);
+            
+            let fillPromise = null;
+            let nextStage = "CLAIMANT";
+            
+            if (stage.startsWith("EXECUTANT")) {
+                const idx = (stage === "EXECUTANT") ? 0 : parseInt(stage.split("_")[1]);
+                if (data.executants && data.executants[idx]) {
+                    fillPromise = fillPartyFormFields(data.executants[idx], true, false);
+                    
+                    if (idx + 1 < data.executants.length) {
+                        nextStage = `EXECUTANT_${idx + 1}`;
+                    } else {
+                        nextStage = "CLAIMANT";
+                    }
+                } else {
+                    nextStage = "CLAIMANT";
+                }
+            } else if (stage === "CLAIMANT") {
+                if (data.claimant) {
+                    fillPromise = fillPartyFormFields(data.claimant, false, true);
+                    nextStage = "WITNESS_1";
+                } else {
+                    nextStage = "WITNESS_1";
+                }
+            } else if (stage === "WITNESS_1") {
+                if (data.witnesses && data.witnesses[0]) {
+                    fillPromise = fillPartyFormFields(data.witnesses[0], false, false);
+                    nextStage = "WITNESS_2";
+                } else {
+                    nextStage = "WITNESS_2";
+                }
+            } else if (stage === "WITNESS_2") {
+                if (data.witnesses && data.witnesses[1]) {
+                    fillPromise = fillPartyFormFields(data.witnesses[1], false, false);
+                    nextStage = "DONE";
+                } else {
+                    nextStage = "DONE";
+                }
+            }
+            
+            if (fillPromise) {
+                await fillPromise;
+                chrome.storage.local.set({ partyStage: nextStage });
+                showStatusToast(`Filled ${stage}! Review and click Save.`, false);
+            } else {
+                chrome.storage.local.set({ partyStage: nextStage });
+                showStatusToast(`Skipped ${stage} (no data). Click Save manually.`, false);
+            }
+        }
+    } catch (e) {
+        showStatusToast("Error in party loop: " + e.message, false);
+    }
 }
 
 
