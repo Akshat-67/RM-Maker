@@ -128,7 +128,7 @@ def list_cases():
     for d in os.listdir(CASES_DIR):
         path = os.path.join(CASES_DIR, d, "session.json")
         try:
-            with open(path, "r") as f: cases.append(json.load(f))
+            with open(path, "r", encoding="utf-8") as f: cases.append(json.load(f))
         except: pass
     return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
 
@@ -1968,7 +1968,7 @@ def template_builder():
     sd_fields = []
     sd_generated_fields = []
     try:
-        with open("CHAIN_SCHEMA.md", "r") as f:
+        with open("CHAIN_SCHEMA.md", "r", encoding="utf-8") as f:
             for line in f:
                 if line.startswith("- `") and "`:" in line:
                     parts = line.split("`:")
@@ -1978,7 +1978,7 @@ def template_builder():
     except Exception:
         pass
     try:
-        with open("SD_SCHEMA.md", "r") as f:
+        with open("SD_SCHEMA.md", "r", encoding="utf-8") as f:
             for line in f:
                 if line.startswith("- `") and "`:" in line:
                     parts = line.split("`:")
