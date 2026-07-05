@@ -200,6 +200,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             amount: activeCaseData.amount || activeCaseData.face_value
         });
     });
+
+    document.getElementById('btnPublicDlcLookup').addEventListener('click', () => {
+        if (!activeCaseData) return;
+        const prop = activeCaseData.properties?.[0] || {};
+        const propAddress = prop.address || {};
+        
+        showMsg('Starting public SRO & DLC lookup...', 'success');
+        
+        const caseDataPayload = {
+            case_id: activeCaseData.case_id,
+            sro: activeCaseData.sro || 'JAIPUR-VII',
+            properties: activeCaseData.properties || []
+        };
+        
+        chrome.storage.local.set({ 
+            publicLookupRunning: true, 
+            oneClickData: caseDataPayload 
+        }, () => {
+            sendTabMessage('public_dlc_lookup_start', {}, (response) => {
+                if (response && response.success) {
+                    showMsg('Public SRO & DLC lookup initiated...', 'success');
+                } else {
+                    showMsg('Verification initiated on page.', 'success');
+                }
+            });
+        });
+    });
 });
 
 function enableActionButtons() {
@@ -217,7 +244,7 @@ function showMsg(text, type) {
     msg.className = `msg msg-${type}`;
 }
 
-async function sendTabMessage(action, data) {
+async function sendTabMessage(action, data, callback) {
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab) {
@@ -238,10 +265,14 @@ async function sendTabMessage(action, data) {
                     showMsg('Autofill failed: Content script could not be loaded.', 'error');
                     return;
                 }
-                if (response && response.success) {
-                    showMsg(response.message || 'Action completed!', 'success');
+                if (callback) {
+                    callback(response);
                 } else {
-                    showMsg((response && response.error) || 'Action failed.', 'error');
+                    if (response && response.success) {
+                        showMsg(response.message || 'Action completed!', 'success');
+                    } else {
+                        showMsg((response && response.error) || 'Action failed.', 'error');
+                    }
                 }
             });
         }

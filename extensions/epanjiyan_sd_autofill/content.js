@@ -9,6 +9,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'ping':
                 sendResponse({ success: true, message: 'pong' });
                 break;
+            case 'public_dlc_lookup_start':
+                checkAutomatedStateOnLoad();
+                sendResponse({ success: true, message: 'Automation loop triggered!' });
+                break;
             case 'public_dlc_lookup':
                 runPublicDlcLookup(request.data, sendResponse);
                 break;
@@ -1039,13 +1043,60 @@ async function saveQuoteToBackend(caseId, quote) {
 }
 
 // 5. Automated state loading machine (on DOM load)
+// 5. Automated state loading machine (on DOM load)
 async function checkAutomatedStateOnLoad() {
     if (!chrome || !chrome.storage || !chrome.storage.local) return;
     
-    chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'stampDutyCalculated'], async (res) => {
-        if (!res.oneClickRunning || !res.oneClickData) return;
-        
+    chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'stampDutyCalculated', 'publicLookupRunning'], async (res) => {
         const url = window.location.href.toLowerCase();
+        
+        // A. Handle public SRO and DLC rate lookup workflow
+        if (res.publicLookupRunning && res.oneClickData) {
+            if (url.includes('/#/public/home')) {
+                showStatusToast("Clicking DLC Profile...");
+                const dlcProfileBtn = document.querySelector('div[name="dlcprofile"]') || 
+                                      document.querySelector('.service-sml-cards[name="dlcprofile"]') ||
+                                      Array.from(document.querySelectorAll('div, a, button')).find(el => el.textContent.trim().includes('DLC Profile'));
+                
+                if (dlcProfileBtn) {
+                    dlcProfileBtn.click();
+                } else {
+                    showStatusToast("Could not find DLC Profile button. Resetting...", false);
+                    chrome.storage.local.set({ publicLookupRunning: false });
+                }
+                return;
+            }
+            
+            if (url.includes('/#/public/dlcrate')) {
+                showStatusToast("Selecting Jaipur District (Urban)...");
+                const rows = Array.from(document.querySelectorAll('div.row'));
+                const jaipurRow = rows.find(r => r.textContent.toUpperCase().includes('JAIPUR') || r.textContent.includes('21.'));
+                
+                if (jaipurRow) {
+                    const urbanBtn = jaipurRow.querySelector('.urban-button');
+                    if (urbanBtn) {
+                        urbanBtn.click();
+                    } else {
+                        showStatusToast("Could not find Urban button for Jaipur.", false);
+                        chrome.storage.local.set({ publicLookupRunning: false });
+                    }
+                } else {
+                    showStatusToast("Could not find Jaipur row.", false);
+                    chrome.storage.local.set({ publicLookupRunning: false });
+                }
+                return;
+            }
+            
+            if (url.includes('/#/public/finddlcrate') || url.includes('/#/public/fincdlcrate')) {
+                setTimeout(async () => {
+                    await runPublicDlcLookupAutomated(res.oneClickData);
+                }, 1000);
+                return;
+            }
+        }
+
+        // B. Handle normal logged-in document feeding automation
+        if (!res.oneClickRunning || !res.oneClickData) return;
         
         // Scraping and pausing stage
         if (url.includes('/propertyvaluation/propertydetail') && res.stampDutyCalculated) {
@@ -1289,6 +1340,192 @@ async function runPublicDlcLookup(data, sendResponse) {
         sendResponse({ success: false, error: 'Please switch to the e-Panjiyan Public Home or DLC Rate page.' });
     } catch (e) {
         sendResponse({ success: false, error: e.message });
+    }
+}
+
+async function runPublicDlcLookupAutomated(caseData) {
+    try {
+        const sroVal = caseData.sro || 'JAIPUR-VII';
+        const prop = caseData.properties?.[0] || {};
+        const colonyName = prop.address?.colony || '';
+        
+        // 1. Select the SRO pill
+        showStatusToast(`Selecting SRO: ${sroVal}...`);
+        const sroBtn = Array.from(document.querySelectorAll('button, a.btn, span')).find(el => {
+            const text = el.textContent.trim().toUpperCase();
+            return text === sroVal.toUpperCase() || text === sroVal.replace('-', ' ').toUpperCase();
+        });
+        
+        if (sroBtn) {
+            sroBtn.click();
+            await new Promise(r => setTimeout(r, 800)); // wait for SRO selection to load colony list
+        }
+        
+        // 2. Select the colony dropdown
+        const ddlColony = document.getElementById('ddlColony');
+        if (!ddlColony) {
+            showStatusToast("Could not find colony dropdown.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            return;
+        }
+        
+        const cleanTarget = cleanStringForColony(colonyName);
+        let bestOption = null;
+        
+        // Step A: Search fuzzy similarity
+        let candidates = [];
+        for (let opt of ddlColony.options) {
+            if (!opt.value) continue;
+            const cleanOpt = cleanStringForColony(opt.text);
+            const score = stringSimilarity(cleanTarget, cleanOpt);
+            if (score >= 0.85) {
+                candidates.push({ option: opt, score: score });
+            }
+        }
+        
+        candidates.sort((a, b) => b.score - a.score);
+        if (candidates.length > 0) {
+            bestOption = candidates[0].option;
+        }
+        
+        // Step B: Fallback to partial substring match
+        if (!bestOption) {
+            const words = colonyName.split(/\s+/).filter(w => w.length > 2);
+            for (let word of words) {
+                const cleanWord = cleanStringForColony(word);
+                bestOption = Array.from(ddlColony.options).find(opt => cleanStringForColony(opt.text).includes(cleanWord));
+                if (bestOption) break;
+            }
+        }
+        
+        // Step C: Fallback to JDA
+        if (!bestOption) {
+            bestOption = Array.from(ddlColony.options).find(opt => {
+                const txt = opt.text.toLowerCase();
+                return txt.includes("jda") || txt.includes("जे.डी.ए");
+            });
+        }
+        
+        if (!bestOption && ddlColony.options.length > 1) {
+            bestOption = ddlColony.options[1];
+        }
+        
+        if (!bestOption) {
+            showStatusToast("No matching colony found.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            return;
+        }
+        
+        showStatusToast(`Selecting Colony: ${bestOption.text}...`);
+        ddlColony.value = bestOption.value;
+        ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // Update Select2 UI
+        const select2Container = ddlColony.nextElementSibling;
+        if (select2Container && select2Container.classList.contains('select2-container')) {
+            const renderSpan = select2Container.querySelector('.select2-selection__rendered');
+            if (renderSpan) {
+                renderSpan.textContent = bestOption.text;
+                renderSpan.title = bestOption.text;
+            }
+        }
+        
+        // Wait for table to load
+        await new Promise(r => setTimeout(r, 1500));
+        
+        // 3. Parse the SRO rate table
+        const table = document.querySelector('table');
+        if (!table) {
+            showStatusToast("Could not find rates table.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            return;
+        }
+        
+        const rows = Array.from(table.querySelectorAll('tr'));
+        const matchingRow = rows.find(row => {
+            const text = row.textContent.toUpperCase();
+            return text.includes(bestOption.text.toUpperCase());
+        }) || rows[1];
+        
+        if (!matchingRow) {
+            showStatusToast("No matching row in table.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            return;
+        }
+        
+        const cells = Array.from(matchingRow.querySelectorAll('td'));
+        if (cells.length < 8) {
+            showStatusToast("Rates table format incomplete.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            return;
+        }
+        
+        const trueSro = cells[1]?.textContent?.trim() || sroVal;
+        const zoneName = cells[2]?.textContent?.trim() || '';
+        const matchedColName = cells[3]?.textContent?.trim() || bestOption.text;
+        
+        function parseExteriorRates(text) {
+            if (!text || text.trim() === '-') return [];
+            const rates = [];
+            const lines = text.split('\n');
+            for (const line of lines) {
+                const match = line.match(/([0-9]+)\s*\(([^)]+)\)/);
+                if (match) {
+                    const rate = parseFloat(match[1]) || 0;
+                    const desc = match[2];
+                    let limit = 99;
+                    const limitMatch = desc.match(/([0-9]+)\s*ft/);
+                    if (limitMatch) {
+                        limit = parseInt(limitMatch[1]) || 99;
+                    }
+                    rates.push({ rate, limit, description: desc });
+                } else {
+                    const num = parseFloat(line.replace(/[^0-9]/g, ''));
+                    if (num) rates.push({ rate: num, limit: 99, description: 'Default' });
+                }
+            }
+            return rates;
+        }
+        
+        const commercialExtText = cells[4]?.innerText || cells[4]?.textContent || '';
+        const commercialIntText = cells[5]?.textContent || '0';
+        const residentialExtText = cells[6]?.innerText || cells[6]?.textContent || '';
+        const residentialIntText = cells[7]?.textContent || '0';
+        
+        const publicDlcProfile = {
+            sro: trueSro,
+            zone: zoneName,
+            colony: matchedColName,
+            residential: {
+                interior: parseFloat(residentialIntText.replace(/[^0-9.]/g, '')) || 0,
+                exterior: parseExteriorRates(residentialExtText)
+            },
+            commercial: {
+                interior: parseFloat(commercialIntText.replace(/[^0-9.]/g, '')) || 0,
+                exterior: parseExteriorRates(commercialExtText)
+            }
+        };
+        
+        showStatusToast("DLC Rate found! Saving to backend...");
+        
+        const resp = await fetch(`http://localhost:5000/api/case/${caseData.case_id}/public_dlc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_dlc_profile: publicDlcProfile })
+        });
+        const respJson = await resp.json();
+        
+        if (respJson.success) {
+            showStatusToast("⚡ True SRO & DLC rate lookup complete!", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            alert(`SRO & DLC rate lookup complete!\n\nTrue SRO: ${trueSro}\nZone: ${zoneName}\nColony: ${matchedColName}\nResidential Interior Rate: Rs ${publicDlcProfile.residential.interior}`);
+        } else {
+            showStatusToast("Failed to save DLC details to server.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+        }
+    } catch (e) {
+        showStatusToast("Error: " + e.message, false);
+        chrome.storage.local.set({ publicLookupRunning: false });
     }
 }
 
