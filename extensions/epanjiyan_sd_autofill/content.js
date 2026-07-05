@@ -9,6 +9,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'ping':
                 sendResponse({ success: true, message: 'pong' });
                 break;
+            case 'public_dlc_lookup':
+                runPublicDlcLookup(request.data, sendResponse);
+                break;
             case 'one_click_autofill':
                 oneClickAutofill(request.data, sendResponse);
                 break;
@@ -1069,6 +1072,224 @@ async function checkAutomatedStateOnLoad() {
             }, 800);
         }
     });
+}
+
+// 6. Public un-logged-in DLC Lookup workflow
+async function runPublicDlcLookup(data, sendResponse) {
+    try {
+        const url = window.location.href.toLowerCase();
+        
+        // Phase 1: Home page
+        if (url.includes('/#/public/home')) {
+            showStatusToast("Clicking DLC Profile...");
+            const dlcProfileBtn = document.querySelector('div[name="dlcprofile"]') || 
+                                  document.querySelector('.service-sml-cards[name="dlcprofile"]') ||
+                                  Array.from(document.querySelectorAll('div, a, button')).find(el => el.textContent.trim().includes('DLC Profile'));
+            
+            if (dlcProfileBtn) {
+                dlcProfileBtn.click();
+                sendResponse({ success: true, message: 'Navigated to public DLC rate page!' });
+            } else {
+                sendResponse({ success: false, error: 'Could not find DLC Profile button.' });
+            }
+            return;
+        }
+        
+        // Phase 2: District select page
+        if (url.includes('/#/public/dlcrate')) {
+            showStatusToast("Selecting Jaipur District (Urban)...");
+            const rows = Array.from(document.querySelectorAll('div.row'));
+            const jaipurRow = rows.find(r => r.textContent.toUpperCase().includes('JAIPUR') || r.textContent.includes('21.'));
+            
+            if (jaipurRow) {
+                const urbanBtn = jaipurRow.querySelector('.urban-button');
+                if (urbanBtn) {
+                    urbanBtn.click();
+                    sendResponse({ success: true, message: 'Selected Jaipur (Urban)!' });
+                } else {
+                    sendResponse({ success: false, error: 'Could not find Urban button for Jaipur.' });
+                }
+            } else {
+                sendResponse({ success: false, error: 'Could not find Jaipur row.' });
+            }
+            return;
+        }
+        
+        // Phase 3: Colony rate page
+        if (url.includes('/#/public/finddlcrate') || url.includes('/#/public/fincdlcrate')) {
+            const sroVal = data.sro || 'JAIPUR-VII';
+            const prop = data.property || {};
+            const colonyName = prop.colony || '';
+            
+            // 1. Select the SRO pill
+            showStatusToast(`Selecting SRO: ${sroVal}...`);
+            const sroBtn = Array.from(document.querySelectorAll('button, a.btn, span')).find(el => {
+                const text = el.textContent.trim().toUpperCase();
+                return text === sroVal.toUpperCase() || text === sroVal.replace('-', ' ').toUpperCase();
+            });
+            
+            if (sroBtn) {
+                sroBtn.click();
+                await new Promise(r => setTimeout(r, 600)); // wait for SRO selection to load colony list
+            } else {
+                console.warn(`[SD Autofill] Could not find SRO pill button for "${sroVal}". Attempting default options lookup...`);
+            }
+            
+            // 2. Select the colony dropdown
+            const ddlColony = document.getElementById('ddlColony');
+            if (!ddlColony) {
+                sendResponse({ success: false, error: 'Could not find ddlColony select box on page.' });
+                return;
+            }
+            
+            // We search using the hierarchical strategy (specific to general)
+            const cleanTarget = cleanStringForColony(colonyName);
+            let bestOption = null;
+            
+            // Step A: Search fuzzy similarity
+            let candidates = [];
+            for (let opt of ddlColony.options) {
+                if (!opt.value) continue;
+                const cleanOpt = cleanStringForColony(opt.text);
+                const score = stringSimilarity(cleanTarget, cleanOpt);
+                if (score >= 0.85) {
+                    candidates.push({ option: opt, score: score });
+                }
+            }
+            
+            // Sort by score
+            candidates.sort((a, b) => b.score - a.score);
+            if (candidates.length > 0) {
+                bestOption = candidates[0].option;
+            }
+            
+            // Step B: Fallback to partial substring match
+            if (!bestOption) {
+                const words = colonyName.split(/\s+/).filter(w => w.length > 2);
+                for (let word of words) {
+                    const cleanWord = cleanStringForColony(word);
+                    bestOption = Array.from(ddlColony.options).find(opt => cleanStringForColony(opt.text).includes(cleanWord));
+                    if (bestOption) break;
+                }
+            }
+            
+            // Step C: Fallback to JDA
+            if (!bestOption) {
+                bestOption = Array.from(ddlColony.options).find(opt => {
+                    const txt = opt.text.toLowerCase();
+                    return txt.includes("jda") || txt.includes("जे.डी.ए");
+                });
+            }
+            
+            if (!bestOption && ddlColony.options.length > 1) {
+                bestOption = ddlColony.options[1]; // Fallback to first real colony
+            }
+            
+            if (!bestOption) {
+                sendResponse({ success: false, error: 'No colonies found or matching your address.' });
+                return;
+            }
+            
+            showStatusToast(`Selecting Colony: ${bestOption.text}...`);
+            ddlColony.value = bestOption.value;
+            ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Update Select2 UI
+            const select2Container = ddlColony.nextElementSibling;
+            if (select2Container && select2Container.classList.contains('select2-container')) {
+                const renderSpan = select2Container.querySelector('.select2-selection__rendered');
+                if (renderSpan) {
+                    renderSpan.textContent = bestOption.text;
+                    renderSpan.title = bestOption.text;
+                }
+            }
+            
+            // Wait for table to load
+            await new Promise(r => setTimeout(r, 1200));
+            
+            // 3. Parse the SRO rate table
+            const table = document.querySelector('table');
+            if (!table) {
+                sendResponse({ success: false, error: 'Could not find the SRO/Colony rate table after selection.' });
+                return;
+            }
+            
+            // Search rows
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const matchingRow = rows.find(row => {
+                const text = row.textContent.toUpperCase();
+                return text.includes(bestOption.text.toUpperCase());
+            }) || rows[1]; // Fallback to first data row
+            
+            if (!matchingRow) {
+                sendResponse({ success: false, error: 'Could not find the matching colony row in table.' });
+                return;
+            }
+            
+            const cells = Array.from(matchingRow.querySelectorAll('td'));
+            if (cells.length < 8) {
+                sendResponse({ success: false, error: 'Rates table format has changed or is incomplete.' });
+                return;
+            }
+            
+            // Extracted values
+            const trueSro = cells[1]?.textContent?.trim() || sroVal;
+            const zoneName = cells[2]?.textContent?.trim() || '';
+            const matchedColName = cells[3]?.textContent?.trim() || bestOption.text;
+            
+            // Helper to parse exterior limits array
+            function parseExteriorRates(text) {
+                if (!text || text.trim() === '-') return [];
+                const rates = [];
+                // Format: "13750 (40 ft)\n15130 (41-60 ft)"
+                const lines = text.split('\n');
+                for (const line of lines) {
+                    const match = line.match(/([0-9]+)\s*\(([^)]+)\)/);
+                    if (match) {
+                        const rate = parseFloat(match[1]) || 0;
+                        const desc = match[2];
+                        let limit = 99;
+                        const limitMatch = desc.match(/([0-9]+)\s*ft/);
+                        if (limitMatch) {
+                            limit = parseInt(limitMatch[1]) || 99;
+                        }
+                        rates.push({ rate, limit, description: desc });
+                    } else {
+                        const num = parseFloat(line.replace(/[^0-9]/g, ''));
+                        if (num) rates.push({ rate: num, limit: 99, description: 'Default' });
+                    }
+                }
+                return rates;
+            }
+            
+            const commercialExtText = cells[4]?.innerText || cells[4]?.textContent || '';
+            const commercialIntText = cells[5]?.textContent || '0';
+            const residentialExtText = cells[6]?.innerText || cells[6]?.textContent || '';
+            const residentialIntText = cells[7]?.textContent || '0';
+            
+            const publicDlcProfile = {
+                sro: trueSro,
+                zone: zoneName,
+                colony: matchedColName,
+                residential: {
+                    interior: parseFloat(residentialIntText.replace(/[^0-9.]/g, '')) || 0,
+                    exterior: parseExteriorRates(residentialExtText)
+                },
+                commercial: {
+                    interior: parseFloat(commercialIntText.replace(/[^0-9.]/g, '')) || 0,
+                    exterior: parseExteriorRates(commercialExtText)
+                }
+            };
+            
+            showStatusToast("Public SRO & DLC lookup completed!", false);
+            sendResponse({ success: true, message: `Successfully matched SRO: ${trueSro}`, data: publicDlcProfile });
+            return;
+        }
+        
+        sendResponse({ success: false, error: 'Please switch to the e-Panjiyan Public Home or DLC Rate page.' });
+    } catch (e) {
+        sendResponse({ success: false, error: e.message });
+    }
 }
 
 // Start page load listener
