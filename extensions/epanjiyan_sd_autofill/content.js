@@ -562,22 +562,25 @@ async function autofillAddress(data, sendResponse) {
         
         await new Promise(r => setTimeout(r, 400));
 
-        // Pre-select Category Type and Location (Interior/Exterior) so DLC rate populates during comparison loop
-        showStatusToast("Pre-selecting Category Type (Residential)...");
+        // Pre-select Category Type and Location (Interior/Exterior) if they are populated (optional helper)
         const ddlCatType = document.getElementById('ddlCategoryType');
-        await setSelectValueByText(ddlCatType, "Residential");
-        await new Promise(r => setTimeout(r, 350));
+        if (ddlCatType && ddlCatType.options.length > 1) {
+            showStatusToast("Pre-selecting Category Type (Residential)...");
+            await setSelectValueByText(ddlCatType, "Residential");
+            await new Promise(r => setTimeout(r, 200));
+        }
         
         const roadWidth = parseFloat(prop.road_width || 30);
-        showStatusToast(`Pre-setting Location (Road Width: ${roadWidth} ft)...`);
         const locValue = roadWidth <= 30 ? "0" : "1"; // 0 is Interior, 1 is Exterior
         const locRadio = document.querySelector(`input[name="Location"][value="${locValue}"]`);
         if (locRadio) {
+            showStatusToast(`Pre-setting Location (Road Width: ${roadWidth} ft)...`);
             locRadio.checked = true;
             locRadio.click();
             locRadio.dispatchEvent(new Event('change', { bubbles: true }));
+            await new Promise(r => setTimeout(r, 200));
         }
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 200));
         
         // 2.2 Select Colony (Fuzzy Match & Highest DLC comparison)
         showStatusToast("Analyzing Colony DLC rates...");
@@ -615,7 +618,9 @@ async function autofillAddress(data, sendResponse) {
             
             console.log("[SD Autofill] Starting Colony DLC rate verification checks...");
             for (let cand of candidates) {
-                showStatusToast(`Checking DLC rate for: ${cand.option.text}...`);
+                showStatusToast(`Checking: Selecting Colony ${cand.option.text}...`);
+                
+                // 1. Select the colony
                 ddlColony.value = cand.option.value;
                 ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
                 
@@ -626,7 +631,27 @@ async function autofillAddress(data, sendResponse) {
                     if (renderSpan) renderSpan.textContent = cand.option.text;
                 }
                 
-                await new Promise(r => setTimeout(r, 800)); // wait for ajax load
+                // Wait for the colony AJAX to finish loading category type options
+                await new Promise(r => setTimeout(r, 450));
+                
+                // 2. Select Category Type (Residential) now that options are populated for this colony
+                if (ddlCatType) {
+                    showStatusToast(`Checking: Selecting Category Residential for ${cand.option.text}...`);
+                    await setSelectValueByText(ddlCatType, "Residential");
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                // 3. Select Location (Interior / Exterior)
+                if (locRadio) {
+                    showStatusToast(`Checking: Setting Location for ${cand.option.text}...`);
+                    locRadio.checked = true;
+                    locRadio.click();
+                    locRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                // Wait for the DLC rate AJAX to populate
+                await new Promise(r => setTimeout(r, 550));
                 
                 let cleanDlc = 0;
                 if (dlcInput) {
@@ -659,26 +684,29 @@ async function autofillAddress(data, sendResponse) {
                     const renderSpan = select2Container.querySelector('.select2-selection__rendered');
                     if (renderSpan) renderSpan.textContent = bestOption.text;
                 }
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 450));
             } else if (ddlColony.options.length > 1) {
                 ddlColony.value = ddlColony.options[1].value;
                 ddlColony.dispatchEvent(new Event('change', { bubbles: true }));
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 450));
             }
         }
         
-        // Confirm Category Type is selected
+        // Confirm Category Type is selected on the final choice
         showStatusToast("Confirming Category Type: Residential...");
-        await setSelectValueByText(ddlCatType, "Residential");
+        if (ddlCatType) {
+            await setSelectValueByText(ddlCatType, "Residential");
+        }
         await new Promise(r => setTimeout(r, 300));
         
-        // Confirm Location (Interior / Exterior) is selected
+        // Confirm Location (Interior / Exterior) is selected on the final choice
         showStatusToast(`Confirming Location...`);
         if (locRadio) {
             locRadio.checked = true;
             locRadio.click();
             locRadio.dispatchEvent(new Event('change', { bubbles: true }));
         }
+        await new Promise(r => setTimeout(r, 450));
         await new Promise(r => setTimeout(r, 450));
         
         // 2.5 Plot Number
