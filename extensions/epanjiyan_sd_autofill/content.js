@@ -2352,10 +2352,16 @@ async function runPartyFeedingLoop(data) {
             if (fillPromise) {
                 await fillPromise;
                 chrome.storage.local.set({ partyStage: nextStage });
-                showStatusToast(`Filled ${stage}! Review and click Save.`, false);
+                showStatusToast(`Filled ${stage}! Saving...`, false);
+                setTimeout(() => {
+                    const saved = triggerButtonByText("Save");
+                    if (!saved) {
+                        showStatusToast(`Could not auto-click Save. Please click Save manually.`, false);
+                    }
+                }, 400);
             } else {
                 chrome.storage.local.set({ partyStage: nextStage });
-                showStatusToast(`Skipped ${stage} (no data). Click Save manually.`, false);
+                showStatusToast(`Skipped ${stage} (no data).`, false);
             }
         }
     } catch (e) {

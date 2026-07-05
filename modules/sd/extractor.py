@@ -694,6 +694,7 @@ class SDDataExtractor:
                     if self._is_meaningful(k_item.get("pan")): c_item["pan"] = k_item["pan"]
                     if self._is_meaningful(k_item.get("relation_text")): c_item["relation_text"] = k_item["relation_text"]
                     if self._is_meaningful(k_item.get("rn_en")): c_item["rn_en"] = k_item["rn_en"]
+                    if self._is_meaningful(k_item.get("dob")): c_item["dob"] = k_item["dob"]
             current[key] = current_list
 
         # Preserve unassigned Aadhaar cards for Role Assignment UI in SD mode
@@ -982,10 +983,10 @@ class SDDataExtractor:
 
     def _normalize_final_data(self, data, expected_sellers, expected_buyers, expected_witnesses):
         # Apply the same normalization as the legacy method
-        self._normalize_list(data, "ss", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
-        self._normalize_list(data, "bs", ["n", "n_en", "a", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
+        self._normalize_list(data, "ss", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
+        self._normalize_list(data, "bs", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
         self._normalize_list(data, "ps", ["adr", "adr_en", "flat_no", "plot_no", "floor", "building_name", "project_name", "lease_deed_no", "document_number", "scheme", "village", "tehsil", "dist", "state", "land_area", "const_area", "unit", "const_unit", "n", "s", "e", "w", "ward", "khasra", "length_ew", "length_ns", "east_west_dim", "north_south_dim", "parking_type", "parking_number", "area_type", "covered_area", "property_portion"])
-        self._normalize_list(data, "ws", ["n", "n_en", "relation_text", "rn_en", "adr", "adr_en"])
+        self._normalize_list(data, "ws", ["n", "n_en", "dob", "relation_text", "rn_en", "adr", "adr_en"])
 
         import re
         for key in ["ss", "bs", "ws", "unassigned_aadhars"]:
@@ -998,12 +999,14 @@ class SDDataExtractor:
                     person["rn_en"] = person["rn_en"].strip().upper()
                 if person.get("adr_en"):
                     person["adr_en"] = person["adr_en"].strip().upper()
+                if person.get("dob"):
+                    person["dob"] = person["dob"].strip()
                 if person.get("relation_text"):
                     from utils.helpers import normalize_relation_prefix, parse_relation_text
                     person["relation_text"] = normalize_relation_prefix(person["relation_text"], "SD")
                     person["r"], person["rn"] = parse_relation_text(person["relation_text"])
 
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "n_en", "a", "dob", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id"])
 
         self._normalize_list(data, "title_chain", [
             "template_key", "event_type", "document_name", "document_number", "date", "consideration_amount", 
@@ -1125,8 +1128,8 @@ class SDDataExtractor:
           "consideration": "Consideration details/value (Unicode Hindi)",
           "tds": "TDS details (Unicode Hindi, e.g., if consideration is >= 50 Lakhs)",
           "hypothecation": "Existing Mortgage Bank Name (Unicode Hindi)",
-          "ss": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री भीवा राम')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'BHEEVA RAM')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
-          "bs": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्री श्री रामअवतार मीणा')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'RAMAVTAR MEENA')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
+          "ss": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री भीवा राम')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'BHEEVA RAM')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
+          "bs": [{"n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)", "c":"Caste", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्री श्री रामअवतार मीणा')", "rn_en":"Relative Father/Husband Name in English script (e.g. 'RAMAVTAR MEENA')", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "pan":"PAN", "is_bpl":"true/false (if buyer belongs to BPL)"}],
           "ps": [{
             "adr": "Full address in Hindi (Unicode Hindi)",
             "adr_en": "Full address in English script (e.g. 'PLOT NO. 12, PATRAKAR COLONY, MANSAROVAR, JAIPUR')",
@@ -1161,10 +1164,10 @@ class SDDataExtractor:
             "lng": "Longitude coordinate from maps or documents (e.g. '75.678939')",
             "road_width": "Width of boundary road in feet next to property (e.g. '30')"
           }],
-          "ws": [{"n":"Name in Hindi", "n_en":"Name in English script", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "rn_en":"Relative Father Name in English script (e.g. 'RAMESHWAR PRASAD')", "adr":"Address in Hindi", "adr_en":"Address in English script"}],
+          "ws": [{"n":"Name in Hindi", "n_en":"Name in English script", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "rn_en":"Relative Father Name in English script (e.g. 'RAMESHWAR PRASAD')", "adr":"Address in Hindi", "adr_en":"Address in English script", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)"}],
           "title_chain": [{"template_key":"Specific template key (e.g. 'SALE_DEED_PLOT', 'ALLOTMENT_SOCIETY')", "event_type":"SALE_DEED|ALLOTMENT|CONSTRUCTION|POA|RELINQUISHMENT|CORRECTION_DEED|TRANSFER", "document_name":"हिंदी Doc Name (e.g. 'विक्रय पत्र')", "date":"DD.MM.YYYY", "consideration_amount":"digits", "executant_name":"Seller/Authority (Unicode Hindi)", "claimant_name":"Buyer/Allottee (Unicode Hindi)", "is_registered":"true/false", "reg_office":"Office (Hindi)", "reg_date":"DD.MM.YYYY", "reg_book":"#", "reg_vol":"#", "reg_page":"#", "reg_no":"#", "reg_add_book":"#", "reg_add_vol":"#", "reg_add_page":"1026-1039 (number or range)", "project_name":"Name if CONSTRUCTION (Unicode Hindi, e.g. 'रॉयल एन्क्लेव')", "unit_number":"Unit/Flat No if CONSTRUCTION (Unicode Hindi, e.g. 'एस-1')", "confidence":"High/Medium/Low", "source_text":"exact source text", "share_fraction":"e.g. '1/2', 'undivided'", "wife_name":"where applicable", "wife_death_date":"DD.MM.YYYY", "husband_name":"where applicable", "husband_death_date":"DD.MM.YYYY", "east_owner":"where applicable", "west_owner":"where applicable", "khata_no":"where applicable", "khasra_no":"where applicable", "rakba":"where applicable", "co_owner":"where applicable", "owner_name":"where applicable", "parent_property_info":"where applicable", "will_type":"'Registered' or 'Unregistered'", "death_date":"DD.MM.YYYY", "receipt_no":"where applicable", "receipt_date":"DD.MM.YYYY"}],
           "reg": {"office":"Name", "book":"#", "vol":"#", "page":"#", "reg_no":"#", "reg_date":"Date"},
-          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "relation_text":"Complete Relation Phrase in Hindi", "rn_en":"Relative Father/Husband Name in English script", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar"}]
+          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)", "relation_text":"Complete Relation Phrase in Hindi", "rn_en":"Relative Father/Husband Name in English script", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar"}]
         }
 
         RULES:
