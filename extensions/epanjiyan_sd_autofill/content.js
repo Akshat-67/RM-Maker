@@ -1357,6 +1357,21 @@ async function runPublicDlcLookupAutomated(caseData) {
         const prop = caseData.properties?.[0] || {};
         const colonyName = prop.address?.colony || '';
         
+        // Self-correct district if it landed on the wrong page
+        const ddlDistrict = document.getElementById('district');
+        if (ddlDistrict) {
+            const currentDistText = ddlDistrict.options[ddlDistrict.selectedIndex]?.text || '';
+            if (!currentDistText.toUpperCase().includes('JAIPUR')) {
+                showStatusToast("Self-correcting district to JAIPUR...");
+                const jaipurOpt = Array.from(ddlDistrict.options).find(opt => opt.text.toUpperCase().includes('JAIPUR'));
+                if (jaipurOpt) {
+                    ddlDistrict.value = jaipurOpt.value;
+                    ddlDistrict.dispatchEvent(new Event('change', { bubbles: true }));
+                    await new Promise(r => setTimeout(r, 1500)); // wait for SRO list to reload
+                }
+            }
+        }
+        
         showStatusToast("Waiting for SRO options to load...");
         
         let attempts = 0;
