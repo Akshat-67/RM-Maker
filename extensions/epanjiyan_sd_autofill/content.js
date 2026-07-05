@@ -1405,22 +1405,23 @@ async function runPublicDlcLookupAutomated(caseData) {
                 
                 // 1. Select SRO
                 showStatusToast(`Selecting SRO: ${sroVal}...`);
+                const initialOptionsText = Array.from(ddlColony.options).map(opt => opt.text).join(',');
                 sroBtn.click();
                 
                 // Poll for colony options list to populate after SRO click
                 showStatusToast("Loading colony options list...");
                 let colAttempts = 0;
                 const checkColOptions = setInterval(async () => {
-                    if (ddlColony.options && ddlColony.options.length > 2) {
+                    const currentOptionsText = Array.from(ddlColony.options).map(opt => opt.text).join(',');
+                    if (currentOptionsText !== initialOptionsText && ddlColony.options && ddlColony.options.length > 2) {
                         clearInterval(checkColOptions);
                         await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
                     } else {
                         colAttempts++;
                         if (colAttempts >= 20) {
                             clearInterval(checkColOptions);
-                            showStatusToast("Colony options list failed to load.", false);
-                            chrome.storage.local.set({ publicLookupRunning: false });
-                            dlcLookupInProgress = false;
+                            // If it timeout but we have options, proceed anyway
+                            await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
                         }
                     }
                 }, 300);
