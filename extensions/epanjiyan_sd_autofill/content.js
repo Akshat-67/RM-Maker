@@ -116,6 +116,36 @@ function hideStatusToast() {
     }
 }
 
+async function waitForPageBlockToDisappear(maxWaitMs = 10000) {
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+        const blocks = document.querySelectorAll('.blockUI, .blockOverlay, .blockPage, .loading, .ajax-loader, .spinner');
+        let isBlocked = false;
+        for (const block of blocks) {
+            if (block.offsetWidth > 0 || block.offsetHeight > 0) {
+                isBlocked = true;
+                break;
+            }
+        }
+        const overlays = Array.from(document.querySelectorAll('div'));
+        for (const div of overlays) {
+            const txt = div.textContent.trim();
+            if ((txt.includes("Saving document details") || txt.includes("Please Wait") || txt.includes("loading")) && (div.offsetWidth > 0 || div.offsetHeight > 0)) {
+                const style = window.getComputedStyle(div);
+                if (style.position === 'fixed' || style.position === 'absolute' || style.zIndex > 100) {
+                    isBlocked = true;
+                    break;
+                }
+            }
+        }
+        if (!isBlocked) {
+            await new Promise(r => setTimeout(r, 200));
+            return;
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+}
+
 // Select2 element filling helper
 async function setSelectValueByText(selectEl, text, cleanString = true) {
     if (!selectEl) return false;
@@ -389,15 +419,13 @@ async function autofillDetails(data, sendResponse) {
         showStatusToast("Selecting Document Type: Sale Deed...");
         const docTypeSelect = document.getElementById('parentarticle_id');
         await setSelectValueByText(docTypeSelect, "Sale Deed (Conveyance)");
-        
-        await new Promise(r => setTimeout(r, 400));
+        await waitForPageBlockToDisappear(6000);
         
         // SubType: Sale Deed
         showStatusToast("Selecting SubType: Sale Deed...");
         const subTypeSelect = document.getElementById('ddlDocSubType');
         await setSelectValueByText(subTypeSelect, "Sale Deed");
-        
-        await new Promise(r => setTimeout(r, 400));
+        await waitForPageBlockToDisappear(6000);
         
         // Category dropdown
         showStatusToast("Selecting Category Dropdown...");
@@ -409,6 +437,7 @@ async function autofillDetails(data, sendResponse) {
             categoryVal = "Female other than SC/ST/BPL";
         }
         await setSelectValueByText(catSelect, categoryVal);
+        await waitForPageBlockToDisappear(6000);
         
         // SRO & Tehsil
         showStatusToast("Selecting SRO & Tehsil...");
@@ -416,6 +445,7 @@ async function autofillDetails(data, sendResponse) {
         const tehsilSelect = document.getElementById('ddlTehsil');
         if (data.sro) await setSelectValueByText(sroSelect, data.sro);
         if (data.tehsil) await setSelectValueByText(tehsilSelect, data.tehsil);
+        await waitForPageBlockToDisappear(8000);
         
         // Seva Pradata Name & Mobile
         showStatusToast("Filling Service Provider info...");
@@ -424,13 +454,15 @@ async function autofillDetails(data, sendResponse) {
         if (providerName) {
             providerName.value = "SANKALP LAW ASSOCIATES";
             providerName.dispatchEvent(new Event('input', { bubbles: true }));
+            providerName.dispatchEvent(new Event('change', { bubbles: true }));
         }
         if (providerMobile) {
             providerMobile.value = "9799967384";
             providerMobile.dispatchEvent(new Event('input', { bubbles: true }));
+            providerMobile.dispatchEvent(new Event('change', { bubbles: true }));
         }
         
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 600));
         
         // Click Save
         showStatusToast("Saving document details...");
