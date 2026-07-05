@@ -230,17 +230,42 @@ async function sendTabMessage(action, data) {
             return;
         }
         
-        chrome.tabs.sendMessage(tab.id, { action, data }, (response) => {
+        function deliverMessage() {
+            chrome.tabs.sendMessage(tab.id, { action, data }, (response) => {
+                const err = chrome.runtime.lastError;
+                if (err) {
+                    console.error('[popup.js] sendMessage error:', err.message);
+                    showMsg('Autofill failed: Content script could not be loaded.', 'error');
+                    return;
+                }
+                if (response && response.success) {
+                    showMsg(response.message || 'Action completed!', 'success');
+                } else {
+                    showMsg((response && response.error) || 'Action failed.', 'error');
+                }
+            });
+        }
+        
+        // Ping the content script first to verify if it is loaded
+        chrome.tabs.sendMessage(tab.id, { action: 'ping' }, (response) => {
             const err = chrome.runtime.lastError;
             if (err) {
-                console.error('[popup.js] sendMessage error:', err.message);
-                showMsg('Autofill failed: Content script not loaded. Reload e-Panjiyan page.', 'error');
-                return;
-            }
-            if (response && response.success) {
-                showMsg(response.message || 'Action completed!', 'success');
+                console.log('[popup.js] Content script not responding. Programmatically injecting content.js...');
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['content.js']
+                }, () => {
+                    const injectErr = chrome.runtime.lastError;
+                    if (injectErr) {
+                        console.error('[popup.js] Script injection failed:', injectErr.message);
+                        showMsg('Autofill failed: Content script not loaded. Reload e-Panjiyan page.', 'error');
+                    } else {
+                        console.log('[popup.js] content.js successfully injected! Retrying message...');
+                        setTimeout(deliverMessage, 250);
+                    }
+                });
             } else {
-                showMsg((response && response.error) || 'Action failed.', 'error');
+                deliverMessage();
             }
         });
     } catch (e) {

@@ -6,6 +6,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     try {
         switch (request.action) {
+            case 'ping':
+                sendResponse({ success: true, message: 'pong' });
+                break;
             case 'one_click_autofill':
                 oneClickAutofill(request.data, sendResponse);
                 break;
