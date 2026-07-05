@@ -1068,22 +1068,30 @@ async function checkAutomatedStateOnLoad() {
             }
             
             if (url.includes('/#/public/dlcrate')) {
-                showStatusToast("Selecting Jaipur District (Urban)...");
-                const rows = Array.from(document.querySelectorAll('div.row'));
-                const jaipurRow = rows.find(r => r.textContent.toUpperCase().includes('JAIPUR') || r.textContent.includes('21.'));
-                
-                if (jaipurRow) {
-                    const urbanBtn = jaipurRow.querySelector('.urban-button');
-                    if (urbanBtn) {
-                        urbanBtn.click();
+                showStatusToast("Waiting for district list to load...");
+                let attempts = 0;
+                const checkInterval = setInterval(() => {
+                    const rows = Array.from(document.querySelectorAll('div.row'));
+                    const jaipurRow = rows.find(r => r.textContent.toUpperCase().includes('JAIPUR') || r.textContent.includes('21.'));
+                    if (jaipurRow) {
+                        clearInterval(checkInterval);
+                        showStatusToast("Selecting Jaipur District (Urban)...");
+                        const urbanBtn = jaipurRow.querySelector('.urban-button');
+                        if (urbanBtn) {
+                            urbanBtn.click();
+                        } else {
+                            showStatusToast("Could not find Urban button for Jaipur.", false);
+                            chrome.storage.local.set({ publicLookupRunning: false });
+                        }
                     } else {
-                        showStatusToast("Could not find Urban button for Jaipur.", false);
-                        chrome.storage.local.set({ publicLookupRunning: false });
+                        attempts++;
+                        if (attempts >= 15) {
+                            clearInterval(checkInterval);
+                            showStatusToast("Could not find Jaipur district row.", false);
+                            chrome.storage.local.set({ publicLookupRunning: false });
+                        }
                     }
-                } else {
-                    showStatusToast("Could not find Jaipur row.", false);
-                    chrome.storage.local.set({ publicLookupRunning: false });
-                }
+                }, 300);
                 return;
             }
             
@@ -1349,26 +1357,44 @@ async function runPublicDlcLookupAutomated(caseData) {
         const prop = caseData.properties?.[0] || {};
         const colonyName = prop.address?.colony || '';
         
-        // 1. Select the SRO pill
-        showStatusToast(`Selecting SRO: ${sroVal}...`);
-        const sroBtn = Array.from(document.querySelectorAll('button, a.btn, span')).find(el => {
-            const text = el.textContent.trim().toUpperCase();
-            return text === sroVal.toUpperCase() || text === sroVal.replace('-', ' ').toUpperCase();
-        });
+        showStatusToast("Waiting for SRO options to load...");
         
-        if (sroBtn) {
-            sroBtn.click();
-            await new Promise(r => setTimeout(r, 800)); // wait for SRO selection to load colony list
-        }
-        
-        // 2. Select the colony dropdown
-        const ddlColony = document.getElementById('ddlColony');
-        if (!ddlColony) {
-            showStatusToast("Could not find colony dropdown.", false);
-            chrome.storage.local.set({ publicLookupRunning: false });
-            return;
-        }
-        
+        let attempts = 0;
+        const checkSRO = setInterval(async () => {
+            const sroBtn = Array.from(document.querySelectorAll('button, a.btn, span')).find(el => {
+                const text = el.textContent.trim().toUpperCase();
+                return text === sroVal.toUpperCase() || text === sroVal.replace('-', ' ').toUpperCase();
+            });
+            
+            const ddlColony = document.getElementById('ddlColony');
+            
+            if (sroBtn && ddlColony) {
+                clearInterval(checkSRO);
+                
+                // 1. Select the SRO pill
+                showStatusToast(`Selecting SRO: ${sroVal}...`);
+                sroBtn.click();
+                await new Promise(r => setTimeout(r, 1000)); // wait for SRO selection to load colony list
+                
+                // Continue with colony selection and table parsing
+                await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
+            } else {
+                attempts++;
+                if (attempts >= 15) {
+                    clearInterval(checkSRO);
+                    showStatusToast("SRO search elements failed to load.", false);
+                    chrome.storage.local.set({ publicLookupRunning: false });
+                }
+            }
+        }, 300);
+    } catch (e) {
+        showStatusToast("Error: " + e.message, false);
+        chrome.storage.local.set({ publicLookupRunning: false });
+    }
+}
+
+async function continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData) {
+    try {
         const cleanTarget = cleanStringForColony(colonyName);
         let bestOption = null;
         
@@ -1535,6 +1561,24 @@ if (document.readyState === 'loading') {
 } else {
     setTimeout(checkAutomatedStateOnLoad, 1000);
 }
+
+// SPA Routing Listeners (e-Panjiyan Angular App uses Hash routing without full reloads)
+let lastUrl = window.location.href;
+setInterval(() => {
+    if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        console.log("[SD Autofill] SPA URL change detected:", lastUrl);
+        // Clear old toast to prevent stale text overlap
+        const oldToast = document.getElementById('sd-status-toast');
+        if (oldToast) oldToast.remove();
+        setTimeout(checkAutomatedStateOnLoad, 600);
+    }
+}, 500);
+
+window.addEventListener('hashchange', () => {
+    console.log("[SD Autofill] Hash changed:", window.location.href);
+    setTimeout(checkAutomatedStateOnLoad, 600);
+});
 
 
 
