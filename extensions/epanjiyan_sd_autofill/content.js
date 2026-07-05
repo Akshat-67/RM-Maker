@@ -1374,62 +1374,43 @@ async function runPublicDlcLookupAutomated(caseData) {
         const prop = caseData.properties?.[0] || {};
         const colonyName = prop.address?.colony || '';
         
-        // Self-correct district if it landed on the wrong page
+        // 1. Ensure district is JAIPUR
         const ddlDistrict = document.getElementById('district');
         if (ddlDistrict) {
             const currentDistText = ddlDistrict.options[ddlDistrict.selectedIndex]?.text || '';
             if (!currentDistText.toUpperCase().includes('JAIPUR')) {
-                showStatusToast("Self-correcting district to JAIPUR...");
+                showStatusToast("Selecting district JAIPUR...");
                 const jaipurOpt = Array.from(ddlDistrict.options).find(opt => opt.text.toUpperCase().includes('JAIPUR'));
                 if (jaipurOpt) {
                     ddlDistrict.value = jaipurOpt.value;
                     ddlDistrict.dispatchEvent(new Event('change', { bubbles: true }));
-                    await new Promise(r => setTimeout(r, 1500)); // wait for SRO list to reload
+                    await new Promise(r => setTimeout(r, 1500)); // wait for list to reload
                 }
             }
         }
         
-        showStatusToast("Waiting for SRO options to load...");
+        // 2. Wait for colony dropdown options to populate
+        showStatusToast("Waiting for colony dropdown to load...");
+        
+        const ddlColony = document.getElementById('ddlColony');
+        if (!ddlColony) {
+            showStatusToast("Colony dropdown not found.", false);
+            chrome.storage.local.set({ publicLookupRunning: false });
+            dlcLookupInProgress = false;
+            return;
+        }
         
         let attempts = 0;
-        const checkSRO = setInterval(async () => {
-            const sroBtn = Array.from(document.querySelectorAll('button, a.btn, span')).find(el => {
-                const text = el.textContent.trim().toUpperCase();
-                return text === sroVal.toUpperCase() || text === sroVal.replace('-', ' ').toUpperCase();
-            });
-            
-            const ddlColony = document.getElementById('ddlColony');
-            
-            if (sroBtn && ddlColony) {
-                clearInterval(checkSRO);
-                
-                // 1. Select SRO
-                showStatusToast(`Selecting SRO: ${sroVal}...`);
-                const initialOptionsText = Array.from(ddlColony.options).map(opt => opt.text).join(',');
-                sroBtn.click();
-                
-                // Poll for colony options list to populate after SRO click
-                showStatusToast("Loading colony options list...");
-                let colAttempts = 0;
-                const checkColOptions = setInterval(async () => {
-                    const currentOptionsText = Array.from(ddlColony.options).map(opt => opt.text).join(',');
-                    if (currentOptionsText !== initialOptionsText && ddlColony.options && ddlColony.options.length > 2) {
-                        clearInterval(checkColOptions);
-                        await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
-                    } else {
-                        colAttempts++;
-                        if (colAttempts >= 20) {
-                            clearInterval(checkColOptions);
-                            // If it timeout but we have options, proceed anyway
-                            await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
-                        }
-                    }
-                }, 300);
+        const checkColonyList = setInterval(async () => {
+            if (ddlColony.options && ddlColony.options.length > 5) {
+                clearInterval(checkColonyList);
+                showStatusToast("Colony options loaded. Finding match...");
+                await continueColonySelectionAndParsing(ddlColony, colonyName, sroVal, caseData);
             } else {
                 attempts++;
                 if (attempts >= 20) {
-                    clearInterval(checkSRO);
-                    showStatusToast("SRO search elements failed to load.", false);
+                    clearInterval(checkColonyList);
+                    showStatusToast("Colony dropdown failed to load options.", false);
                     chrome.storage.local.set({ publicLookupRunning: false });
                     dlcLookupInProgress = false;
                 }
