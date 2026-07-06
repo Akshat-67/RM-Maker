@@ -678,31 +678,44 @@ class SDDataExtractor:
         return True
 
     def _merge_kyc_results(self, current, kyc):
-        # KYC is #1 for Seller/Buyer Name and Address
+        new_list = kyc.get("unassigned_aadhars", [])
+        if not new_list:
+            return current
+            
+        # 1. Update/Merge details directly into already assigned sellers (ss) and buyers (bs) if they match by Aadhaar, PAN, or Name
         for key in ["ss", "bs"]:
-            current_list = current.get(key, [])
-            kyc_list = kyc.get(key, [])
-            max_len = max(len(current_list), len(kyc_list))
-            for i in range(max_len):
-                if i >= len(current_list): current_list.append({})
-                if i < len(kyc_list):
-                    k_item = kyc_list[i]
-                    c_item = current_list[i]
-                    if self._is_meaningful(k_item.get("n")): c_item["n"] = k_item["n"]
-                    if self._is_meaningful(k_item.get("n_en")): c_item["n_en"] = k_item["n_en"]
-                    if self._is_meaningful(k_item.get("adr")): c_item["adr"] = k_item["adr"]
-                    if self._is_meaningful(k_item.get("adr_en")): c_item["adr_en"] = k_item["adr_en"]
-                    if self._is_meaningful(k_item.get("a")): c_item["a"] = k_item["a"]
-                    if self._is_meaningful(k_item.get("id")): c_item["id"] = k_item["id"]
-                    if self._is_meaningful(k_item.get("pan")): c_item["pan"] = k_item["pan"]
-                    if self._is_meaningful(k_item.get("relation_text")): c_item["relation_text"] = k_item["relation_text"]
-                    if self._is_meaningful(k_item.get("rn_en")): c_item["rn_en"] = k_item["rn_en"]
-                    if self._is_meaningful(k_item.get("dob")): c_item["dob"] = k_item["dob"]
-            current[key] = current_list
+            existing_list = current.get(key, [])
+            for old_item in existing_list:
+                for new_item in new_list:
+                    id_match = new_item.get("id") and new_item.get("id").replace(" ", "") == old_item.get("id", "").replace(" ", "")
+                    pan_match = new_item.get("pan") and new_item.get("pan").replace(" ", "") == old_item.get("pan", "").replace(" ", "")
+                    name_match = new_item.get("n") and new_item.get("n").strip() == old_item.get("n", "").strip()
+                    
+                    if id_match or pan_match or name_match:
+                        # Merge newly extracted details
+                        for field in ["n_en", "rn_en", "adr_en", "id", "pan", "dob"]:
+                            if self._is_meaningful(new_item.get(field)):
+                                old_item[field] = new_item[field]
+                        break
 
-        # Preserve unassigned Aadhaar cards for Role Assignment UI in SD mode
-        if "unassigned_aadhars" in kyc:
-            current["unassigned_aadhars"] = kyc["unassigned_aadhars"]
+        # 2. Update/Merge/Append to unassigned_aadhars
+        existing_ua = current.get("unassigned_aadhars", [])
+        for new_item in new_list:
+            matched = False
+            for old_item in existing_ua:
+                id_match = new_item.get("id") and new_item.get("id").replace(" ", "") == old_item.get("id", "").replace(" ", "")
+                pan_match = new_item.get("pan") and new_item.get("pan").replace(" ", "") == old_item.get("pan", "").replace(" ", "")
+                name_match = new_item.get("n") and new_item.get("n").strip() == old_item.get("n", "").strip()
+                
+                if id_match or pan_match or name_match:
+                    for field in ["s", "n", "n_en", "a", "dob", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id", "pan"]:
+                        if self._is_meaningful(new_item.get(field)):
+                            old_item[field] = new_item[field]
+                    matched = True
+                    break
+            if not matched:
+                existing_ua.append(new_item)
+        current["unassigned_aadhars"] = existing_ua
 
         return current
 
@@ -789,9 +802,13 @@ class SDDataExtractor:
           "unassigned_aadhars": [{{
             "s": "Mr/Mrs/Ms (based on gender)",
             "n": "Name (Unicode Hindi)",
+            "n_en": "Name in English script (transliterated to UPPERCASE English, e.g., 'SULTAN')",
             "a": "Age (numeric)",
+            "dob": "Date of Birth (DD/MM/YYYY or YYYY if only year is printed)",
             "relation_text": "Complete Relation Phrase (e.g. 'पुत्र श्री ...' or 'पत्नी श्री ...' in Unicode Hindi)",
+            "rn_en": "Relative Father/Husband Name in English script (transliterated to UPPERCASE English, e.g., 'ALHANNOOR')",
             "adr": "Address (exact Aadhaar/DL print in Unicode Hindi)",
+            "adr_en": "Address in English script (transliterated to UPPERCASE English, e.g., '410 KAMLA NEHRU NAGAR, JAIPUR')",
             "id": "Aadhar Number (digits only)",
             "pan": "PAN Card Number (10-char alphanumeric, if PAN card is provided)"
           }}]
@@ -832,6 +849,10 @@ class SDDataExtractor:
              - `id` = Aadhaar Number (from Aadhaar card).
              - `pan` = PAN Card Number (from PAN card).
         4. STRICT RELATION FORMATTING: ALWAYS format relations using exact Unicode Hindi. NEVER output English abbreviations like "S/O", "W/O", or "C/O" in `relation_text`.
+        5. ENGLISH SCRIPT COUNTERPARTS: For every person in the `unassigned_aadhars` list, you MUST extract/transliterate their corresponding English names, relative names, and addresses into UPPERCASE ENGLISH script (standard Roman alphabet) inside the respective '_en' fields:
+            - `n_en` = UPPERCASE English transliteration of the person's name (e.g. 'VIVEK SAXENA').
+            - `rn_en` = UPPERCASE English transliteration of the relative/father/husband name (e.g. 'J B SAXENA', 'ALHANNOOR').
+            - `adr_en` = UPPERCASE English transliteration of the address (e.g. 'FLAT NO 101, FIRST FLOOR, BHAGWATI RAJ APARTMENTS, 9 DEVI NIKETAN COMPOUND, SARDAR PATEL ROAD, JAIPUR, 302001').
         """
 
     def _build_legal_prompt(self):
