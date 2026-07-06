@@ -46,7 +46,7 @@ def prune_sd_data(data):
         cleaned["ps"] = clean_ps
         
     # Prune bs and buyers items for SD
-    sd_bs_fields = ["n", "n_en", "a", "c", "relation_text", "rn", "rn_en", "adr", "adr_en", "id", "pan", "r", "is_bpl"]
+    sd_bs_fields = ["n", "n_en", "a", "c", "relation_text", "rn", "rn_en", "adr", "adr_en", "id", "pan", "r", "is_bpl", "dob"]
     for k in ["bs", "buyers"]:
         if k in cleaned and isinstance(cleaned[k], list):
             clean_list = []
@@ -58,7 +58,7 @@ def prune_sd_data(data):
             cleaned[k] = clean_list
 
     # Prune ss and sellers items for SD
-    sd_ss_fields = ["n", "n_en", "a", "c", "relation_text", "rn", "rn_en", "adr", "adr_en", "id", "pan", "r", "is_bpl"]
+    sd_ss_fields = ["n", "n_en", "a", "c", "relation_text", "rn", "rn_en", "adr", "adr_en", "id", "pan", "r", "is_bpl", "dob"]
     for k in ["ss", "sellers"]:
         if k in cleaned and isinstance(cleaned[k], list):
             clean_list = []
