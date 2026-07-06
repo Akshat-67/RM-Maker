@@ -2435,15 +2435,26 @@ def split_address(address_str):
     
     # 3. Extract house/flat number
     house_no = "00"
-    house_match = re.search(r'\b(?:plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
-    if house_match:
-        house_no = house_match.group(1).upper()
-        address_str = address_str.replace(house_match.group(0), "").strip()
+    # First check if address starts with a direct plot/house number (like T-28, S-1, 101, FN-115-A)
+    start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
+    if start_match and re.search(r'\d', start_match.group(1)) and len(start_match.group(1)) <= 8:
+        house_no = start_match.group(1).upper()
+        address_str = address_str.replace(start_match.group(0), "", 1).strip()
     else:
-        start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
-        if start_match and re.search(r'\d', start_match.group(1)):
-            house_no = start_match.group(1)
-            address_str = address_str.replace(house_no, "", 1).strip()
+        # Fallback to general keyword search
+        house_match = re.search(r'\b(plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+        if house_match:
+            # Prevent matching single letters in abbreviations like G.P.R.A
+            is_abbreviation = False
+            matched_keyword = house_match.group(1).lower()
+            if matched_keyword in ['p', 'h']:
+                pos = address_str.lower().find(house_match.group(0).lower())
+                if pos > 0 and address_str[pos-1] == '.':
+                    is_abbreviation = True
+            
+            if not is_abbreviation:
+                house_no = house_match.group(2).upper() if len(house_match.groups()) >= 2 else house_match.group(1).upper()
+                address_str = address_str.replace(house_match.group(0), "").strip()
             
     address_str = re.sub(r'^[\s,\.\-]+', '', address_str)
     address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
