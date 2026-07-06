@@ -1928,10 +1928,9 @@ async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
 async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
     console.log("[SD-Autofill] Starting fillPartyFormFields for:", partyData.name_en);
     
-    // 1. Checkboxes
+    // 1. Checkboxes (Presenter, Stamp Purchaser)
     const presenterBox = getField('presenter');
     const purchaserBox = getField('stamppurchaser');
-    
     if (presenterBox) {
         presenterBox.checked = isPresenter;
         presenterBox.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1942,7 +1941,8 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         purchaserBox.dispatchEvent(new Event('change', { bubbles: true }));
         purchaserBox.dispatchEvent(new Event('click', { bubbles: true }));
     }
-    
+    await new Promise(r => setTimeout(r, 200));
+
     // 2. Gender Selection
     if (partyData.gender === 'FEMALE') {
         const femaleRadio = document.getElementById('rbtfemale') || document.querySelector('input[type="radio"][value="F"]') || document.querySelector('input[type="radio"][id*="female" i]');
@@ -1966,125 +1966,116 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
             maleRadio.dispatchEvent(new Event('change', { bubbles: true }));
         }
     }
-    
-    // 3. Dropdowns (Category, Occupation, ID Proof)
-    await Promise.all([
-        (async () => {
-            const catSelect = getField('category');
-            if (catSelect) await setSelectValueByText(catSelect, "General");
-        })(),
-        (async () => {
-            const occSelect = getField('occupation');
-            if (occSelect) await setSelectValueByText(occSelect, "Other");
-        })(),
-        (async () => {
-            const idSelect = getField('idProof');
-            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
-        })()
-    ]);
-    
-    // 4. Input Fields
-    await Promise.all([
-        (async () => {
-            const partyNameEn = getField('partyNameEn');
-            if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
-        })(),
-        (async () => {
-            const relNameEn = getField('relNameEn');
-            if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
-        })(),
-        (async () => {
-            const dobInput = document.getElementById('txtdob') || getField('dob');
-            const ageInput = getField('age');
-            if (dobInput) {
-                let dobValue = "";
-                if (partyData.dob) {
-                    dobValue = partyData.dob.replace(/[-\.]/g, '/');
-                    if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
-                        dobValue = `01/01/${dobValue}`;
-                    }
-                } else if (partyData.age) {
-                    const currentYear = new Date().getFullYear();
-                    const birthYear = currentYear - parseInt(partyData.age);
-                    dobValue = `01/01/${birthYear}`;
-                } else {
-                    dobValue = "01/01/1985";
-                }
-                setDatePickerValue(dobInput, dobValue);
-            } else if (ageInput) {
-                setInputValue(ageInput, partyData.age || "40");
-            }
-        })(),
-        (async () => {
-            const casteEn = getField('casteEn');
-            if (casteEn) setInputValue(casteEn, "HINDU");
-        })(),
-        (async () => {
-            const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
-            if (casteHi) setInputValue(casteHi, "हिन्दू");
-        })(),
-        (async () => {
-            const idDetails = getField('idDetails');
-            const sampleAadhaar = "123456789012";
-            if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
-        })(),
-        (async () => {
-            if (partyData.pan) {
-                const panInput = getField('pan');
-                if (panInput) setInputValue(panInput, partyData.pan);
-            }
-        })(),
-        (async () => {
-            if (partyData.address) {
-                const houseInput = getField('houseNo');
-                const colonyInput = getField('colony');
-                const areaInput = getField('area');
-                const cityInput = getField('city');
-                const pinInput = getField('pincode');
-                
-                if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
-                if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
-                if (areaInput) setInputValue(areaInput, partyData.address.area || "");
-                if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
-                if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
-            }
-        })()
-    ]);
-    
-    // 5. Contact Details (Mobile Number OTP verification)
-    await (async () => {
-        let mobileVal = "";
-        if (chrome && chrome.storage && chrome.storage.local) {
-            const res = await new Promise(r => chrome.storage.local.get(['defaultMobile'], r));
-            mobileVal = res.defaultMobile || "";
-        }
-        if (!mobileVal) {
-            mobileVal = "9799967384";
-        }
+    await new Promise(r => setTimeout(r, 200));
 
-        const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]');
-        if (chkMobile) {
-            console.log("[SD-Autofill] Found Enter Mobile checkbox. Checking it...");
-            chkMobile.checked = true;
-            chkMobile.dispatchEvent(new Event('change', { bubbles: true }));
-            chkMobile.click();
+    // 3. Dropdowns (Category, Occupation, ID Proof)
+    const catSelect = getField('category');
+    if (catSelect) await setSelectValueByText(catSelect, "General");
+    
+    const occSelect = getField('occupation');
+    if (occSelect) await setSelectValueByText(occSelect, "Other");
+    
+    const idSelect = getField('idProof');
+    if (idSelect) await setSelectValueByText(idSelect, "Other than above");
+    
+    await new Promise(r => setTimeout(r, 200));
+
+    // 4. Fill basic details
+    const partyNameEn = getField('partyNameEn');
+    if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
+
+    const relNameEn = getField('relNameEn');
+    if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
+
+    const dobInput = document.getElementById('txtdob') || getField('dob');
+    const ageInput = getField('age');
+    if (dobInput) {
+        let dobValue = "";
+        if (partyData.dob) {
+            dobValue = partyData.dob.replace(/[-\.]/g, '/');
+            if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
+                dobValue = `01/01/${dobValue}`;
+            }
+        } else if (partyData.age) {
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - parseInt(partyData.age);
+            dobValue = `01/01/${birthYear}`;
+        } else {
+            dobValue = "01/01/1985";
+        }
+        setDatePickerValue(dobInput, dobValue);
+    } else if (ageInput) {
+        setInputValue(ageInput, partyData.age || "40");
+    }
+
+    const casteEn = getField('casteEn');
+    if (casteEn) setInputValue(casteEn, "HINDU");
+
+    const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
+    if (casteHi) setInputValue(casteHi, "हिन्दू");
+
+    const idDetails = getField('idDetails');
+    const sampleAadhaar = "123456789012";
+    if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
+
+    if (partyData.address) {
+        const houseInput = getField('houseNo');
+        const colonyInput = getField('colony');
+        const areaInput = getField('area');
+        const cityInput = getField('city');
+        const pinInput = getField('pincode');
+        
+        if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
+        if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
+        if (areaInput) setInputValue(areaInput, partyData.address.area || "");
+        if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
+        if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
+    }
+    
+    await new Promise(r => setTimeout(r, 400));
+
+    // 5. Fill PAN Card Number
+    if (partyData.pan) {
+        const panInput = getField('pan');
+        if (panInput) setInputValue(panInput, partyData.pan);
+    }
+    
+    await new Promise(r => setTimeout(r, 400));
+
+    // 6. Contact Details (Mobile Number OTP verification - last)
+    let mobileVal = "";
+    if (chrome && chrome.storage && chrome.storage.local) {
+        const res = await new Promise(r => chrome.storage.local.get(['defaultMobile'], r));
+        mobileVal = res.defaultMobile || "";
+    }
+    if (!mobileVal) {
+        mobileVal = "9799967384";
+    }
+
+    const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]');
+    if (chkMobile) {
+        console.log("[SD-Autofill] Found Enter Mobile checkbox. Checking it...");
+        chkMobile.checked = true;
+        chkMobile.dispatchEvent(new Event('change', { bubbles: true }));
+        chkMobile.click();
+        
+        await new Promise(r => setTimeout(r, 300));
+        
+        const contactInput = document.getElementById('txtcontact') || document.querySelector('input[name="contactno"]');
+        if (contactInput) {
+            console.log("[SD-Autofill] Found contact input. Filling with:", mobileVal);
+            setInputValue(contactInput, mobileVal);
             
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 300));
             
-            const contactInput = document.getElementById('txtcontact') || document.querySelector('input[name="contactno"]');
-            if (contactInput) {
-                console.log("[SD-Autofill] Found contact input. Filling with:", mobileVal);
-                setInputValue(contactInput, mobileVal);
-                
-                const verifyBtn = document.getElementById('btnotpforvaluation') || 
-                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'VERIFY');
-                if (verifyBtn) {
-                    console.log("[SD-Autofill] Clicking Verify button to trigger OTP...");
-                    verifyBtn.click();
-                }
+            const verifyBtn = document.getElementById('btnotpforvaluation') || 
+                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'VERIFY');
+            if (verifyBtn) {
+                console.log("[SD-Autofill] Clicking Verify button to trigger OTP...");
+                verifyBtn.click();
             }
         }
-    })();
+    }
     
     console.log("[SD-Autofill] Completed fillPartyFormFields for:", partyData.name_en);
 }
