@@ -99,10 +99,25 @@ class RMDataExtractor:
             return {"error": "Gemini API Keys Missing"}
 
         contents = []
+        from utils.helpers import select_relevant_pdf_pages, extract_pdf_pages_text
+        pdf_keywords = ["boundaries", "khasra", "plot", "flat", "covenant", "schedule", "witness", "loan", "amount", "borrower", "signatory", "interest", "emi", "tenure"]
+        
         for path in file_paths:
             ext = os.path.splitext(path)[1].lower()
             mime_type, _ = mimetypes.guess_type(path)
-            if ext in ['.jpg', '.jpeg', '.png', '.pdf']:
+            filename = os.path.basename(path)
+            if ext == '.pdf':
+                selected_pages = select_relevant_pdf_pages(path, pdf_keywords)
+                if selected_pages:
+                    print(f"[RM Extractor] Searchable PDF detected: {filename}. Sending selected pages text: {selected_pages}")
+                    extracted_text = extract_pdf_pages_text(path, selected_pages)
+                    contents.append(types.Part.from_text(text=f"[Document: {filename} (Filtered Pages: {[p+1 for p in selected_pages]})]\n{extracted_text}"))
+                else:
+                    print(f"[RM Extractor] Scanned/non-searchable PDF: {filename}. Sending full file bytes.")
+                    with open(path, 'rb') as f:
+                        raw = f.read()
+                    contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+            elif ext in ['.jpg', '.jpeg', '.png']:
                 with open(path, 'rb') as f:
                     raw = f.read()
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
