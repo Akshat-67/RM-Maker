@@ -268,6 +268,32 @@ def format_date_with_dots(date_str):
     if not date_str: return ""
     return str(date_str).strip().replace("-", ".").replace("/", ".")
 
+def format_date_to_ordinal_english(date_str):
+    if not date_str: return ""
+    # Parse DD.MM.YYYY, DD-MM-YYYY, YYYY-MM-DD
+    cleaned = str(date_str).strip().replace(".", "-").replace("/", "-")
+    
+    import datetime
+    dt = None
+    for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d-%m-%y", "%Y/%m/%d"):
+        try:
+            dt = datetime.datetime.strptime(cleaned, fmt)
+            break
+        except ValueError:
+            continue
+            
+    if not dt:
+        return date_str
+        
+    day = dt.day
+    if 11 <= day <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        
+    month_name = dt.strftime("%B")
+    return f"{day}{suffix} {month_name}, {year}" if 'year' in locals() else f"{day}{suffix} {month_name}, {dt.year}"
+
 def amount_to_words(amount_str):
     try:
         from num2words import num2words
