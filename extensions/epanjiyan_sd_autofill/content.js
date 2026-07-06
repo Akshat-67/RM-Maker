@@ -2054,10 +2054,10 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
 
     const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]');
     if (chkMobile) {
-        console.log("[SD-Autofill] Found Enter Mobile checkbox. Checking it...");
-        chkMobile.checked = true;
-        chkMobile.dispatchEvent(new Event('change', { bubbles: true }));
-        chkMobile.click();
+        if (!chkMobile.checked) {
+            console.log("[SD-Autofill] Checking Enter Mobile checkbox...");
+            chkMobile.click();
+        }
         
         await new Promise(r => setTimeout(r, 300));
         
@@ -2391,24 +2391,28 @@ async function runPartyFeedingLoop(data) {
                 await fillPromise;
                 
                 // Read verification elements to check if mobile verification is active
-                const chkMobile = document.getElementById('chkMobile');
-                const verifiedInput = document.getElementById('ismobileverified');
+                const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]') || document.querySelector('input[name*="Mobile" i]');
+                const verifiedInput = document.getElementById('ismobileverified') || document.querySelector('[id*="mobileverified" i]') || document.querySelector('[name*="mobileverified" i]');
                 
-                if (chkMobile && chkMobile.checked && verifiedInput) {
+                if (chkMobile && chkMobile.checked) {
                     chrome.storage.local.set({ partyStage: nextStage });
                     showStatusToast(`OTP Sent! Waiting for you to verify...`, false);
                     
-                    // Poll until verifiedInput.value is 'true' (representing OTP verified)
-                    await new Promise((resolve) => {
-                        const interval = setInterval(() => {
-                            if (verifiedInput.value === 'true') {
-                                clearInterval(interval);
-                                resolve();
-                            }
-                        }, 500);
-                    });
-                    
-                    showStatusToast(`OTP Verified! Auto-saving...`, false);
+                    if (verifiedInput) {
+                        // Poll until verifiedInput.value is 'true' (representing OTP verified)
+                        await new Promise((resolve) => {
+                            const interval = setInterval(() => {
+                                if (verifiedInput.value === 'true') {
+                                    clearInterval(interval);
+                                    resolve();
+                                }
+                            }, 500);
+                        });
+                        showStatusToast(`OTP Verified! Auto-saving...`, false);
+                    } else {
+                        showStatusToast(`Please enter OTP and click Save manually.`, false);
+                        return;
+                    }
                 } else {
                     chrome.storage.local.set({ partyStage: nextStage });
                     showStatusToast(`Filled ${stage}! Auto-saving...`, false);
