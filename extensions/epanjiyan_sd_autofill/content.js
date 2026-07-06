@@ -1935,6 +1935,31 @@ async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
     }
 }
 
+function checkRequiredFields() {
+    const nameInput = document.getElementById('txtpartynameen') || document.querySelector('input[name="partynameen"]') || document.querySelector('input[id*="partyname" i]');
+    if (nameInput && !nameInput.value.trim()) {
+        return "Party Name (English)";
+    }
+    
+    const fatherInput = document.getElementById('txtfathernameen') || document.querySelector('input[name="fathernameen"]') || document.querySelector('input[id*="fathername" i]') || document.querySelector('input[id*="relationname" i]');
+    if (fatherInput && !fatherInput.value.trim()) {
+        return "Father/Husband Name (English)";
+    }
+    
+    const ageInput = document.getElementById('txtage') || document.querySelector('input[name="age"]') || document.querySelector('input[id*="age" i]');
+    if (ageInput && !ageInput.value.trim()) {
+        return "Age";
+    }
+    
+    const pinInput = document.getElementById('txtpincode') || document.querySelector('input[name="pincode"]') || document.querySelector('input[id*="pincode" i]') || document.querySelector('input[id*="pin" i]');
+    if (pinInput && !pinInput.value.trim()) {
+        return "Pincode";
+    }
+    
+    return null;
+}
+
+
 async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitness = false) {
     console.log("[SD-Autofill] Starting fillPartyFormFields for:", partyData.name_en, "isWitness:", isWitness);
     
@@ -2550,11 +2575,31 @@ async function runPartyFeedingLoop(data) {
                 }
                 
                 setTimeout(async () => {
+                    const missingField = checkRequiredFields();
+                    if (missingField) {
+                        showStatusToast(`⚠️ Missing required field: ${missingField}. Please fill it and click Save manually.`, false);
+                        return;
+                    }
+                    
                     const saved = triggerButtonByText("Save");
                     if (saved) {
                         showStatusToast("Waiting for success confirmation...");
                         let clickedOk = false;
                         for (let i = 0; i < 40; i++) {
+                            const swalContainer = document.querySelector('.swal2-container');
+                            if (swalContainer) {
+                                const isError = swalContainer.querySelector('.swal2-error, .swal2-warning') || 
+                                                swalContainer.innerText.toLowerCase().includes('error') || 
+                                                swalContainer.innerText.toLowerCase().includes('select') || 
+                                                swalContainer.innerText.toLowerCase().includes('required') || 
+                                                swalContainer.innerText.includes('चुनें') || 
+                                                swalContainer.innerText.includes('अनिवार्य');
+                                if (isError) {
+                                    showStatusToast(`⚠️ Save Failed: "${swalContainer.innerText.split('\n')[0]}". Correct it and click Save manually.`, false);
+                                    return;
+                                }
+                            }
+                            
                             const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
                                           Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'OK' || b.textContent.trim().includes('ठीक है'));
                             if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
