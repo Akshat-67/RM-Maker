@@ -1025,6 +1025,7 @@
                                                             data-adr="{{ ua.get('adr','') }}"
                                                             data-adr_en="{{ ua.get('adr_en','') }}"
                                                             data-is_bpl="{{ ua.get('is_bpl','') }}"
+                                                            data-pan="{{ ua.get('pan','') }}"
                                                             data-s="{{ ua.get('s','') }}">
                                                             <td class="fw-bold">{{ ua.get('n','') }}</td>
                                                             <td><code>{{ ua.get('id','') }}</code></td>
@@ -3585,6 +3586,7 @@
             const address = row.getAttribute('data-adr');
             const addressEn = row.getAttribute('data-adr_en') || '';
             const isBpl = row.getAttribute('data-is_bpl') || '';
+            const pan = row.getAttribute('data-pan') || '';
             const salutation = row.getAttribute('data-s');
 
             if (docType === 'SD') {
@@ -3617,10 +3619,13 @@
                     const isBplInput = document.getElementById(`field_sellers_${idx}_is_bpl`);
                     if (isBplInput) isBplInput.value = isBpl;
                     
+                    const panInput = document.getElementById(`field_sellers_${idx}_pan`);
+                    if (panInput) panInput.value = pan;
+                    
                     const idInput = document.getElementById(`field_sellers_${idx}_id`);
                     if (idInput) idInput.value = id;
 
-                    ['n','a','r','rn','adr','id'].forEach(k => {
+                    ['n','a','r','rn','adr','id','pan'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="sellers.${idx}.${k}"]`);
                         if (cb) cb.checked = true;
                     });
@@ -3655,10 +3660,13 @@
                     const isBplInput = document.getElementById(`field_buyers_${idx}_is_bpl`);
                     if (isBplInput) isBplInput.value = isBpl;
                     
+                    const panInput = document.getElementById(`field_buyers_${idx}_pan`);
+                    if (panInput) panInput.value = pan;
+                    
                     const idInput = document.getElementById(`field_buyers_${idx}_id`);
                     if (idInput) idInput.value = id;
 
-                    ['n','a','r','rn','adr','id'].forEach(k => {
+                    ['n','a','r','rn','adr','id','pan'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="buyers.${idx}.${k}"]`);
                         if (cb) cb.checked = true;
                     });
