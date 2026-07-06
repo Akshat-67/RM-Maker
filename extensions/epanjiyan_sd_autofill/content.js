@@ -2319,9 +2319,11 @@ async function runPartyFeedingLoop(data) {
                     showStatusToast("Claimant button not found.", false);
                 }
             } else if (stage.startsWith("WITNESS")) {
-                const witnessBtn = document.getElementById('witns') || 
+                const witnessBtn = document.getElementById('wtns') || 
+                                    document.getElementById('witns') || 
                                     document.getElementById('witness') || 
-                                    document.querySelector('button[id*="witn" i]') || 
+                                    document.querySelector('button[id*="wit" i]') || 
+                                    document.querySelector('button[id*="wt" i]') || 
                                     Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
                                         const txt = el.textContent.trim().toUpperCase();
                                         return txt.includes('WITNESS') || txt.includes('गवाह') || (el.src && el.src.includes('witnes'));
