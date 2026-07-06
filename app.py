@@ -2406,6 +2406,7 @@ def split_address(address_str):
     
     address_str = address_str.strip()
     
+    # 1. Extract pincode (6 digits)
     pincode_match = re.search(r'\b\d{6}\b', address_str)
     pincode = pincode_match.group(0) if pincode_match else ""
     if pincode:
@@ -2413,15 +2414,26 @@ def split_address(address_str):
         
     address_str = re.sub(r'[\s,\.]+$', '', address_str)
     
-    city = "JAIPUR"
-    city_match = re.search(r'\b(jaipur|sanganer|amer|bagru)\b', address_str, re.IGNORECASE)
-    if city_match:
-        city = city_match.group(0).upper()
-        address_str = re.sub(r'\b' + city_match.group(0) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
-        
-    address_str = re.sub(r'\b(rajasthan|rj)\b', '', address_str, flags=re.IGNORECASE).strip()
-    address_str = re.sub(r'[\s,\.]+$', '', address_str)
+    # 2. Extract and remove state name (case-insensitive)
+    states = [
+        "RAJASTHAN", "MAHARASHTRA", "GUJARAT", "MADHYA PRADESH", "UTTAR PRADESH", 
+        "HARYANA", "PUNJAB", "DELHI", "KARNATAKA", "TAMIL NADU", "BIHAR", 
+        "WEST BENGAL", "ANDHRA PRADESH", "TELANGANA", "GOA", "KERALA"
+    ]
+    detected_state = ""
+    for state in states:
+        pattern = r'\b' + re.escape(state) + r'\b'
+        match = re.search(pattern, address_str, re.IGNORECASE)
+        if match:
+            detected_state = match.group(0).upper()
+            address_str = re.sub(pattern, '', address_str, flags=re.IGNORECASE).strip()
+            break
+            
+    # Clean state abbreviations
+    address_str = re.sub(r'\b(rj|mh|gj|mp|up|hr|pb|dl|ka|tn|ap|ts)\b', '', address_str, flags=re.IGNORECASE).strip()
+    address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
     
+    # 3. Extract house/flat number
     house_no = "00"
     house_match = re.search(r'\b(?:plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
     if house_match:
@@ -2433,37 +2445,34 @@ def split_address(address_str):
             house_no = start_match.group(1)
             address_str = address_str.replace(house_no, "", 1).strip()
             
-    address_str = re.sub(r'^[\s,\.]+', '', address_str)
-    address_str = re.sub(r'[\s,\.]+$', '', address_str)
-    
-    common_areas = [
-        "Jhotwara", "Mansarovar", "Sodala", "Malviya Nagar", "Vaishali Nagar", 
-        "C-Scheme", "Raja Park", "Adarsh Nagar", "Bani Park", "Shastri Nagar", 
-        "Vidhyadhar Nagar", "Pratap Nagar", "Sanganer", "Gopalpura", "Tonk Road", 
-        "Jagatpura", "Patrakar Colony", "Nirman Nagar", "Civil Lines", "Ajmer Road", 
-        "Sirsi Road", "Kalwar Road", "Agra Road", "Delhi Road", "Amer", "Chomu",
-        "Prithviraj Nagar", "PRN", "Muhana", "Bhakrota", "Bindayaka"
-    ]
-    
-    area = ""
-    for a in common_areas:
-        if re.search(r'\b' + re.escape(a) + r'\b', address_str, re.IGNORECASE):
-            area = a.upper()
-            address_str = re.sub(r'\b' + re.escape(a) + r'\b', '', address_str, flags=re.IGNORECASE).strip()
-            break
-            
     address_str = re.sub(r'^[\s,\.\-]+', '', address_str)
     address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
     
-    if not area:
-        parts = [p.strip() for p in address_str.split(",") if p.strip()]
-        if parts:
-            area = parts[-1].upper()
-            address_str = ",".join(parts[:-1]).strip()
-            
-    colony = address_str.upper() if address_str else "JAIPUR"
-    if not colony:
+    # 4. Split remaining address by commas to resolve city, area, and colony
+    parts = [p.strip() for p in address_str.split(",") if p.strip()]
+    
+    city = "JAIPUR"
+    area = ""
+    colony = ""
+    
+    if len(parts) >= 1:
+        # The last part is the city
+        city = parts[-1].upper()
+        parts = parts[:-1]
+        
+    if len(parts) >= 1:
+        # The next to last part is the area
+        area = parts[-1].upper()
+        parts = parts[:-1]
+        
+    if parts:
+        # The remaining parts form the colony
+        colony = ", ".join(parts).upper()
+    else:
         colony = area
+        
+    if not colony:
+        colony = city
         
     return {
         "house_no": house_no,
