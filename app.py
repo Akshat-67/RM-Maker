@@ -2662,7 +2662,10 @@ def get_epanjiyan_data(case_id):
             
             sal = clean_val(b.get("s", ""))
             gender = "MALE"
-            if "MRS" in sal or "MS" in sal or "FEMALE" in sal or clean_val(b.get("gender", "")) == "FEMALE":
+            rel_type_val = clean_val(b.get("r", ""))
+            is_female_rel = "पुत्री" in rel_type_val or "पत्नी" in rel_type_val or "W/O" in rel_type_val or "D/O" in rel_type_val or "WIFE" in rel_type_val or "DAUGHTER" in rel_type_val or "MOTHER" in rel_type_val or "WIDOW" in rel_type_val
+            is_female_sal = "MRS" in sal or "MS" in sal or "FEMALE" in sal or "SMT" in sal or "KUMARI" in sal
+            if is_female_sal or is_female_rel or clean_val(b.get("gender", "")) == "FEMALE":
                 gender = "FEMALE"
                 
             addr_str = clean_val(b.get("adr_en", ""))
@@ -2707,7 +2710,10 @@ def get_epanjiyan_data(case_id):
                 
                 buyer_sal = clean_val(b.get("s", ""))
                 buyer_gender = "MALE"
-                if "MRS" in buyer_sal or "MS" in buyer_sal or "FEMALE" in buyer_sal or clean_val(b.get("gender", "")) == "FEMALE":
+                buyer_rel_type_val = clean_val(b.get("r", ""))
+                buyer_is_female_rel = "पुत्री" in buyer_rel_type_val or "पत्नी" in buyer_rel_type_val or "W/O" in buyer_rel_type_val or "D/O" in buyer_rel_type_val or "WIFE" in buyer_rel_type_val or "DAUGHTER" in buyer_rel_type_val or "MOTHER" in buyer_rel_type_val or "WIDOW" in buyer_rel_type_val
+                buyer_is_female_sal = "MRS" in buyer_sal or "MS" in buyer_sal or "FEMALE" in buyer_sal or "SMT" in buyer_sal or "KUMARI" in buyer_sal
+                if buyer_is_female_sal or buyer_is_female_rel or clean_val(b.get("gender", "")) == "FEMALE":
                     buyer_gender = "FEMALE"
                     
                 buyer_addr_str = clean_val(b.get("adr_en", ""))
@@ -2811,11 +2817,19 @@ def get_epanjiyan_data(case_id):
             if not w_age:
                 w_age = "35"
                 
+            w_sal = clean_val(w.get("s", ""))
+            w_gender = "MALE"
+            w_rel_type_val = clean_val(w.get("r", ""))
+            w_is_female_rel = "पुत्री" in w_rel_type_val or "पत्नी" in w_rel_type_val or "W/O" in w_rel_type_val or "D/O" in w_rel_type_val or "WIFE" in w_rel_type_val or "DAUGHTER" in w_rel_type_val or "MOTHER" in w_rel_type_val or "WIDOW" in w_rel_type_val
+            w_is_female_sal = "MRS" in w_sal or "MS" in w_sal or "FEMALE" in w_sal or "SMT" in w_sal or "KUMARI" in w_sal
+            if w_is_female_sal or w_is_female_rel or clean_val(w.get("gender", "")) == "FEMALE":
+                w_gender = "FEMALE"
+                
             witnesses.append({
                 "name_en": w_name_en,
                 "relation_type": w_rel_type,
                 "relation_name_en": w_rel_name_en,
-                "gender": "MALE",
+                "gender": w_gender,
                 "age": w_age,
                 "dob": clean_val(w.get("dob", "")),
                 "aadhaar": clean_val(w.get("id", "")),

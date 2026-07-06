@@ -1935,8 +1935,8 @@ async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
     }
 }
 
-async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
-    console.log("[SD-Autofill] Starting fillPartyFormFields for:", partyData.name_en);
+async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitness = false) {
+    console.log("[SD-Autofill] Starting fillPartyFormFields for:", partyData.name_en, "isWitness:", isWitness);
     
     // 1. Checkboxes (Presenter, Stamp Purchaser)
     const presenterBox = getField('presenter');
@@ -2053,6 +2053,12 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
     await new Promise(r => setTimeout(r, 400));
 
     // 6. Contact Details (Mobile Number OTP verification - last)
+    if (isWitness) {
+        console.log("[SD-Autofill] Skipping mobile verification for witness.");
+        console.log("[SD-Autofill] Completed fillPartyFormFields for:", partyData.name_en);
+        return;
+    }
+
     let mobileVal = "";
     if (chrome && chrome.storage && chrome.storage.local) {
         const res = await new Promise(r => chrome.storage.local.get(['defaultMobile'], r));
@@ -2203,7 +2209,7 @@ function autofillWitnessSD(data, index, sendResponse) {
     }
     
     if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
-        fillPartyFormFields(wit, false, false)
+        fillPartyFormFields(wit, false, false, true)
             .then(() => {
                 sendResponse({ success: true, message: `Autofilled Witness ${index + 1} details! Review and click Save.` });
             })
@@ -2385,14 +2391,14 @@ async function runPartyFeedingLoop(data) {
                 }
             } else if (stage === "WITNESS_1") {
                 if (data.witnesses && data.witnesses[0]) {
-                    fillPromise = fillPartyFormFields(data.witnesses[0], false, false);
+                    fillPromise = fillPartyFormFields(data.witnesses[0], false, false, true);
                     nextStage = "WITNESS_2";
                 } else {
                     nextStage = "WITNESS_2";
                 }
             } else if (stage === "WITNESS_2") {
                 if (data.witnesses && data.witnesses[1]) {
-                    fillPromise = fillPartyFormFields(data.witnesses[1], false, false);
+                    fillPromise = fillPartyFormFields(data.witnesses[1], false, false, true);
                     nextStage = "DONE";
                 } else {
                     nextStage = "DONE";
