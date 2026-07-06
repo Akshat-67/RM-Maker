@@ -19,48 +19,54 @@ HL_MARKER = "~~HL~~"
 # Safe ASCII sentinel that won't appear naturally in any string and survives DevLys conversion
 _HL_SENTINEL = "\x01HLMARK\x01"
 
+_devanagari_regex = re.compile(r'[\u0900-\u097F]')
+_devlys_chars_regex = re.compile(r'[Øæçè½¾ßáâãäåæçèéêëìíîïñòóôõö÷ùúûüýþÿ]')
+_devlys_special_regex = re.compile(r'[{}\~`*\\|@]')
+_devlys_indicators = [
+    "fuoklh", "iq=", "gs", "foøsrk", "øsrk", "lk{kh", "fy[kar", "iêk", "iv~vk",
+    "esus", "le>dj", "izfke", "flfkr", "uxj", "rglhy", "ftyk", "jktlfkku",
+    "jhefrh", "fnukad", "foøsrkx.k", "øsrkx.k", "iruh", "jh", "loxhz;", "hkwfe",
+    "dksbz", "n{k.k", "mrrj", "iwoz", "if'pe", "jkf'k", "vk/kkj", "uecj",
+    "isu", "vk;q", "tkfr", "¶ysv", "iykv", "esllz", "o\"kz",
+    "okgu", "ikfdzax", "fglls", "eqcfyx", "t;iqj", "vtesj", "c['kh", "eq'rd"
+]
+_roman_numerals_set = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "A", "B", "C", "D"}
+_devlys_vowel_regex = re.compile(r'f[b-df-hj-np-tv-zBCDFGHJKLMNPQRSTVWXYZ\[\]\{\}\;\:\'\"\,\<\.\>\/\?\`\~\!\@\#\$\%\^\&\*\(\)\_\+\-\=\|]')
+_pure_digits_regex = re.compile(r'^[\d\s\-\.,]+$')
+_non_ascii_regex = re.compile(r'[^\x00-\x7F]')
+
 def is_text_devlys(text):
     if not text:
         return False
     text_stripped = text.strip()
     # Explicitly ignore single letters or small Roman numerals to prevent DevLys font application
-    if text_stripped.upper() in ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "A", "B", "C", "D"]:
+    if text_stripped.upper() in _roman_numerals_set:
         return False
     # If it contains Hindi Unicode characters (Devanagari block), it is NOT DevLys
-    if any(0x0900 <= ord(c) <= 0x097F for c in text):
+    if _devanagari_regex.search(text):
         return False
         
     # Check for presence of common DevLys indicators
-    devlys_indicators = [
-        "fuoklh", "iq=", "gS", "foØsrk", "Øsrk", "lk{kh", "fy[kar", "iêk", "iV~Vk", 
-        "eSus", "le>dj", "izFke", "fLFkr", "uxj", "rglhy", "ftyk", "jktLFkku",
-        "Jhefrh", "fnukad", "foØsrkx.k", "Øsrkx.k", "iRuh", "Jh", "LoxhZ;", "Hkwfe",
-        "dksbZ", "n{k.k", "mRrj", "iwoZ", "if'pe", "jkf'k", "vk/kkj", "uEcj", 
-        "iSu", "vk;q", "tkfr", "¶ySV", "IykV", "eSllZ", "o\"kZ",
-        "okgu", "ikfdZax", "fgLls", "eqcfyx", "t;iqj", "vtesj", "c['kh", "eq'rd"
-    ]
     text_lower = text.lower()
-    for ind in devlys_indicators:
-        if ind.lower() in text_lower:
+    for ind in _devlys_indicators:
+        if ind in text_lower:
             return True
             
     # DevLys specific character presence (typical non-ascii character set used in mapping)
-    devlys_chars = "Øæçè½¾ßáâãäåæçèéêëìíîïñòóôõö÷ùúûüýþÿ"
-    if any(c in text for c in devlys_chars):
+    if _devlys_chars_regex.search(text):
         return True
         
     # DevLys common special character/punctuation mappings
-    devlys_special = "{}~`*\\|@"
-    if any(c in text for c in devlys_special):
+    if _devlys_special_regex.search(text):
         return True
         
     # Check for the common DevLys vowel sign pattern: 'f' followed by a consonant or sign mapping (e.g. fd, fo, fy, ft, etc.)
     # Exclude standard English 'fe', 'fa' from matching as DevLys
-    if re.search(r'f[b-df-hj-np-tv-zBCDFGHJKLMNPQRSTVWXYZ\[\]\{\}\;\:\'\"\,\<\.\>\/\?\`\~\!\@\#\$\%\^\&\*\(\)\_\+\-\=\|]', text):
+    if _devlys_vowel_regex.search(text):
         return True
         
     # Check if text is pure digits and common separators (matches Hindi font size properly)
-    if re.match(r'^[\d\s\-\.,]+$', text.strip()):
+    if _pure_digits_regex.match(text_stripped):
         return True
         
     return False
@@ -113,7 +119,7 @@ class SDTemplateProcessor:
             # Sanitize control characters that break docx (but preserve our sentinel)
             data = re.sub(r'[^\x01\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF]', '', data)
             # If standard English (no Hindi Unicode), return directly without DevLys encoding
-            if not any(ord(char) > 127 for char in data):
+            if not _non_ascii_regex.search(data):
                 return data
             # Protect HL markers before DevLys conversion
             has_markers = _HL_SENTINEL in data or HL_MARKER in data
@@ -688,7 +694,7 @@ class SDTemplateProcessor:
 
         def write_cell(cell, val, force_devlys=False):
             val_str = str(val or "")
-            is_hindi = force_devlys or any(ord(c) > 127 for c in val_str)
+            is_hindi = force_devlys or bool(_non_ascii_regex.search(val_str))
             if is_hindi:
                 converted = Unicode_to_KrutiDev(val_str)
                 set_cell_text(cell, converted, is_devlys=True)
