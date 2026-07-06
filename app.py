@@ -2505,78 +2505,6 @@ def save_public_dlc(case_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-def transliterate_hindi_to_english(text):
-    if not text:
-        return ""
-    
-    # Check if text contains Devanagari characters (range U+0900 to U+097F)
-    if not any(ord(c) in range(0x0900, 0x0980) for c in text):
-        return text.strip().upper()
-        
-    consonants = {
-        'क': 'K', 'ख': 'KH', 'ग': 'G', 'घ': 'GH', 'ङ': 'N',
-        'च': 'CH', 'छ': 'CHH', 'ज': 'J', 'झ': 'JH', 'ञ': 'N',
-        'ट': 'T', 'ठ': 'TH', 'ड': 'D', 'ढ': 'DH', 'ण': 'N',
-        'त': 'T', 'थ': 'TH', 'द': 'D', 'ध': 'DH', 'न': 'N',
-        'प': 'P', 'फ': 'PH', 'ब': 'B', 'भ': 'BH', 'म': 'M',
-        'य': 'Y', 'र': 'R', 'ल': 'L', 'व': 'V', 'श': 'SH', 'ष': 'SH', 'स': 'S', 'ह': 'H',
-        'क्ष': 'KSH', 'त्र': 'TR', 'ज्ञ': 'GY', 'ड़': 'D', 'ढ़': 'DH'
-    }
-    
-    vowels = {
-        'अ': 'A', 'आ': 'A', 'इ': 'I', 'ई': 'I', 'उ': 'U', 'ऊ': 'U', 'ऋ': 'RI',
-        'ए': 'E', 'ऐ': 'AI', 'ओ': 'O', 'औ': 'AU'
-    }
-    
-    matras = {
-        'ा': 'A', 'ि': 'I', 'ी': 'I', 'ु': 'U', 'ू': 'U', 'ृ': 'RI',
-        'े': 'E', 'ै': 'AI', 'ो': 'O', 'ौ': 'AU', 'ं': 'N', 'ः': 'H', 'ॅ': 'E'
-    }
-    
-    words = text.split()
-    converted_words = []
-    
-    for word in words:
-        conv = ""
-        i = 0
-        n = len(word)
-        while i < n:
-            char = word[i]
-            if char in consonants:
-                if i + 1 < n and word[i+1] == '्':
-                    conv += consonants[char]
-                    i += 2
-                    continue
-                else:
-                    if i + 1 < n and word[i+1] in matras:
-                        conv += consonants[char] + matras[word[i+1]]
-                        i += 2
-                        continue
-                    else:
-                        if i + 1 < n and word[i+1] in consonants:
-                            conv += consonants[char] + 'A'
-                        else:
-                            conv += consonants[char]
-                        i += 1
-                        continue
-            elif char in vowels:
-                conv += vowels[char]
-                i += 1
-            elif char in matras:
-                conv += matras[char]
-                i += 1
-            else:
-                conv += char
-                i += 1
-        converted_words.append(conv)
-        
-    res = " ".join(converted_words).upper()
-    res = res.replace("SWARGIYE", "LATE").replace("SWARGIYA", "LATE").replace("SVARGIY", "LATE").replace("SWARGIY", "LATE").replace("SHRI", "SHRI").replace("KUMARI", "KUMARI")
-    res = re.sub(r'NDR$', 'NDRA', res)
-    res = re.sub(r'[^A-Z0-9\s]', ' ', res)
-    res = re.sub(r'\s+', ' ', res).strip()
-    return res
-
 @app.route("/api/case/<case_id>/epanjiyan_data")
 def get_epanjiyan_data(case_id):
     try:
@@ -2694,21 +2622,14 @@ def get_epanjiyan_data(case_id):
         executants = []
         for b in executants_source:
             name_en = clean_val(b.get("n_en", ""))
-            if not name_en or any(ord(c) in range(0x0900, 0x0980) for c in name_en):
-                name_en = transliterate_hindi_to_english(clean_val(b.get("n", "")))
-                
             rel_name_en = clean_val(b.get("rn_en", ""))
-            if not rel_name_en or any(ord(c) in range(0x0900, 0x0980) for c in rel_name_en):
-                rel_name_en = transliterate_hindi_to_english(clean_val(b.get("rn", "")))
-                
+            
             sal = clean_val(b.get("s", ""))
             gender = "MALE"
             if "MRS" in sal or "MS" in sal or "FEMALE" in sal or clean_val(b.get("gender", "")) == "FEMALE":
                 gender = "FEMALE"
                 
             addr_str = clean_val(b.get("adr_en", ""))
-            if not addr_str or any(ord(c) in range(0x0900, 0x0980) for c in addr_str):
-                addr_str = transliterate_hindi_to_english(clean_val(b.get("adr", "")))
             addr_split = split_address(addr_str)
             
             rel_type = clean_val(b.get("r", "S/O"))
@@ -2746,12 +2667,7 @@ def get_epanjiyan_data(case_id):
             buyers = data.get("bs", [])
             for b in buyers:
                 buyer_name_en = clean_val(b.get("n_en", ""))
-                if not buyer_name_en or any(ord(c) in range(0x0900, 0x0980) for c in buyer_name_en):
-                    buyer_name_en = transliterate_hindi_to_english(clean_val(b.get("n", "")))
-                    
                 buyer_rel_name_en = clean_val(b.get("rn_en", ""))
-                if not buyer_rel_name_en or any(ord(c) in range(0x0900, 0x0980) for c in buyer_rel_name_en):
-                    buyer_rel_name_en = transliterate_hindi_to_english(clean_val(b.get("rn", "")))
                 
                 buyer_sal = clean_val(b.get("s", ""))
                 buyer_gender = "MALE"
@@ -2759,8 +2675,6 @@ def get_epanjiyan_data(case_id):
                     buyer_gender = "FEMALE"
                     
                 buyer_addr_str = clean_val(b.get("adr_en", ""))
-                if not buyer_addr_str or any(ord(c) in range(0x0900, 0x0980) for c in buyer_addr_str):
-                    buyer_addr_str = transliterate_hindi_to_english(clean_val(b.get("adr", "")))
                 buyer_addr_split = split_address(buyer_addr_str)
                 
                 buyer_rel_type = clean_val(b.get("r", "S/O"))
@@ -2846,12 +2760,7 @@ def get_epanjiyan_data(case_id):
         witnesses = []
         for w in data.get("ws", []):
             w_name_en = clean_val(w.get("n_en", ""))
-            if not w_name_en or any(ord(c) in range(0x0900, 0x0980) for c in w_name_en):
-                w_name_en = transliterate_hindi_to_english(clean_val(w.get("n", "")))
-                
             w_rel_name_en = clean_val(w.get("rn_en", ""))
-            if not w_rel_name_en or any(ord(c) in range(0x0900, 0x0980) for c in w_rel_name_en):
-                w_rel_name_en = transliterate_hindi_to_english(clean_val(w.get("rn", "")))
             
             w_rel_type = clean_val(w.get("r", "S/O"))
             if "W/O" in w_rel_type or "WIFE" in w_rel_type:
@@ -2860,8 +2769,6 @@ def get_epanjiyan_data(case_id):
                 w_rel_type = "FATHER"
                 
             w_addr_str = clean_val(w.get("adr_en", ""))
-            if not w_addr_str or any(ord(c) in range(0x0900, 0x0980) for c in w_addr_str):
-                w_addr_str = transliterate_hindi_to_english(clean_val(w.get("adr", "")))
             w_addr_split = split_address(w_addr_str)
             
             w_age = clean_val(w.get("a", ""))
