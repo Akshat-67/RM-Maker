@@ -2324,7 +2324,7 @@ async function runPartyFeedingLoop(data) {
                                     document.querySelector('button[id*="witn" i]') || 
                                     Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
                                         const txt = el.textContent.trim().toUpperCase();
-                                        return txt === 'WITNESS' || txt.includes('गवाह') || (el.src && el.src.includes('witnes'));
+                                        return txt.includes('WITNESS') || txt.includes('गवाह') || (el.src && el.src.includes('witnes'));
                                     });
                 if (witnessBtn) {
                     witnessBtn.click();
@@ -2418,9 +2418,27 @@ async function runPartyFeedingLoop(data) {
                     showStatusToast(`Filled ${stage}! Auto-saving...`, false);
                 }
                 
-                setTimeout(() => {
+                setTimeout(async () => {
                     const saved = triggerButtonByText("Save");
-                    if (!saved) {
+                    if (saved) {
+                        showStatusToast("Waiting for success confirmation...");
+                        let clickedOk = false;
+                        for (let i = 0; i < 40; i++) {
+                            const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                          Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'OK' || b.textContent.trim().includes('ठीक है'));
+                            if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                                okBtn.click();
+                                clickedOk = true;
+                                break;
+                            }
+                            await new Promise(r => setTimeout(r, 150));
+                        }
+                        if (clickedOk) {
+                            showStatusToast("Saved and confirmed!", false);
+                        } else {
+                            showStatusToast("Saved (confirmation popup timed out).", false);
+                        }
+                    } else {
                         showStatusToast(`Could not auto-click Save. Please click Save manually.`, false);
                     }
                 }, 400);

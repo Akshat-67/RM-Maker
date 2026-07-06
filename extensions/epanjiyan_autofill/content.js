@@ -1248,7 +1248,7 @@ function autofillWitnessN(data, index, sendResponse) {
                            document.querySelector('button[id*="wit" i]') || 
                            Array.from(document.querySelectorAll('button, a, div, span, img, .btn')).find(el => {
                                const txt = el.textContent.trim().toUpperCase();
-                               return txt === 'WITNESS' || txt.includes('गवाह') || txt.includes('साक्षी') || (el.src && el.src.includes('witness'));
+                               return txt.includes('WITNESS') || txt.includes('गवाह') || txt.includes('साक्षी') || (el.src && el.src.includes('witness'));
                            });
         if (witnessBtn) {
             console.log("[RM-Maker] Found Witness button. Clicking...");
