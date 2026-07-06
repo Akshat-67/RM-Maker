@@ -2433,29 +2433,27 @@ def split_address(address_str):
     address_str = re.sub(r'\b(rj|mh|gj|mp|up|hr|pb|dl|ka|tn|ap|ts)\b', '', address_str, flags=re.IGNORECASE).strip()
     address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
     
+    # Replace dots, colons, semicolons with spaces to clean special characters
+    address_str = address_str.replace(".", " ").replace(":", " ").replace(";", " ")
+    address_str = re.sub(r'\s+', ' ', address_str).strip()
+    
     # 3. Extract house/flat number
     house_no = "00"
-    # First check if address starts with a direct plot/house number (like T-28, S-1, 101, FN-115-A)
-    start_match = re.match(r'^([a-zA-Z0-9\-/]+)\b', address_str)
-    if start_match and re.search(r'\d', start_match.group(1)) and len(start_match.group(1)) <= 8:
+    
+    # Check if address starts with a direct plot/house number (like "F N 115-A", "T-28", "101", "PLOT 12")
+    start_match = re.match(r'^(?:FLAT|PLOT|HOUSE|SHOP|WARD|FN|NO|[A-Z]\b|\s)+\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+    if start_match and re.search(r'\d', start_match.group(0)) and len(start_match.group(1)) <= 8:
         house_no = start_match.group(1).upper()
+        # Remove the matched prefix (including flat/plot keyword)
         address_str = address_str.replace(start_match.group(0), "", 1).strip()
     else:
-        # Fallback to general keyword search
-        house_match = re.search(r'\b(plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
+        # Fallback keyword search
+        house_match = re.search(r'\b(?:plot|p|h|flat|shop|house|ward)\b\.?\s*(?:no\.?|num\.?)?\s*([a-zA-Z0-9\-/]+)\b', address_str, re.IGNORECASE)
         if house_match:
-            # Prevent matching single letters in abbreviations like G.P.R.A
-            is_abbreviation = False
-            matched_keyword = house_match.group(1).lower()
-            if matched_keyword in ['p', 'h']:
-                pos = address_str.lower().find(house_match.group(0).lower())
-                if pos > 0 and address_str[pos-1] == '.':
-                    is_abbreviation = True
+            house_no = house_match.group(1).upper()
+            address_str = address_str.replace(house_match.group(0), "").strip()
             
-            if not is_abbreviation:
-                house_no = house_match.group(2).upper() if len(house_match.groups()) >= 2 else house_match.group(1).upper()
-                address_str = address_str.replace(house_match.group(0), "").strip()
-            
+    # Clean up leading/trailing symbols in remaining address
     address_str = re.sub(r'^[\s,\.\-]+', '', address_str)
     address_str = re.sub(r'[\s,\.\-]+$', '', address_str)
     
@@ -2466,13 +2464,23 @@ def split_address(address_str):
     area = ""
     colony = ""
     
-    if len(parts) >= 1:
-        # The last part is the city
-        city = parts[-1].upper()
+    if parts:
+        last_part = parts[-1].upper()
+        # Look for "DIST DISTRICT" patterns (e.g. "DIST JAIPUR" -> "JAIPUR")
+        dist_match = re.search(r'\b(?:DIST|DISTRICT)\b\s*([A-Z\s]+)', last_part)
+        if dist_match:
+            city = dist_match.group(1).strip()
+            parts = parts[:-1]
+        else:
+            city = last_part
+            parts = parts[:-1]
+            
+    # Discard duplicate city/district names at the end
+    while parts and (parts[-1].upper() == city or parts[-1].upper().replace("DIST", "").strip() == city):
         parts = parts[:-1]
         
     if len(parts) >= 1:
-        # The next to last part is the area
+        # The new last part is the area
         area = parts[-1].upper()
         parts = parts[:-1]
         
@@ -2485,11 +2493,19 @@ def split_address(address_str):
     if not colony:
         colony = city
         
+    # Helper to clean up final returned fields from extra spaces/punctuation
+    def clean_val(val):
+        if not val:
+            return ""
+        # Remove any character that is NOT letter, number, space, dash, slash
+        val = re.sub(r'[^a-zA-Z0-9\s\-/]', ' ', val)
+        return re.sub(r'\s+', ' ', val).strip().upper()
+        
     return {
-        "house_no": house_no,
-        "colony": colony,
-        "area": area,
-        "city": city,
+        "house_no": clean_val(house_no),
+        "colony": clean_val(colony),
+        "area": clean_val(area),
+        "city": clean_val(city),
         "pincode": pincode
     }
 
