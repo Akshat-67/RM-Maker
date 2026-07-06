@@ -554,31 +554,32 @@ class SDDataExtractor:
         if not self.api_keys:
             return {"error": "Gemini API Keys Missing"}
 
+        target_bucket = kwargs.get("target_bucket")
         merged_data = current_data or {}
 
         # 1. KYC - Extract Identity only
-        if buckets.get("kyc"):
+        if buckets.get("kyc") and len(buckets["kyc"]) > 0 and (not target_bucket or target_bucket == "kyc"):
             kyc_prompt = self._build_kyc_prompt(expected_sellers, expected_buyers, expected_witnesses)
             kyc_res = self._run_gemini_extraction(buckets["kyc"], selected_model, kyc_prompt)
             if kyc_res and not kyc_res.get("error"):
                 merged_data = self._merge_kyc_results(merged_data, kyc_res)
 
         # 2. Legal - Extract Property and Chain only (Primary Source)
-        if buckets.get("legal"):
+        if buckets.get("legal") and len(buckets["legal"]) > 0 and (not target_bucket or target_bucket == "legal"):
             legal_prompt = self._build_legal_prompt()
             legal_res = self._run_gemini_extraction(buckets["legal"], selected_model, legal_prompt)
             if legal_res and not legal_res.get("error"):
                 merged_data = self._merge_legal_results(merged_data, legal_res, file_paths=buckets["legal"])
 
         # 3. ATS - Extract Consideration and Transaction only
-        if buckets.get("ats"):
+        if buckets.get("ats") and len(buckets["ats"]) > 0 and (not target_bucket or target_bucket == "ats"):
             ats_prompt = self._build_ats_prompt()
             ats_res = self._run_gemini_extraction(buckets["ats"], selected_model, ats_prompt)
             if ats_res and not ats_res.get("error"):
                 merged_data = self._merge_ats_results(merged_data, ats_res)
 
         # 4. Title Chain - Extract Site Plan Dimensions and verify
-        if buckets.get("title_chain"):
+        if buckets.get("title_chain") and len(buckets["title_chain"]) > 0 and (not target_bucket or target_bucket == "title_chain"):
             title_prompt = self._build_title_prompt()
             title_res = self._run_gemini_extraction(buckets["title_chain"], selected_model, title_prompt)
             if title_res and not title_res.get("error"):
