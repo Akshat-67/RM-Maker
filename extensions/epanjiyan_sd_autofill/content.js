@@ -503,7 +503,17 @@ async function autofillDetails(data, sendResponse) {
                 const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
                               Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('OK') || b.textContent.trim().includes('ठीक है'));
                 if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                    await new Promise(r => setTimeout(r, 450));
                     okBtn.click();
+                    okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    
+                    await new Promise(r => setTimeout(r, 300));
+                    const stillExists = document.querySelector('.swal2-confirm, .swal-button--confirm');
+                    if (stillExists) {
+                        console.log("[SD-Autofill] Swal confirm button still exists, retrying click...");
+                        stillExists.click();
+                        stillExists.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    }
                     clickedOk = true;
                     break;
                 }
@@ -2429,7 +2439,17 @@ async function runPartyFeedingLoop(data) {
                             const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
                                           Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'OK' || b.textContent.trim().includes('ठीक है'));
                             if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                                await new Promise(r => setTimeout(r, 450));
                                 okBtn.click();
+                                okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                
+                                await new Promise(r => setTimeout(r, 300));
+                                const stillExists = document.querySelector('.swal2-confirm, .swal-button--confirm');
+                                if (stillExists) {
+                                    console.log("[SD-Autofill] Swal confirm button still exists, retrying click...");
+                                    stillExists.click();
+                                    stillExists.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                }
                                 clickedOk = true;
                                 break;
                             }
