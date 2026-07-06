@@ -389,3 +389,69 @@ def parse_and_format_chain(raw_text):
         
     formatted_text = "\n".join(formatted_lines)
     return formatted_text, clean_docs
+
+def select_relevant_pdf_pages(pdf_path, keywords=None):
+    import pypdf
+    if keywords is None:
+        keywords = []
+    
+    try:
+        reader = pypdf.PdfReader(pdf_path)
+        total_pages = len(reader.pages)
+        if total_pages == 0:
+            return []
+            
+        # Check if PDF contains any extractable text (to detect scanned vs searchable)
+        has_any_text = False
+        page_texts = []
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text() or ""
+            page_texts.append(text)
+            if text.strip():
+                has_any_text = True
+                
+        if not has_any_text:
+            return [] # Scanned PDF fallback
+            
+        # Hybrid page selection: always select page 1, 2 and the last page
+        selected_indices = {0, 1, total_pages - 1}
+        selected_indices = {idx for idx in selected_indices if 0 <= idx < total_pages}
+        
+        # Match keywords on middle pages
+        lower_keywords = [kw.lower() for kw in keywords]
+        for idx in range(2, total_pages - 1):
+            page_text_lower = page_texts[idx].lower()
+            if any(kw in page_text_lower for kw in lower_keywords):
+                selected_indices.add(idx)
+                
+        sorted_indices = sorted(list(selected_indices))
+        
+        # Cap at 5 pages max (prioritizing first 2, last 1, and then middle matching pages)
+        if len(sorted_indices) > 5:
+            # Always keep first two and last page if they were selected
+            essential = {0, 1, total_pages - 1}
+            essential = {idx for idx in essential if idx in sorted_indices}
+            extras = [idx for idx in sorted_indices if idx not in essential]
+            
+            # Take extra pages up to the cap of 5
+            allowed_extras_count = 5 - len(essential)
+            sorted_indices = sorted(list(essential) + extras[:allowed_extras_count])
+            
+        return sorted_indices
+    except Exception as e:
+        print(f"[PDF Helper Warning] Failed to inspect PDF {pdf_path}: {e}")
+        return []
+
+def extract_pdf_pages_text(pdf_path, page_indices):
+    import pypdf
+    try:
+        reader = pypdf.PdfReader(pdf_path)
+        output_text = []
+        for idx in page_indices:
+            if 0 <= idx < len(reader.pages):
+                page_txt = reader.pages[idx].extract_text() or ""
+                output_text.append(f"--- [Page {idx + 1}] ---\n{page_txt}")
+        return "\n\n".join(output_text)
+    except Exception as e:
+        print(f"[PDF Helper Warning] Failed to extract text for PDF {pdf_path}: {e}")
+        return ""

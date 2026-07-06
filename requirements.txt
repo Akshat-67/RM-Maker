@@ -9,3 +9,5 @@ openai
 tkinterdnd2
 pytest
 python-dotenv
+pypdf
+
