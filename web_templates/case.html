@@ -1187,6 +1187,7 @@
                                                 <input type="hidden" id="field_sellers_{{ loop.index0 }}_rn_en" value="{{ s.get('rn_en','') }}">
                                                 <input type="hidden" id="field_sellers_{{ loop.index0 }}_adr_en" value="{{ s.get('adr_en','') }}">
                                                 <input type="hidden" id="field_sellers_{{ loop.index0 }}_is_bpl" value="{{ s.get('is_bpl','') }}">
+                                                <input type="hidden" id="field_sellers_{{ loop.index0 }}_dob" value="{{ s.get('dob','') }}">
                                                 <h6 class="text-primary fw-bold">Seller {{ loop.index }}</h6>
                                                 <div class="row g-2">
                                                     <div class="col-8">
@@ -3269,7 +3270,7 @@
             const sCards = document.querySelectorAll('#verificationContent .seller-card');
             sCards.forEach((card, i) => {
                 const s = {};
-                ['n', 'n_en', 'rn', 'rn_en', 'r', 'a', 'adr', 'adr_en', 'id', 'pan'].forEach(k => {
+                ['n', 'n_en', 'rn', 'rn_en', 'r', 'a', 'adr', 'adr_en', 'id', 'pan', 'dob'].forEach(k => {
                     const el = document.getElementById(`field_sellers_${i}_${k}`);
                     if (el) s[k] = el.value || '';
                 });
@@ -3625,7 +3626,10 @@
                     const idInput = document.getElementById(`field_sellers_${idx}_id`);
                     if (idInput) idInput.value = id;
 
-                    ['n','a','r','rn','adr','id','pan'].forEach(k => {
+                    const dobInput = document.getElementById(`field_sellers_${idx}_dob`);
+                    if (dobInput) dobInput.value = dob || '';
+
+                    ['n','a','r','rn','adr','id','pan','dob'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="sellers.${idx}.${k}"]`);
                         if (cb) cb.checked = true;
                     });
