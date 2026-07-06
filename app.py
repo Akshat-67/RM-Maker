@@ -30,6 +30,32 @@ def basename_filter(s):
 CASES_DIR = "cases"
 TEMPLATES_DIR = "templates"
 
+LATEST_OTP = {"otp": None, "timestamp": 0}
+
+@app.route("/api/case/otp", methods=["GET", "POST"])
+def receive_otp():
+    global LATEST_OTP
+    msg = request.args.get("message") or ""
+    if not msg and request.json:
+        msg = request.json.get("message") or ""
+        
+    otp_match = re.search(r'\b\d{6}\b', msg)
+    if otp_match:
+        otp_code = otp_match.group(0)
+        LATEST_OTP = {"otp": otp_code, "timestamp": time.time()}
+        print(f"[Backend] OTP received and saved: {otp_code}")
+        return jsonify({"success": True, "otp": otp_code})
+    return jsonify({"success": False, "error": "No 6-digit OTP found in message"}), 400
+
+@app.route("/api/case/otp/recent", methods=["GET"])
+def get_recent_otp():
+    global LATEST_OTP
+    if LATEST_OTP["otp"] and (time.time() - LATEST_OTP["timestamp"]) < 90:
+        otp = LATEST_OTP["otp"]
+        LATEST_OTP = {"otp": None, "timestamp": 0} # Consume
+        return jsonify({"otp": otp})
+    return jsonify({"otp": None})
+
 os.makedirs(CASES_DIR, exist_ok=True)
 # --- MODERN DESIGN CONSTANTS ---
 BG_MAIN = "#F8FAFC"

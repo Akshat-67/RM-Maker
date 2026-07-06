@@ -2059,6 +2059,52 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitnes
         return;
     }
 
+    // Check if OTP needs to be bypassed based on Property Valuation (< 25 lakhs)
+    let valuationAmount = 0;
+    try {
+        const valSelectors = [
+            'input[id*="valuation" i]', 'input[name*="valuation" i]',
+            'input[id*="marketval" i]', 'input[name*="marketval" i]',
+            'input[id*="consideration" i]', 'input[name*="consideration" i]',
+            'input[id*="dlc" i]', 'input[name*="dlc" i]',
+            'span[id*="valuation" i]', 'span[id*="marketval" i]', 'span[id*="consideration" i]',
+            'td[id*="valuation" i]', 'td[id*="marketval" i]'
+        ];
+        for (const sel of valSelectors) {
+            const el = document.querySelector(sel);
+            if (el) {
+                const valStr = el.value || el.textContent || "";
+                const parsed = parseFloat(valStr.replace(/[^0-9.]/g, ''));
+                if (parsed > valuationAmount) valuationAmount = parsed;
+            }
+        }
+
+        const bodyText = document.body.innerText;
+        const regex = /(?:valuation|market\s*value|dlc|consideration|मूल्यांकन|बाजार\s*मूल्य|प्रतिफल)\s*[:\-]?\s*(?:rs\.?|inr)?\s*([0-9,.]+)/i;
+        const matches = bodyText.match(new RegExp(regex.source, 'gi'));
+        if (matches) {
+            for (const m of matches) {
+                const cleanNum = m.match(/[0-9,.]+/);
+                if (cleanNum) {
+                    const parsed = parseFloat(cleanNum[0].replace(/,/g, ''));
+                    if (parsed > valuationAmount) valuationAmount = parsed;
+                }
+            }
+        }
+    } catch (err) {
+        console.error("[SD-Autofill] Error reading valuation from page:", err);
+    }
+    
+    console.log("[SD-Autofill] Resolved property valuation:", valuationAmount);
+    
+    // Only trigger mobile OTP sequence if valuation >= 25 lakhs (2,500,000)
+    // If valuation is 0, we default to doing it (safer default)
+    if (valuationAmount > 0 && valuationAmount < 2500000) {
+        console.log(`[SD-Autofill] Valuation (${valuationAmount}) is less than 25 Lakhs. Skipping OTP mobile sequence.`);
+        console.log("[SD-Autofill] Completed fillPartyFormFields for:", partyData.name_en);
+        return;
+    }
+
     let mobileVal = "";
     if (chrome && chrome.storage && chrome.storage.local) {
         const res = await new Promise(r => chrome.storage.local.get(['defaultMobile'], r));
@@ -2075,20 +2121,87 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitnes
             chkMobile.click();
         }
         
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
         
         const contactInput = document.getElementById('txtcontact') || document.querySelector('input[name="contactno"]');
         if (contactInput) {
             console.log("[SD-Autofill] Found contact input. Filling with:", mobileVal);
             setInputValue(contactInput, mobileVal);
             
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 400));
             
             const verifyBtn = document.getElementById('btnotpforvaluation') || 
                               Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'VERIFY');
             if (verifyBtn) {
                 console.log("[SD-Autofill] Clicking Verify button to trigger OTP...");
                 verifyBtn.click();
+                
+                // 1. Wait for and click OK on the "OTP Sent Successfully" SweetAlert modal
+                showStatusToast("Waiting for OTP sent confirmation...");
+                let clickedSentOk = false;
+                for (let i = 0; i < 40; i++) {
+                    const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Ok') || b.textContent.trim().includes('ठीक है'));
+                    if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                        await new Promise(r => setTimeout(r, 450));
+                        okBtn.click();
+                        okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                        clickedSentOk = true;
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                
+                if (clickedSentOk) {
+                    // 2. Poll for OTP from MacroDroid endpoint
+                    showStatusToast("Polling for forwarded OTP from MacroDroid...");
+                    let otpVal = "";
+                    for (let i = 0; i < 60; i++) { // Poll for up to 90 seconds
+                        try {
+                            const response = await fetch('http://localhost:5000/api/case/otp/recent');
+                            const resData = await response.json();
+                            if (resData && resData.otp) {
+                                otpVal = resData.otp;
+                                break;
+                            }
+                        } catch (err) {
+                            console.error("Error polling OTP:", err);
+                        }
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                    
+                    if (otpVal) {
+                        showStatusToast(`OTP Received: ${otpVal}. Filling...`);
+                        const otpInput = document.getElementById('txtotp') || document.querySelector('input[name="txtvaltionotp"]');
+                        if (otpInput) {
+                            setInputValue(otpInput, otpVal);
+                            await new Promise(r => setTimeout(r, 400));
+                            
+                            // 3. Click Verify Mobile button
+                            const verifyMobileBtn = document.getElementById('btnVerifyMobile');
+                            if (verifyMobileBtn) {
+                                console.log("[SD-Autofill] Clicking Verify Mobile button...");
+                                verifyMobileBtn.click();
+                                
+                                // 4. Wait for and click OK on the "OTP verified successfully" SweetAlert modal
+                                showStatusToast("Waiting for OTP verified confirmation...");
+                                for (let i = 0; i < 40; i++) {
+                                    const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Ok') || b.textContent.trim().includes('ठीक है'));
+                                    if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                                        await new Promise(r => setTimeout(r, 450));
+                                        okBtn.click();
+                                        okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                        break;
+                                    }
+                                    await new Promise(r => setTimeout(r, 150));
+                                }
+                            }
+                        }
+                    } else {
+                        showStatusToast("OTP polling timed out. Please enter OTP manually.", false);
+                    }
+                }
             }
         }
     }
