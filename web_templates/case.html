@@ -2439,19 +2439,28 @@
         transliterationEnabled = !transliterationEnabled;
         if (transliterationEnabled) {
             devlysEnabled = false;
-            document.getElementById('btnToggleDevLys').classList.replace('btn-info', 'btn-outline-info');
-            document.getElementById('btnToggleDevLys').innerHTML = '⌨️ DevLys (Off)';
+            const devlysBtns = [document.getElementById('btnToggleDevLys'), document.getElementById('btnToggleDevLysTimeline')];
+            devlysBtns.forEach(btn => {
+                if (btn) {
+                    btn.classList.replace('btn-info', 'btn-outline-info');
+                    btn.innerHTML = '⌨️ DevLys (Off)';
+                }
+            });
             document.getElementById('devlysBadge').style.display = 'none';
         }
         
-        const btn = document.getElementById('btnToggleItrans');
-        if (transliterationEnabled) {
-            btn.classList.replace('btn-outline-warning', 'btn-warning');
-            btn.innerHTML = 'A→अ ITRANS (ON)';
-        } else {
-            btn.classList.replace('btn-warning', 'btn-outline-warning');
-            btn.innerHTML = 'A→अ ITRANS (Off)';
-        }
+        const itransBtns = [document.getElementById('btnToggleItrans'), document.getElementById('btnToggleItransTimeline')];
+        itransBtns.forEach(btn => {
+            if (btn) {
+                if (transliterationEnabled) {
+                    btn.classList.replace('btn-outline-warning', 'btn-warning');
+                    btn.innerHTML = 'A→अ ITRANS (ON)';
+                } else {
+                    btn.classList.replace('btn-warning', 'btn-outline-warning');
+                    btn.innerHTML = 'A→अ ITRANS (Off)';
+                }
+            }
+        });
         document.getElementById('transliterationBadge').style.display = transliterationEnabled ? 'inline-block' : 'none';
         updateActiveModeIndicator();
     }
@@ -2460,19 +2469,28 @@
         devlysEnabled = !devlysEnabled;
         if (devlysEnabled) {
             transliterationEnabled = false;
-            document.getElementById('btnToggleItrans').classList.replace('btn-warning', 'btn-outline-warning');
-            document.getElementById('btnToggleItrans').innerHTML = 'A→अ ITRANS (Off)';
+            const itransBtns = [document.getElementById('btnToggleItrans'), document.getElementById('btnToggleItransTimeline')];
+            itransBtns.forEach(btn => {
+                if (btn) {
+                    btn.classList.replace('btn-warning', 'btn-outline-warning');
+                    btn.innerHTML = 'A→अ ITRANS (Off)';
+                }
+            });
             document.getElementById('transliterationBadge').style.display = 'none';
         }
         
-        const btn = document.getElementById('btnToggleDevLys');
-        if (devlysEnabled) {
-            btn.classList.replace('btn-outline-info', 'btn-info');
-            btn.innerHTML = '⌨️ DevLys (ON)';
-        } else {
-            btn.classList.replace('btn-info', 'btn-outline-info');
-            btn.innerHTML = '⌨️ DevLys (Off)';
-        }
+        const devlysBtns = [document.getElementById('btnToggleDevLys'), document.getElementById('btnToggleDevLysTimeline')];
+        devlysBtns.forEach(btn => {
+            if (btn) {
+                if (devlysEnabled) {
+                    btn.classList.replace('btn-outline-info', 'btn-info');
+                    btn.innerHTML = '⌨️ DevLys (ON)';
+                } else {
+                    btn.classList.replace('btn-info', 'btn-outline-info');
+                    btn.innerHTML = '⌨️ DevLys (Off)';
+                }
+            }
+        });
         document.getElementById('devlysBadge').style.display = devlysEnabled ? 'inline-block' : 'none';
         updateActiveModeIndicator();
     }
@@ -2495,6 +2513,8 @@
         const id = el.id.toLowerCase();
         if (id.endsWith('_en')) return false;
         if (id.includes('_id') || id.includes('_pan') || id.includes('_reg_no')) return false;
+        if (id === 'chainnarrativepreview') return true;
+        if (id === 'node_sellers' || id === 'node_buyers') return true;
         
         const label = el.closest('.col-md-6, .col-12, .col-md-9, .col-md-4, .col-8, .col-4')?.querySelector('label')?.textContent || "";
         const isHindiField = label.includes('(Hindi)') || label.includes('Address') || label.includes('Owner') || label.includes('Deed Type') || label.includes('Words') || label.includes('Relation') || label.includes('Name') || label.includes('Title');
@@ -2671,7 +2691,7 @@
             });
         }
 
-        const workspace = document.getElementById('verificationContent');
+        const workspace = document.body;
         if (workspace) {
             // Automatically transliterate when typing in English box and pressing Enter/Tab in transliteration mode
             workspace.addEventListener('keydown', (e) => {
