@@ -813,7 +813,7 @@
                                         <div class="file-list-scroll mt-2" id="ocrFileList">
                                             {% for f in buckets.get('ocr', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem;">
-                                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                                <span class="text-truncate" style="max-width: 80%; cursor: pointer;" onclick="previewFile('{{ f | basename }}')" data-filename-span="{{ f | basename }}" title="Click to Preview">{{ f | basename }}</span>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'ocr')">×</span>
                                             </div>
                                             {% endfor %}
@@ -836,7 +836,7 @@
                                     <div class="d-flex justify-content-between align-items-center bg-white border rounded px-3 py-2 mb-2 shadow-sm" style="font-size: 0.85rem;">
                                         <div class="d-flex align-items-center text-truncate" style="max-width: 80%;">
                                             <input type="checkbox" class="form-check-input me-2 file-select-checkbox" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %}>
-                                            <span class="text-truncate fw-bold cursor-pointer" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
+                                            <span class="text-truncate fw-bold cursor-pointer" onclick="previewFile('{{ f | basename }}')" data-filename-span="{{ f | basename }}" title="Click to Preview">{{ f | basename }}</span>
                                         </div>
                                         <span class="cursor-pointer text-danger fw-bold fs-5 px-1" onclick="deleteFile('{{ f | basename }}')">×</span>
                                     </div>
@@ -888,6 +888,7 @@
                     {% set safeId = 'file-tab-' + filename.replace('.', '_') %}
                     <button class="btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate" 
                             id="{{ safeId }}"
+                            data-filename="{{ filename }}"
                             style="max-width: 140px; font-size: 0.7rem; padding: 0.2rem 0.5rem;" 
                             onclick="previewFile('{{ filename }}')"
                             title="{{ filename }}">
@@ -4042,11 +4043,137 @@
         .catch(err => alert('Failed to delete file: ' + err));
     }
     
+    function updateFileTabLabels() {
+        const docTypeSelect = document.getElementById('docTypeSelect');
+        const docType = docTypeSelect ? docTypeSelect.value : 'RM';
+        const assignments = []; // Array of { role: "Borrower 1", name: "Kiran Devi", id: "1234..." }
+
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim().toUpperCase() : '';
+        };
+
+        if (docType === 'SD') {
+            // Sellers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_sellers_${i}_n_en`) || getVal(`field_sellers_${i}_n`);
+                const id = getVal(`field_sellers_${i}_id`);
+                if (name) assignments.push({ role: `Seller ${i + 1}`, name, id });
+            }
+            // Buyers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_buyers_${i}_n_en`) || getVal(`field_buyers_${i}_n`);
+                const id = getVal(`field_buyers_${i}_id`);
+                if (name) assignments.push({ role: `Buyer ${i + 1}`, name, id });
+            }
+            // Witnesses
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_ws_${i}_n_en`) || getVal(`field_ws_${i}_n`);
+                const id = getVal(`field_ws_${i}_id`);
+                if (name) assignments.push({ role: `Witness ${i + 1}`, name, id });
+            }
+        } else {
+            // Borrowers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_bs_${i}_n`);
+                const id = getVal(`field_bs_${i}_id`);
+                if (name) assignments.push({ role: `Borrower ${i + 1}`, name, id });
+            }
+            // Witnesses
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_ws_${i}_n`);
+                const id = getVal(`field_ws_${i}_id`);
+                if (name) assignments.push({ role: `Witness ${i + 1}`, name, id });
+            }
+            // Bank Signer
+            const signerName = getVal('field_bsign_n');
+            const signerId = getVal('field_bsign_id');
+            if (signerName) assignments.push({ role: 'Bank Signer', name: signerName, id: signerId });
+        }
+
+        // Iterate through all files and rename their labels
+        ALL_CASE_FILES.forEach(filename => {
+            const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase().replace(/[^a-z0-9]/g, '');
+            let matchedRole = "";
+
+            // 1. Try matching by Aadhaar ID (last 4 digits)
+            for (const ass of assignments) {
+                if (ass.id) {
+                    const idClean = ass.id.replace(/\s/g, '');
+                    if (idClean.length >= 4) {
+                        const last4 = idClean.substring(idClean.length - 4);
+                        if (base.includes(last4)) {
+                            matchedRole = ass.role;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 2. Try fuzzy matching by Name
+            if (!matchedRole) {
+                for (const ass of assignments) {
+                    const assClean = ass.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (assClean.length >= 3) {
+                        // Check if file base name is contained within or contains the person name
+                        if (base.includes(assClean) || assClean.includes(base)) {
+                            matchedRole = ass.role;
+                            break;
+                        }
+                        // Check if parts overlap
+                        const parts = assClean.split(/\s+/);
+                        if (parts.length > 1 && parts.every(part => base.includes(part))) {
+                            matchedRole = ass.role;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Construct new display label
+            let displayName = filename;
+            if (matchedRole) {
+                const ext = filename.split('.').pop();
+                const pairInfo = findPairedFile(filename);
+                let sideLabel = "";
+                if (pairInfo) {
+                    sideLabel = pairInfo.side === 'front' ? ' [Front]' : ' [Back]';
+                }
+                displayName = `${matchedRole}${sideLabel}.${ext}`;
+            }
+
+            // Rename Horizontal preview tab button text
+            const safeId = 'file-tab-' + filename.replace(/\./g, '_');
+            const tabBtn = document.getElementById(safeId) || document.querySelector(`.file-preview-btn[data-filename="${filename}"]`);
+            if (tabBtn) {
+                tabBtn.innerHTML = `📄 ${displayName}`;
+                tabBtn.title = displayName;
+            }
+
+            // Rename Sidebar list view span text
+            const sidebarSpan = document.querySelector(`span[data-filename-span="${filename}"]`);
+            if (sidebarSpan) {
+                sidebarSpan.textContent = displayName;
+                sidebarSpan.title = displayName;
+            }
+        });
+    }
+    
     window.addEventListener('DOMContentLoaded', () => {
+        // Run renaming logic on page load
+        updateFileTabLabels();
+
+        // Register blur/change event listeners to name/id fields to update tab labels dynamically
+        const assignmentInputs = document.querySelectorAll('input[id^="field_"][id$="_n"], input[id^="field_"][id$="_n_en"], input[id^="field_"][id$="_id"]');
+        assignmentInputs.forEach(inp => {
+            inp.addEventListener('blur', updateFileTabLabels);
+            inp.addEventListener('change', updateFileTabLabels);
+        });
+
         // Automatically preview the first file if available
         const firstBtn = document.querySelector('.file-preview-btn');
         if (firstBtn) {
-            const filename = firstBtn.getAttribute('title');
+            const filename = firstBtn.getAttribute('data-filename') || firstBtn.getAttribute('title');
             if (filename) {
                 previewFile(filename);
             }
