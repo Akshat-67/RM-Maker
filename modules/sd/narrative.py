@@ -1130,14 +1130,28 @@ def generate_chain_narrative(title_chain, property_details=None, context=None):
         # --- Template Key Selection (Method A + Method B Fallback) ---
         tpl_key = determine_template_key(evt, is_flat)
             
-        # Dynamically select detailed spouse death template if details are present
+        # Dynamically select detailed spouse death template or generic inheritance template if details are present
         if tpl_key == "DEATH_HEIRS_WITH_SPOUSE":
             if wife_name and wife_death_date:
-                template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनकी पत्नी {wife_name} का स्वर्गवास दिनांक {wife_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {wife_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+                if not share_fraction or share_fraction == "1/1":
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया एवं उनकी पत्नी {wife_name} का स्वर्गवास दिनांक {wife_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {wife_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} एकमात्र कानूनी उत्तराधिकारी होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+                else:
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया एवं उनकी पत्नी {wife_name} का स्वर्गवास दिनांक {wife_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {wife_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति में अपने-अपने अविभाजित {share_fraction} हिस्से के मालिक, स्वामी व अधिकारी हुए।"
             elif husband_name and husband_death_date:
-                template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} की मृत्यु दिनांक {death_date} को हो गई एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+                if not share_fraction or share_fraction == "1/1":
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} का स्वर्गवास दिनांक {death_date} को हो गया एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} एकमात्र कानूनी उत्तराधिकारी होने के कारण उक्त सम्पत्ति के मालिक, स्वामी व अधिकारी हुए।"
+                else:
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति की स्वामिनी {executant} का स्वर्गवास दिनांक {death_date} को हो गया एवं उनके पति {husband_name} का स्वर्गवास दिनांक {husband_death_date} को {executant} के जीवन काल में ही हो गया था। उक्त {executant} एवं {husband_name} के स्वर्गवास के पश्चात् उक्त सम्पत्ति के {claimant} कानूनी उत्तराधिकारीगण होने के कारण उक्त सम्पत्ति में अपने-अपने अविभाजित {share_fraction} हिस्से के मालिक, स्वामी व अधिकारी हुए।"
             else:
-                template = CHAIN_TEMPLATES[tpl_key]
+                if not share_fraction or share_fraction == "1/1":
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया, जिसके पश्चात् उनके एकमात्र विधिक उत्तराधिकारी के रूप में {claimant} उक्त सम्पत्ति के मालिक, स्वामी व काबिज हुए।"
+                else:
+                    template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया, जिसके पश्चात् उनके विधिक उत्तराधिकारी के रूप में {claimant} उक्त सम्पत्ति में अपने-अपने अविभाजित {share_fraction} हिस्से के मालिक, स्वामी व अधिकारी हुए।"
+        elif tpl_key.startswith("DEATH"):
+            if not share_fraction or share_fraction == "1/1":
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया, जिसके पश्चात् उनके एकमात्र विधिक उत्तराधिकारी के रूप में {claimant} उक्त सम्पत्ति के मालिक, स्वामी व काबिज हुए।"
+            else:
+                template = "यह कि तत्पश्चात् उक्त सम्पत्ति के स्वामी {executant} का स्वर्गवास दिनांक {death_date} को हो गया, जिसके पश्चात् उनके विधिक उत्तराधिकारी के रूप में {claimant} उक्त सम्पत्ति में अपने-अपने अविभाजित {share_fraction} हिस्से के मालिक, स्वामी व अधिकारी हुए।"
         else:
             template = CHAIN_TEMPLATES[tpl_key]
 
