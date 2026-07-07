@@ -672,8 +672,12 @@ class SDTemplateProcessor:
                 run.font.name = "Arial"
                 run.font.size = Pt(11)
             else:
-                run.font.name = "DevLys 040"
-                run.font.size = Pt(16)
+                # Force DevLys 040 only if the text is actually legacy DevLys encoding.
+                # If it's Unicode Devanagari (chain narrative, etc.), we don't override the font
+                # so that it inherits the template's style (Mangal/Segoe UI).
+                if is_text_devlys(rd["text"]):
+                    run.font.name = "DevLys 040"
+                    run.font.size = Pt(16)
 
     def _process_payment_tables_on_doc(self, doc, context):
         import docx
