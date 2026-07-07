@@ -2282,41 +2282,87 @@
         const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
         if (base.includes('pan')) return null;
 
-        const clean = base.replace(/[^a-z0-9]/g, '');
-
         const getSuffixDetails = (str) => {
-            const suffixes = [
-                { pattern: /front$/, side: 'front' },
-                { pattern: /obverse$/, side: 'front' },
-                { pattern: /face$/, side: 'front' },
-                { pattern: /frontside$/, side: 'front' },
-                { pattern: /f$/, side: 'front' },
-                { pattern: /1$/, side: 'front' },
-                
-                { pattern: /back$/, side: 'back' },
-                { pattern: /reverse$/, side: 'back' },
-                { pattern: /rear$/, side: 'back' },
-                { pattern: /backside$/, side: 'back' },
-                { pattern: /b$/, side: 'back' },
-                { pattern: /2$/, side: 'back' }
+            let temp = str;
+            let side = null;
+
+            // Match and strip words anywhere
+            const frontWords = ['frontside', 'obverse', 'front', 'face'];
+            const backWords = ['backside', 'reverse', 'back', 'rear'];
+
+            for (const word of frontWords) {
+                if (temp.includes(word)) {
+                    temp = temp.replace(word, '');
+                    side = 'front';
+                }
+            }
+
+            for (const word of backWords) {
+                if (temp.includes(word)) {
+                    temp = temp.replace(word, '');
+                    side = 'back';
+                }
+            }
+
+            // Match and strip separated symbols
+            const frontPatterns = [
+                /[-_ ]f\b/g,
+                /[-_ ]1\b/g,
+                /\(1\)/g
+            ];
+            const backPatterns = [
+                /[-_ ]b\b/g,
+                /[-_ ]2\b/g,
+                /\(2\)/g
             ];
 
-            for (const s of suffixes) {
-                if (s.pattern.test(str)) {
-                    return {
-                        root: str.replace(s.pattern, ''),
-                        side: s.side
-                    };
+            for (const pat of frontPatterns) {
+                if (pat.test(temp)) {
+                    temp = temp.replace(pat, '');
+                    side = 'front';
+                }
+            }
+
+            for (const pat of backPatterns) {
+                if (pat.test(temp)) {
+                    temp = temp.replace(pat, '');
+                    side = 'back';
+                }
+            }
+
+            // Clean characters
+            let clean = temp.replace(/[^a-z0-9]/g, '');
+
+            // Check trailing characters on clean if side not found yet
+            if (!side) {
+                if (clean.endsWith('front')) {
+                    side = 'front';
+                    clean = clean.slice(0, -5);
+                } else if (clean.endsWith('f')) {
+                    side = 'front';
+                    clean = clean.slice(0, -1);
+                } else if (clean.endsWith('1')) {
+                    side = 'front';
+                    clean = clean.slice(0, -1);
+                } else if (clean.endsWith('back')) {
+                    side = 'back';
+                    clean = clean.slice(0, -4);
+                } else if (clean.endsWith('b')) {
+                    side = 'back';
+                    clean = clean.slice(0, -1);
+                } else if (clean.endsWith('2')) {
+                    side = 'back';
+                    clean = clean.slice(0, -1);
                 }
             }
 
             return {
-                root: str,
-                side: null // Unlabeled
+                root: clean,
+                side: side
             };
         };
 
-        const currentInfo = getSuffixDetails(clean);
+        const currentInfo = getSuffixDetails(base);
 
         for (const other of ALL_CASE_FILES) {
             if (other === filename) continue;
@@ -2326,8 +2372,7 @@
             const otherBase = other.substring(0, other.lastIndexOf('.')).toLowerCase();
             if (otherBase.includes('pan')) continue;
 
-            const otherClean = otherBase.replace(/[^a-z0-9]/g, '');
-            const otherInfo = getSuffixDetails(otherClean);
+            const otherInfo = getSuffixDetails(otherBase);
 
             if (currentInfo.root === otherInfo.root) {
                 // One is explicitly front, one is explicitly back
