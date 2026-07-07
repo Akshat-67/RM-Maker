@@ -2446,7 +2446,8 @@
                     btn.innerHTML = '⌨️ DevLys (Off)';
                 }
             });
-            document.getElementById('devlysBadge').style.display = 'none';
+            const devlysBadge = document.getElementById('devlysBadge');
+            if (devlysBadge) devlysBadge.style.display = 'none';
         }
         
         const itransBtns = [document.getElementById('btnToggleItrans'), document.getElementById('btnToggleItransTimeline')];
@@ -2461,7 +2462,10 @@
                 }
             }
         });
-        document.getElementById('transliterationBadge').style.display = transliterationEnabled ? 'inline-block' : 'none';
+        const transliterationBadge = document.getElementById('transliterationBadge');
+        if (transliterationBadge) {
+            transliterationBadge.style.display = transliterationEnabled ? 'inline-block' : 'none';
+        }
         updateActiveModeIndicator();
     }
 
@@ -2476,7 +2480,8 @@
                     btn.innerHTML = 'A→अ ITRANS (Off)';
                 }
             });
-            document.getElementById('transliterationBadge').style.display = 'none';
+            const transliterationBadge = document.getElementById('transliterationBadge');
+            if (transliterationBadge) transliterationBadge.style.display = 'none';
         }
         
         const devlysBtns = [document.getElementById('btnToggleDevLys'), document.getElementById('btnToggleDevLysTimeline')];
@@ -2491,7 +2496,10 @@
                 }
             }
         });
-        document.getElementById('devlysBadge').style.display = devlysEnabled ? 'inline-block' : 'none';
+        const devlysBadge = document.getElementById('devlysBadge');
+        if (devlysBadge) {
+            devlysBadge.style.display = devlysEnabled ? 'inline-block' : 'none';
+        }
         updateActiveModeIndicator();
     }
 
