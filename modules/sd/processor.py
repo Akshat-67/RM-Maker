@@ -636,7 +636,8 @@ class SDTemplateProcessor:
             highlight = run.font.highlight_color
             
             # Split by English words/numbers/dates/PANs, including S/o, C/o, W/o, D/o (case-insensitive)
-            parts = re.split(r'(\b[SsDdWwCc]/[Oo]\b|\b[A-Z0-9_]+(?:[\s,\-\/\.\(\)]+[A-Z0-9_]+)*\b)', text)
+            # Refined to exclude single-character uppercase letters (like O, V, B, _) which are legacy DevLys characters.
+            parts = re.split(r'(\b[SsDdWwCc]/[Oo]\b|\b\d+(?:[\s,\-\/\.\(\)]+\d+)*\b|\b[A-Z_]{2,}(?:[\s,\-\/\.\(\)]+[A-Z0-9_]{2,})*\b|\b[A-Z_]+:[A-Z_]+\b)', text)
             for idx, part in enumerate(parts):
                 if not part:
                     continue
