@@ -2269,6 +2269,136 @@
             switchStep(DEFAULT_STEP);
         }
     });
+    const ALL_CASE_FILES = [
+        {% for f in files %}"{{ f | basename }}",{% endfor %}
+        {% for b_name, b_files in buckets.items() %}{% for f in b_files %}"{{ f | basename }}",{% endfor %}{% endfor %}
+    ].filter((v, i, a) => a.indexOf(v) === i && v.trim() !== "");
+
+    function findPairedFile(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        if (!['jpg', 'jpeg', 'png'].includes(ext)) return null;
+
+        const base = filename.substring(0, filename.lastIndexOf('.'));
+        const normalized = base.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        // Keyword lists
+        const frontKeywords = ['front', 'obverse', 'f', '1'];
+        const backKeywords = ['back', 'reverse', 'b', '2'];
+
+        // Helper to strip front/back suffix from normalized base
+        const getPrefix = (str, keywords) => {
+            for (const kw of keywords) {
+                if (str.endsWith(kw)) {
+                    return str.substring(0, str.length - kw.length);
+                }
+            }
+            return null;
+        };
+
+        const frontPrefix = getPrefix(normalized, frontKeywords);
+        const backPrefix = getPrefix(normalized, backKeywords);
+
+        let targetPrefix = "";
+        let targetKeywords = [];
+        let isCurrentFront = false;
+
+        if (frontPrefix !== null) {
+            targetPrefix = frontPrefix;
+            targetKeywords = backKeywords;
+            isCurrentFront = true;
+        } else if (backPrefix !== null) {
+            targetPrefix = backPrefix;
+            targetKeywords = frontKeywords;
+            isCurrentFront = false;
+        }
+
+        if (targetPrefix) {
+            // Look for matching file with opposite suffix
+            for (const other of ALL_CASE_FILES) {
+                const otherExt = other.split('.').pop().toLowerCase();
+                if (!['jpg', 'jpeg', 'png'].includes(otherExt)) continue;
+                if (other === filename) continue;
+
+                const otherBase = other.substring(0, other.lastIndexOf('.'));
+                const otherNorm = otherBase.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                const otherPrefix = getPrefix(otherNorm, targetKeywords);
+                if (otherPrefix === targetPrefix) {
+                    return {
+                        file: filename,
+                        side: isCurrentFront ? 'front' : 'back',
+                        pairedFile: other,
+                        pairedSide: isCurrentFront ? 'back' : 'front'
+                    };
+                }
+            }
+        }
+
+        // Alphabetical pairing fallback: match files sharing 75%+ prefix length
+        for (const other of ALL_CASE_FILES) {
+            const otherExt = other.split('.').pop().toLowerCase();
+            if (!['jpg', 'jpeg', 'png'].includes(otherExt)) continue;
+            if (other === filename) continue;
+
+            const otherBase = other.substring(0, other.lastIndexOf('.'));
+            const otherNorm = otherBase.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            // Check if bases are identical except for one character at the end
+            if (Math.abs(otherNorm.length - normalized.length) <= 2) {
+                let commonLen = 0;
+                while (commonLen < normalized.length && commonLen < otherNorm.length && normalized[commonLen] === otherNorm[commonLen]) {
+                    commonLen++;
+                }
+                if (commonLen >= Math.max(normalized.length, otherNorm.length) - 2) {
+                    // Determine front/back based on alphabetical sorting
+                    const currentIsFirst = filename.localeCompare(other) < 0;
+                    return {
+                        file: filename,
+                        side: currentIsFirst ? 'front' : 'back',
+                        pairedFile: other,
+                        pairedSide: currentIsFirst ? 'back' : 'front'
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    let activePairedInfo = null;
+
+    function showPairedFile(side) {
+        if (!activePairedInfo) return;
+        const targetFile = (side === activePairedInfo.side) ? activePairedInfo.file : activePairedInfo.pairedFile;
+        
+        // Load target file inside iframe or img
+        const iframe = document.getElementById('previewIframe');
+        const img = document.getElementById('previewImg');
+        const fileUrl = `/case/${CASE_ID}/file/${targetFile}`;
+        const ext = targetFile.split('.').pop().toLowerCase();
+
+        if (ext === 'pdf') {
+            img.style.display = 'none';
+            iframe.src = fileUrl;
+            iframe.style.display = 'block';
+        } else {
+            iframe.style.display = 'none';
+            img.src = fileUrl;
+            img.style.display = 'block';
+        }
+
+        // Update button highlights
+        const btnFront = document.getElementById('btnToggleFront');
+        const btnBack = document.getElementById('btnToggleBack');
+        if (side === 'front') {
+            btnFront.className = "btn btn-primary btn-xs fw-bold px-2.5 py-1";
+            btnBack.className = "btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white";
+        } else {
+            btnFront.className = "btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white";
+            btnBack.className = "btn btn-primary btn-xs fw-bold px-2.5 py-1";
+        }
+    }
+
     function previewFile(filename) {
         const iframe = document.getElementById('previewIframe');
         const img = document.getElementById('previewImg');
@@ -2291,6 +2421,28 @@
             activeBtn.classList.add('active-preview');
         }
         
+        // Setup front/back toggle overlays
+        const pairInfo = findPairedFile(filename);
+        const toggleContainer = document.getElementById('frontBackToggleContainer');
+        if (pairInfo) {
+            activePairedInfo = pairInfo;
+            toggleContainer.style.display = 'flex';
+            
+            const btnFront = document.getElementById('btnToggleFront');
+            const btnBack = document.getElementById('btnToggleBack');
+            
+            if (pairInfo.side === 'front') {
+                btnFront.className = "btn btn-primary btn-xs fw-bold px-2.5 py-1";
+                btnBack.className = "btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white";
+            } else {
+                btnFront.className = "btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white";
+                btnBack.className = "btn btn-primary btn-xs fw-bold px-2.5 py-1";
+            }
+        } else {
+            activePairedInfo = null;
+            toggleContainer.style.display = 'none';
+        }
+
         const fileUrl = `/case/${CASE_ID}/file/${filename}`;
         const ext = filename.split('.').pop().toLowerCase();
         if (ext === 'pdf') {
