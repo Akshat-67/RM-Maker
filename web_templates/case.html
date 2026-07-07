@@ -898,17 +898,28 @@
             </div>
             
             <!-- Preview frame container: height is calculated directly from viewport -->
-            <div style="position: relative; height: calc(100vh - 145px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden;">
-                <!-- Quick-Toggle Front/Back Floating Controls -->
-                <div id="frontBackToggleContainer" style="position: absolute; top: 12px; right: 12px; z-index: 100; display: none; gap: 6px;">
-                    <button id="btnToggleFront" class="btn btn-primary btn-xs fw-bold px-2.5 py-1" style="font-size: 0.68rem; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" onclick="showPairedFile('front')">Front</button>
-                    <button id="btnToggleBack" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" onclick="showPairedFile('back')">Back</button>
+            <div style="position: relative; height: calc(100vh - 145px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden; display: flex; flex-direction: column;">
+                <!-- Preview Toolbar -->
+                <div id="previewToolbar" class="d-flex align-items-center justify-content-between px-3 py-2 bg-light border-bottom" style="height: 45px; flex-shrink: 0; font-size: 0.8rem; z-index: 10;">
+                    <div class="d-flex align-items-center" style="gap: 10px; min-width: 0; flex: 1;">
+                        <strong class="text-secondary text-truncate" id="previewTitle" style="max-width: 250px;" title="Document Preview">Document Preview</strong>
+                        <select id="fileRoleAssignSelect" class="form-select form-select-sm" style="max-width: 220px; font-size: 0.72rem; height: 28px; padding: 0.1rem 0.5rem;" onchange="handleFileRoleChange(this.value)">
+                            <option value="">-- Assign File Role --</option>
+                        </select>
+                    </div>
+                    <div id="frontBackToggleContainer" style="display: none; gap: 6px;">
+                        <button id="btnToggleFront" class="btn btn-primary btn-xs fw-bold px-2.5 py-1" style="font-size: 0.68rem;" onclick="showPairedFile('front')">Front</button>
+                        <button id="btnToggleBack" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem;" onclick="showPairedFile('back')">Back</button>
+                    </div>
                 </div>
-                <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
-                <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
-                <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
-                    <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
-                    <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
+                <!-- Preview display area taking remaining space -->
+                <div style="position: relative; flex: 1; width: 100%; overflow: hidden;">
+                    <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
+                    <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
+                    <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
+                        <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
+                        <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2470,7 +2481,79 @@
         }
     }
 
+    let windowActiveFile = null;
+
+    function handleFileRoleChange(role) {
+        if (!windowActiveFile) return;
+        const storageKey = 'case_file_roles_' + CASE_ID;
+        let roles = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        if (role) {
+            roles[windowActiveFile] = role;
+        } else {
+            delete roles[windowActiveFile];
+        }
+        localStorage.setItem(storageKey, JSON.stringify(roles));
+        updateFileTabLabels();
+        previewFile(windowActiveFile);
+    }
+
+    function populateRoleSelectOptions() {
+        const select = document.getElementById('fileRoleAssignSelect');
+        if (!select) return;
+        
+        const docTypeSelect = document.getElementById('docTypeSelect');
+        const docType = docTypeSelect ? docTypeSelect.value : 'RM';
+        
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        };
+
+        let html = '<option value="">-- Assign File Role --</option>';
+        
+        if (docType === 'SD') {
+            // Sellers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_sellers_${i}_n_en`) || getVal(`field_sellers_${i}_n`);
+                const label = name ? `Seller ${i + 1} (${name})` : `Seller ${i + 1}`;
+                html += `<option value="sellers.${i}">${label}</option>`;
+            }
+            // Buyers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_buyers_${i}_n_en`) || getVal(`field_buyers_${i}_n`);
+                const label = name ? `Buyer ${i + 1} (${name})` : `Buyer ${i + 1}`;
+                html += `<option value="buyers.${i}">${label}</option>`;
+            }
+            // Witnesses
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_ws_${i}_n_en`) || getVal(`field_ws_${i}_n`);
+                const label = name ? `Witness ${i + 1} (${name})` : `Witness ${i + 1}`;
+                html += `<option value="ws.${i}">${label}</option>`;
+            }
+        } else {
+            // Borrowers
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_bs_${i}_n`);
+                const label = name ? `Borrower ${i + 1} (${name})` : `Borrower ${i + 1}`;
+                html += `<option value="bs.${i}">${label}</option>`;
+            }
+            // Witnesses
+            for (let i = 0; i < 5; i++) {
+                const name = getVal(`field_ws_${i}_n`);
+                const label = name ? `Witness ${i + 1} (${name})` : `Witness ${i + 1}`;
+                html += `<option value="ws.${i}">${label}</option>`;
+            }
+            // Bank Signer
+            const signerName = getVal('field_bsign_n');
+            const signerLabel = signerName ? `Bank Signer (${signerName})` : 'Bank Signer';
+            html += `<option value="bsign">${signerLabel}</option>`;
+        }
+        
+        select.innerHTML = html;
+    }
+
     function previewFile(filename) {
+        windowActiveFile = filename;
         const iframe = document.getElementById('previewIframe');
         const img = document.getElementById('previewImg');
         const placeholder = document.getElementById('previewPlaceholder');
@@ -2492,6 +2575,22 @@
             activeBtn.classList.add('active-preview');
         }
         
+        // Update Title
+        const titleEl = document.getElementById('previewTitle');
+        if (titleEl) {
+            titleEl.textContent = filename;
+            titleEl.title = filename;
+        }
+        
+        // Populate and select current role assignment
+        populateRoleSelectOptions();
+        const select = document.getElementById('fileRoleAssignSelect');
+        if (select) {
+            const storageKey = 'case_file_roles_' + CASE_ID;
+            const roles = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            select.value = roles[filename] || '';
+        }
+
         // Setup front/back toggle overlays
         const pairInfo = findPairedFile(filename);
         const toggleContainer = document.getElementById('frontBackToggleContainer');
@@ -4168,40 +4267,64 @@
                       .replace(/[aeiou]/g, '');
         };
 
+        const storageKey = 'case_file_roles_' + CASE_ID;
+        const manualRoles = JSON.parse(localStorage.getItem(storageKey) || '{}');
         const fileMappings = {}; // filename -> role
 
-        // Step 1: Map files to assigned roles using robust vowel-stripped matching
+        // Step 1: Map files to assigned roles (using manual assignments first, then falling back to vowel-stripped matching)
         ALL_CASE_FILES.forEach(filename => {
-            const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
-            if (base.includes('pan')) return; // skip pan cards
-
-            const baseClean = getPhoneticClean(base);
             let matchedRole = "";
 
-            // A. Match by ID (last 4 digits)
-            for (const ass of assignments) {
-                if (ass.id) {
-                    const idClean = ass.id.replace(/\s/g, '');
-                    if (idClean.length >= 4) {
-                        const last4 = idClean.substring(idClean.length - 4);
-                        const baseDigits = base.replace(/[^0-9]/g, '');
-                        if (baseDigits.includes(last4)) {
-                            matchedRole = ass.role;
-                            break;
-                        }
+            // A. Check manual assignments from localStorage first
+            if (manualRoles[filename]) {
+                const assignedKey = manualRoles[filename]; // e.g. "bs.0" or "ws.1" or "bsign"
+                if (assignedKey === 'bsign') {
+                    matchedRole = 'Bank Signer';
+                } else {
+                    const parts = assignedKey.split('.');
+                    if (parts.length === 2) {
+                        const type = parts[0];
+                        const index = parseInt(parts[1]) + 1;
+                        if (type === 'bs') matchedRole = `Borrower ${index}`;
+                        else if (type === 'ws') matchedRole = `Witness ${index}`;
+                        else if (type === 'sellers') matchedRole = `Seller ${index}`;
+                        else if (type === 'buyers') matchedRole = `Buyer ${index}`;
                     }
                 }
             }
 
-            // B. Match by name (vowel stripped)
+            // B. Fall back to automatic matching if no manual role is assigned
             if (!matchedRole) {
+                const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
+                if (base.includes('pan')) return; // skip pan cards
+
+                const baseClean = getPhoneticClean(base);
+
+                // Match by ID (last 4 digits)
                 for (const ass of assignments) {
-                    const assClean = getPhoneticClean(ass.name);
-                    if (assClean.length >= 2) {
-                        // Check if one contains the other
-                        if (baseClean.includes(assClean) || assClean.includes(baseClean)) {
-                            matchedRole = ass.role;
-                            break;
+                    if (ass.id) {
+                        const idClean = ass.id.replace(/\s/g, '');
+                        if (idClean.length >= 4) {
+                            const last4 = idClean.substring(idClean.length - 4);
+                            const baseDigits = base.replace(/[^0-9]/g, '');
+                            if (baseDigits.includes(last4)) {
+                                matchedRole = ass.role;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Match by name (vowel stripped)
+                if (!matchedRole) {
+                    for (const ass of assignments) {
+                        const assClean = getPhoneticClean(ass.name);
+                        if (assClean.length >= 2) {
+                            // Check if one contains the other
+                            if (baseClean.includes(assClean) || assClean.includes(baseClean)) {
+                                matchedRole = ass.role;
+                                break;
+                            }
                         }
                     }
                 }
@@ -4299,8 +4422,14 @@
         // Register blur/change event listeners to name/id fields to update tab labels dynamically
         const assignmentInputs = document.querySelectorAll('input[id^="field_"][id$="_n"], input[id^="field_"][id$="_n_en"], input[id^="field_"][id$="_id"]');
         assignmentInputs.forEach(inp => {
-            inp.addEventListener('blur', updateFileTabLabels);
-            inp.addEventListener('change', updateFileTabLabels);
+            inp.addEventListener('blur', () => {
+                updateFileTabLabels();
+                populateRoleSelectOptions();
+            });
+            inp.addEventListener('change', () => {
+                updateFileTabLabels();
+                populateRoleSelectOptions();
+            });
         });
 
         // Automatically preview the first file if available
