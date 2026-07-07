@@ -827,12 +827,12 @@ class SDDataExtractor:
             "adr_en": "Address in English script (transliterated to UPPERCASE English, e.g., '410 KAMLA NEHRU NAGAR, JAIPUR')",
             "id": "Aadhar Number (digits only)",
             "pan": "PAN Card Number (10-char alphanumeric, if PAN card is provided)",
-            "files": ["exact filenames this person's details were extracted from"]
+            "files": [{{"file": "exact filename", "type": "aadhar_front|aadhar_back|pan"}}]
           }}]
         }}
         
         CRITICAL EXTRACTION RULES:
-        1. AADHAAR CARDS & ID DOCUMENTS: Extract details from Aadhaar/PAN/DL into 'unassigned_aadhars' ONLY. DO NOT map them directly to sellers or buyers. For each person in the list, populate a 'files' array containing the exact filenames (from the '[Document: filename]' headers) that this person's details were extracted from (e.g., if you extract details from a front and back Aadhaar image or both Aadhaar and PAN cards, include all source filenames).
+        1. AADHAAR CARDS & ID DOCUMENTS: Extract details from Aadhaar/PAN/DL into 'unassigned_aadhars' ONLY. DO NOT map them directly to sellers or buyers. For each person in the list, populate a 'files' array containing objects with 'file' (the exact filename from the '[Document: filename]' headers) and 'type' (identifying if the file is 'aadhar_front', 'aadhar_back', or 'pan' based on visual contents; e.g., if you extract details from a front and back Aadhaar image or both Aadhaar and PAN cards, include all source file objects).
         2. RELATIONS & ADDRESSES SEPARATION:
            - Look at the relationship line in the ID documents.
            - Format it strictly in Unicode Hindi as:
@@ -1210,7 +1210,7 @@ class SDDataExtractor:
           "ws": [{"n":"Name in Hindi", "n_en":"Name in English script", "relation_text":"Complete Relation Phrase in Hindi (e.g. 'पुत्र श्री रामेश्वर प्रसाद')", "rn_en":"Relative Father Name in English script (e.g. 'RAMESHWAR PRASAD')", "adr":"Address in Hindi", "adr_en":"Address in English script", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)"}],
           "title_chain": [{"template_key":"Specific template key (e.g. 'SALE_DEED_PLOT', 'ALLOTMENT_SOCIETY')", "event_type":"SALE_DEED|ALLOTMENT|CONSTRUCTION|POA|RELINQUISHMENT|CORRECTION_DEED|TRANSFER", "document_name":"हिंदी Doc Name (e.g. 'विक्रय पत्र')", "date":"DD.MM.YYYY", "consideration_amount":"digits", "executant_name":"Seller/Authority (Unicode Hindi)", "claimant_name":"Buyer/Allottee (Unicode Hindi)", "is_registered":"true/false", "reg_office":"Office (Hindi)", "reg_date":"DD.MM.YYYY", "reg_book":"#", "reg_vol":"#", "reg_page":"#", "reg_no":"#", "reg_add_book":"#", "reg_add_vol":"#", "reg_add_page":"1026-1039 (number or range)", "project_name":"Name if CONSTRUCTION (Unicode Hindi, e.g. 'रॉयल एन्क्लेव')", "unit_number":"Unit/Flat No if CONSTRUCTION (Unicode Hindi, e.g. 'एस-1')", "confidence":"High/Medium/Low", "source_text":"exact source text", "share_fraction":"e.g. '1/2', 'undivided'", "wife_name":"where applicable", "wife_death_date":"DD.MM.YYYY", "husband_name":"where applicable", "husband_death_date":"DD.MM.YYYY", "east_owner":"where applicable", "west_owner":"where applicable", "khata_no":"where applicable", "khasra_no":"where applicable", "rakba":"where applicable", "co_owner":"where applicable", "owner_name":"where applicable", "parent_property_info":"where applicable", "will_type":"'Registered' or 'Unregistered'", "death_date":"DD.MM.YYYY", "receipt_no":"where applicable", "receipt_date":"DD.MM.YYYY"}],
           "reg": {"office":"Name", "book":"#", "vol":"#", "page":"#", "reg_no":"#", "reg_date":"Date"},
-          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)", "relation_text":"Complete Relation Phrase in Hindi", "rn_en":"Relative Father/Husband Name in English script", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "files": ["exact filenames this card details were extracted from"]}]
+          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name in Hindi", "n_en":"Name in English script", "a":"Age", "dob":"Date of Birth (DD/MM/YYYY or YYYY if only year is printed)", "relation_text":"Complete Relation Phrase in Hindi", "rn_en":"Relative Father/Husband Name in English script", "adr":"Address in Hindi", "adr_en":"Address in English script", "id":"Aadhar", "files": [{"file": "exact filename", "type": "aadhar_front|aadhar_back|pan"}]}]
         }
 
         RULES:
@@ -1221,7 +1221,7 @@ class SDDataExtractor:
            - Correct Address: '१२३, मालवीय नगर, जयपुर' vs '123, MALVIYA NAGAR, JAIPUR'
            - Correct Relation Name: 'बनवारी लाल' vs 'BANWARI LAL'
         3. COUNTS: "ss" exactly selected count. "bs" exactly selected count. "ws" exactly 2.
-        4. AADHAAR CARDS: Extract details from Aadhaar cards into 'unassigned_aadhars' ONLY. For each card, populate a 'files' array containing the exact filenames (from the '[Document: filename]' headers) that this card's details were extracted from (e.g., if you extract details from a front and back Aadhaar image, include both filenames).
+        4. AADHAAR CARDS: Extract details from Aadhaar cards into 'unassigned_aadhars' ONLY. For each card, populate a 'files' array containing objects with 'file' (the exact filename from the '[Document: filename]' headers) and 'type' (identifying if the file is 'aadhar_front', 'aadhar_back', or 'pan' based on visual contents; e.g. if you extract details from a front and back Aadhaar image, include both file objects).
         4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
         5. BOUNDARIES: Extract the four boundary directions of the ORIGINAL PLOT from chain-of-title descriptions. Map to e, w, n, s. These are found in sentences like 'जिसकी चारों सीमाएं...' or 'पूर्व की ओर... पश्चिम की ओर...' etc.
         5b. DIMENSIONS: Extract length_ew (East-West) and length_ns (North-South) of the ORIGINAL PLOT from chain docs. These appear as 'पूर्व से पश्चिम XX फीट एवं उत्तर से दक्षिण XX फीट है'. land_area is the total plot area in sq. yards.
