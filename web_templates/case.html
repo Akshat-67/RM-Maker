@@ -3833,8 +3833,18 @@
                 try {
                     const rowFiles = JSON.parse(filesAttr);
                     if (Array.isArray(rowFiles)) {
-                        rowFiles.forEach(filename => {
-                            roles[filename] = role;
+                        rowFiles.forEach(item => {
+                            if (item && typeof item === 'object' && item.file) {
+                                roles[item.file] = {
+                                    role: role,
+                                    type: item.type || 'aadhar_front'
+                                };
+                            } else if (item && typeof item === 'string') {
+                                roles[item] = {
+                                    role: role,
+                                    type: item.toLowerCase().includes('pan') ? 'pan' : 'aadhar_front'
+                                };
+                            }
                         });
                     }
                 } catch (e) {
