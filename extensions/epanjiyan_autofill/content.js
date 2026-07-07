@@ -1618,6 +1618,14 @@ async function oneClickAutofill(data, sendResponse) {
                     nextStage = "PRESENTER";
                 }
                 
+                // CRITICAL: Advance stage IMMEDIATELY (optimistic) so that if the page
+                // navigates away during OTP/manual save, the next page load won't repeat
+                // the same step. This is the root fix for the infinite loop issue.
+                if (fillPromise) {
+                    console.log(`[RM-Maker] Optimistically advancing partyStage from ${stage} to ${nextStage} BEFORE save.`);
+                    chrome.storage.local.set({ partyStage: nextStage });
+                }
+                
                 if (fillPromise) {
                     try {
                         await fillPromise;
@@ -1647,6 +1655,9 @@ async function oneClickAutofill(data, sendResponse) {
                                                     swalContainer.innerText.includes('चुनें') || 
                                                     swalContainer.innerText.includes('अनिवार्य');
                                     if (isError) {
+                                        // Roll back the optimistic stage advance since save failed
+                                        console.log(`[RM-Maker] Save error detected. Rolling back partyStage to ${stage}.`);
+                                        chrome.storage.local.set({ partyStage: stage });
                                         showStatusToast(`⚠️ Save Failed: "${swalContainer.innerText.split('\n')[0]}". Correct it and click Save manually.`, false);
                                         sendResponse({ success: false, error: 'SweetAlert error modal detected.' });
                                         return;
@@ -1705,8 +1716,9 @@ async function oneClickAutofill(data, sendResponse) {
             } else {
                 // We are on Viewparty — detect already-added parties and auto-advance stage
                 
-                // Only count actual DATA rows in the party grid (rows with 3+ <td> cells,
-                // which rules out header rows, button rows, and navigation elements)
+                // Only count actual DATA rows in the party grid.
+                // Strategy: find rows with 4+ <td> cells that contain a person name
+                // (i.e. the cell text is not just a button label or header).
                 let existingExecutants = 0;
                 let existingClaimants = 0;
                 let existingWitnesses = 0;
@@ -1714,22 +1726,35 @@ async function oneClickAutofill(data, sendResponse) {
                 const allTableRows = document.querySelectorAll('table tr');
                 allTableRows.forEach(row => {
                     const cells = row.querySelectorAll('td');
-                    // A real party data row has multiple cells (Sr No, Name, Type, Actions, etc.)
-                    if (cells.length < 3) return;
+                    // A real party data row has 4+ cells (Sr No, Party Type, Name, Father, Actions...)
+                    if (cells.length < 4) return;
                     
-                    // Also require an edit or delete link/button to confirm it's a data row
-                    const hasActionLink = row.querySelector('a[href*="edit" i], a[href*="delete" i], a[onclick], button[onclick], img[src*="edit" i], img[src*="delete" i], .fa-edit, .fa-trash, .glyphicon-edit, .glyphicon-trash');
-                    if (!hasActionLink) return;
+                    // Skip header-like rows (rows where all cells are th or have header styling)
+                    if (row.querySelectorAll('th').length > 0) return;
                     
-                    // Now check what type of party this data row represents
-                    const rowText = (row.innerText || "").toUpperCase();
-                    if (rowText.includes('EXECUTANT') || rowText.includes('निष्पादक')) {
-                        existingExecutants++;
-                    } else if (rowText.includes('CLAIMANT') || rowText.includes('दावेदार') || rowText.includes('क्लेमेंट')) {
-                        existingClaimants++;
-                    } else if (rowText.includes('WITNESS') || rowText.includes('गवाह') || rowText.includes('साक्षी')) {
-                        existingWitnesses++;
+                    // Check the actual cell text for party type keywords
+                    // We check individual cells, not the entire row, to avoid matching nested buttons
+                    let foundType = null;
+                    for (const cell of cells) {
+                        const cellText = (cell.textContent || "").trim().toUpperCase();
+                        // Only match cells that look like a party type label (short text, not a full sentence)
+                        if (cellText.length > 50) continue;
+                        
+                        if (cellText.includes('EXECUTANT') || cellText.includes('निष्पादक')) {
+                            foundType = 'EXECUTANT';
+                            break;
+                        } else if (cellText.includes('CLAIMANT') || cellText.includes('दावेदार') || cellText.includes('क्लेमेंट')) {
+                            foundType = 'CLAIMANT';
+                            break;
+                        } else if (cellText.includes('WITNESS') || cellText.includes('गवाह') || cellText.includes('साक्षी')) {
+                            foundType = 'WITNESS';
+                            break;
+                        }
                     }
+                    
+                    if (foundType === 'EXECUTANT') existingExecutants++;
+                    else if (foundType === 'CLAIMANT') existingClaimants++;
+                    else if (foundType === 'WITNESS') existingWitnesses++;
                 });
                 
                 console.log(`[RM-Maker] Viewparty page scan: ${existingExecutants} executant data rows, ${existingClaimants} claimant data rows, ${existingWitnesses} witness data rows. Current stage: ${stage}`);
