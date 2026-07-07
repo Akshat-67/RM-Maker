@@ -2275,91 +2275,93 @@
         {% for b_name, b_files in buckets.items() %}{% for f in b_files %}"{{ f | basename }}",{% endfor %}{% endfor %}
     ].filter((v, i, a) => a.indexOf(v) === i && v.trim() !== "");
 
-    function findPairedFile(filename) {
+    function getRootPrefixAndSide(filename) {
         const ext = filename.split('.').pop().toLowerCase();
         if (!['jpg', 'jpeg', 'png'].includes(ext)) return null;
 
-        const base = filename.substring(0, filename.lastIndexOf('.'));
-        const normalized = base.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        // Keyword lists
-        const frontKeywords = ['front', 'obverse', 'f', '1'];
-        const backKeywords = ['back', 'reverse', 'b', '2'];
-
-        // Helper to strip front/back suffix from normalized base
-        const getPrefix = (str, keywords) => {
-            for (const kw of keywords) {
-                if (str.endsWith(kw)) {
-                    return str.substring(0, str.length - kw.length);
-                }
-            }
+        const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
+        
+        // PAN cards should never pair with anything
+        if (base.includes('pan')) {
             return null;
-        };
-
-        const frontPrefix = getPrefix(normalized, frontKeywords);
-        const backPrefix = getPrefix(normalized, backKeywords);
-
-        let targetPrefix = "";
-        let targetKeywords = [];
-        let isCurrentFront = false;
-
-        if (frontPrefix !== null) {
-            targetPrefix = frontPrefix;
-            targetKeywords = backKeywords;
-            isCurrentFront = true;
-        } else if (backPrefix !== null) {
-            targetPrefix = backPrefix;
-            targetKeywords = frontKeywords;
-            isCurrentFront = false;
         }
 
-        if (targetPrefix) {
-            // Look for matching file with opposite suffix
-            for (const other of ALL_CASE_FILES) {
-                const otherExt = other.split('.').pop().toLowerCase();
-                if (!['jpg', 'jpeg', 'png'].includes(otherExt)) continue;
-                if (other === filename) continue;
+        // Normalize base
+        let clean = base.replace(/[^a-z0-9]/g, '');
 
-                const otherBase = other.substring(0, other.lastIndexOf('.'));
-                const otherNorm = otherBase.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-                const otherPrefix = getPrefix(otherNorm, targetKeywords);
-                if (otherPrefix === targetPrefix) {
-                    return {
-                        file: filename,
-                        side: isCurrentFront ? 'front' : 'back',
-                        pairedFile: other,
-                        pairedSide: isCurrentFront ? 'back' : 'front'
-                    };
-                }
+        // Check for explicit back indicators
+        const backSuffixes = ['back', 'reverse', 'rear', 'backside'];
+        for (const suffix of backSuffixes) {
+            if (clean.endsWith(suffix)) {
+                return {
+                    root: clean.substring(0, clean.length - suffix.length),
+                    side: 'back'
+                };
             }
         }
+        if (base.endsWith('_b') || base.endsWith('-b') || base.endsWith(' b')) {
+            return {
+                root: clean.substring(0, clean.length - 1),
+                side: 'back'
+            };
+        }
 
-        // Alphabetical pairing fallback: match files sharing 75%+ prefix length
+        // Check for explicit front indicators
+        const frontSuffixes = ['front', 'obverse', 'face', 'frontside'];
+        for (const suffix of frontSuffixes) {
+            if (clean.endsWith(suffix)) {
+                return {
+                    root: clean.substring(0, clean.length - suffix.length),
+                    side: 'front'
+                };
+            }
+        }
+        if (base.endsWith('_f') || base.endsWith('-f') || base.endsWith(' f')) {
+            return {
+                root: clean.substring(0, clean.length - 1),
+                side: 'front'
+            };
+        }
+
+        // Number suffixes (e.g. _1, _2)
+        if (base.endsWith('_1') || base.endsWith('-1') || base.endsWith(' 1')) {
+            return {
+                root: clean.substring(0, clean.length - 1),
+                side: 'front'
+            };
+        }
+        if (base.endsWith('_2') || base.endsWith('-2') || base.endsWith(' 2')) {
+            return {
+                root: clean.substring(0, clean.length - 1),
+                side: 'back'
+            };
+        }
+
+        // Default: return the full clean name as root, side is front (unlabeled front)
+        return {
+            root: clean,
+            side: 'front'
+        };
+    }
+
+    function findPairedFile(filename) {
+        const currentInfo = getRootPrefixAndSide(filename);
+        if (!currentInfo) return null;
+
         for (const other of ALL_CASE_FILES) {
-            const otherExt = other.split('.').pop().toLowerCase();
-            if (!['jpg', 'jpeg', 'png'].includes(otherExt)) continue;
             if (other === filename) continue;
+            
+            const otherInfo = getRootPrefixAndSide(other);
+            if (!otherInfo) continue;
 
-            const otherBase = other.substring(0, other.lastIndexOf('.'));
-            const otherNorm = otherBase.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            // Check if bases are identical except for one character at the end
-            if (Math.abs(otherNorm.length - normalized.length) <= 2) {
-                let commonLen = 0;
-                while (commonLen < normalized.length && commonLen < otherNorm.length && normalized[commonLen] === otherNorm[commonLen]) {
-                    commonLen++;
-                }
-                if (commonLen >= Math.max(normalized.length, otherNorm.length) - 2) {
-                    // Determine front/back based on alphabetical sorting
-                    const currentIsFirst = filename.localeCompare(other) < 0;
-                    return {
-                        file: filename,
-                        side: currentIsFirst ? 'front' : 'back',
-                        pairedFile: other,
-                        pairedSide: currentIsFirst ? 'back' : 'front'
-                    };
-                }
+            // Pair if roots match and they are opposite sides
+            if (currentInfo.root === otherInfo.root && currentInfo.side !== otherInfo.side) {
+                return {
+                    file: filename,
+                    side: currentInfo.side,
+                    pairedFile: other,
+                    pairedSide: otherInfo.side
+                };
             }
         }
 
