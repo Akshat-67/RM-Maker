@@ -902,10 +902,7 @@
                 <!-- Preview Toolbar -->
                 <div id="previewToolbar" class="d-flex align-items-center justify-content-between px-3 py-2 bg-light border-bottom" style="height: 45px; flex-shrink: 0; font-size: 0.8rem; z-index: 10;">
                     <div class="d-flex align-items-center" style="gap: 10px; min-width: 0; flex: 1;">
-                        <strong class="text-secondary text-truncate" id="previewTitle" style="max-width: 250px;" title="Document Preview">Document Preview</strong>
-                        <select id="fileRoleAssignSelect" class="form-select form-select-sm" style="max-width: 220px; font-size: 0.72rem; height: 28px; padding: 0.1rem 0.5rem;" onchange="handleFileRoleChange(this.value)">
-                            <option value="">-- Assign File Role --</option>
-                        </select>
+                        <strong class="text-secondary text-truncate" id="previewTitle" style="max-width: 350px;" title="Document Preview">Document Preview</strong>
                     </div>
                     <div id="frontBackToggleContainer" style="display: none; gap: 6px;">
                         <button id="btnToggleFront" class="btn btn-primary btn-xs fw-bold px-2.5 py-1" style="font-size: 0.68rem;" onclick="showPairedFile('front')">Front</button>
@@ -1047,7 +1044,8 @@
                                                             data-adr_en="{{ ua.get('adr_en','') }}"
                                                             data-is_bpl="{{ ua.get('is_bpl','') }}"
                                                             data-pan="{{ ua.get('pan','') }}"
-                                                            data-s="{{ ua.get('s','') }}">
+                                                            data-s="{{ ua.get('s','') }}"
+                                                            data-files="{{ ua.get('files', []) | tojson | forceescape }}">
                                                             <td class="fw-bold">{{ ua.get('n','') }}</td>
                                                             <td><code>{{ ua.get('id','') }}</code></td>
                                                             <td>Age {{ ua.get('a','') }} ({{ ua.get('r','') }} {{ ua.get('rn','') }})</td>
@@ -2481,79 +2479,7 @@
         }
     }
 
-    let windowActiveFile = null;
-
-    function handleFileRoleChange(role) {
-        if (!windowActiveFile) return;
-        const storageKey = 'case_file_roles_' + CASE_ID;
-        let roles = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        if (role) {
-            roles[windowActiveFile] = role;
-        } else {
-            delete roles[windowActiveFile];
-        }
-        localStorage.setItem(storageKey, JSON.stringify(roles));
-        updateFileTabLabels();
-        previewFile(windowActiveFile);
-    }
-
-    function populateRoleSelectOptions() {
-        const select = document.getElementById('fileRoleAssignSelect');
-        if (!select) return;
-        
-        const docTypeSelect = document.getElementById('docTypeSelect');
-        const docType = docTypeSelect ? docTypeSelect.value : 'RM';
-        
-        const getVal = (id) => {
-            const el = document.getElementById(id);
-            return el ? el.value.trim() : '';
-        };
-
-        let html = '<option value="">-- Assign File Role --</option>';
-        
-        if (docType === 'SD') {
-            // Sellers
-            for (let i = 0; i < 5; i++) {
-                const name = getVal(`field_sellers_${i}_n_en`) || getVal(`field_sellers_${i}_n`);
-                const label = name ? `Seller ${i + 1} (${name})` : `Seller ${i + 1}`;
-                html += `<option value="sellers.${i}">${label}</option>`;
-            }
-            // Buyers
-            for (let i = 0; i < 5; i++) {
-                const name = getVal(`field_buyers_${i}_n_en`) || getVal(`field_buyers_${i}_n`);
-                const label = name ? `Buyer ${i + 1} (${name})` : `Buyer ${i + 1}`;
-                html += `<option value="buyers.${i}">${label}</option>`;
-            }
-            // Witnesses
-            for (let i = 0; i < 5; i++) {
-                const name = getVal(`field_ws_${i}_n_en`) || getVal(`field_ws_${i}_n`);
-                const label = name ? `Witness ${i + 1} (${name})` : `Witness ${i + 1}`;
-                html += `<option value="ws.${i}">${label}</option>`;
-            }
-        } else {
-            // Borrowers
-            for (let i = 0; i < 5; i++) {
-                const name = getVal(`field_bs_${i}_n`);
-                const label = name ? `Borrower ${i + 1} (${name})` : `Borrower ${i + 1}`;
-                html += `<option value="bs.${i}">${label}</option>`;
-            }
-            // Witnesses
-            for (let i = 0; i < 5; i++) {
-                const name = getVal(`field_ws_${i}_n`);
-                const label = name ? `Witness ${i + 1} (${name})` : `Witness ${i + 1}`;
-                html += `<option value="ws.${i}">${label}</option>`;
-            }
-            // Bank Signer
-            const signerName = getVal('field_bsign_n');
-            const signerLabel = signerName ? `Bank Signer (${signerName})` : 'Bank Signer';
-            html += `<option value="bsign">${signerLabel}</option>`;
-        }
-        
-        select.innerHTML = html;
-    }
-
     function previewFile(filename) {
-        windowActiveFile = filename;
         const iframe = document.getElementById('previewIframe');
         const img = document.getElementById('previewImg');
         const placeholder = document.getElementById('previewPlaceholder');
@@ -2580,15 +2506,6 @@
         if (titleEl) {
             titleEl.textContent = filename;
             titleEl.title = filename;
-        }
-        
-        // Populate and select current role assignment
-        populateRoleSelectOptions();
-        const select = document.getElementById('fileRoleAssignSelect');
-        if (select) {
-            const storageKey = 'case_file_roles_' + CASE_ID;
-            const roles = JSON.parse(localStorage.getItem(storageKey) || '{}');
-            select.value = roles[filename] || '';
         }
 
         // Setup front/back toggle overlays
@@ -3898,6 +3815,9 @@
         let assignedCount = 0;
         const docType = document.getElementById('docTypeSelect').value;
 
+        const storageKey = 'case_file_roles_' + CASE_ID;
+        let roles = JSON.parse(localStorage.getItem(storageKey) || '{}');
+
         rows.forEach(row => {
             const select = row.querySelector('.ua-role-select');
             if (!select) return;
@@ -3906,6 +3826,22 @@
 
             const index = select.getAttribute('data-index');
             assignedIndices.push(parseInt(index));
+
+            // Automatically record the file-to-role mappings from data-files attribute
+            const filesAttr = row.getAttribute('data-files');
+            if (filesAttr) {
+                try {
+                    const rowFiles = JSON.parse(filesAttr);
+                    if (Array.isArray(rowFiles)) {
+                        rowFiles.forEach(filename => {
+                            roles[filename] = role;
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to parse data-files", e);
+                }
+            }
+            localStorage.setItem(storageKey, JSON.stringify(roles));
 
             const name = row.getAttribute('data-n');
             const nameEn = row.getAttribute('data-n_en') || '';
@@ -4422,14 +4358,8 @@
         // Register blur/change event listeners to name/id fields to update tab labels dynamically
         const assignmentInputs = document.querySelectorAll('input[id^="field_"][id$="_n"], input[id^="field_"][id$="_n_en"], input[id^="field_"][id$="_id"]');
         assignmentInputs.forEach(inp => {
-            inp.addEventListener('blur', () => {
-                updateFileTabLabels();
-                populateRoleSelectOptions();
-            });
-            inp.addEventListener('change', () => {
-                updateFileTabLabels();
-                populateRoleSelectOptions();
-            });
+            inp.addEventListener('blur', updateFileTabLabels);
+            inp.addEventListener('change', updateFileTabLabels);
         });
 
         // Automatically preview the first file if available

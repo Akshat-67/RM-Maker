@@ -116,14 +116,16 @@ class RMDataExtractor:
                     print(f"[RM Extractor] Scanned/non-searchable PDF: {filename}. Sending full file bytes.")
                     with open(path, 'rb') as f:
                         raw = f.read()
+                    contents.append(types.Part.from_text(text=f"[PDF File: {filename}]"))
                     contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
             elif ext in ['.jpg', '.jpeg', '.png']:
                 with open(path, 'rb') as f:
                     raw = f.read()
+                contents.append(types.Part.from_text(text=f"[Image File: {filename}]"))
                 contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
             elif ext == '.txt':
                 with open(path, 'r', encoding='utf-8') as f:
-                    contents.append(types.Part.from_text(text=f.read()))
+                    contents.append(types.Part.from_text(text=f"[Text File: {filename}]\n{f.read()}"))
 
         prompt = self._build_prompt(bank_name, expected_borrowers, expected_loans,
                                     expected_witnesses, borrower_hints, witness_hints, current_data)
@@ -197,7 +199,7 @@ class RMDataExtractor:
           "ps": [{"adr":"Property Address", "lease_deed_no":"Lease Deed Number", "n":"North", "s":"South", "e":"East", "w":"West", "lat":"Latitude from the location map of the technical report (e.g. '26.949441')", "lng":"Longitude from the location map of the technical report (e.g. '75.678939')"}],
           "bsign": {"n":"Signatory Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Rajesh Nama')", "pan":"PAN Card No", "id":"Aadhar ID", "adr":"Address"},
           "ws": [{"n":"Name", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Gopal Singh')", "adr":"Address", "a":"Age (numeric, calculate from YOB/DOB as of 2026)", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "id":"Aadhar ID"}],
-          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase", "adr":"Address (exact Aadhar print)", "id":"Aadhar Number", "pan":"PAN Card Number (if a PAN card is uploaded)"}],
+          "unassigned_aadhars": [{"s":"Mr/Mrs/Ms", "n":"Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase", "adr":"Address (exact Aadhar print)", "id":"Aadhar Number", "pan":"PAN Card Number (if a PAN card is uploaded)", "files": ["exact filenames this card details were extracted from"]}],
           "second_schedule": "Documents to be collected section."
         }
 
@@ -205,7 +207,7 @@ class RMDataExtractor:
         1. NO HALLUCINATION. If missing, use "".
         2. COUNTS: "bs" exactly selected count. "ls" selected count. "ws" exactly 2.
         3. DATES & BOUNDARIES: Extract exactly as printed.
-        4. AADHAAR & PAN CARDS: Extract details from uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars'. DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
+        4. AADHAAR & PAN CARDS: Extract details from uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars'. For each card in this list, populate a 'files' array containing the exact filenames (from the '[Image/PDF/Text/Document File: filename]' headers) that this card's details were extracted from (e.g., if you extract details from a front and back Aadhaar image, include both filenames). DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
         4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
         5. DOB & AGE: Extract the actual Date of Birth (DOB) as printed (e.g. '20/02/1993' or '1993' if only year is printed) into 'dob' field, and calculate numeric age as of 2026 from YOB/DOB into 'a' field (e.g. '33').
         6. SALUTATIONS: Separate salutations from names. Use 's' field for 'Mr./Ms./Mrs.' and DO NOT prefix the name in the 'n' field or relative name in the 'relation_text' field with any salutation. Use 'Mr.' (with one dot) for males, 'Mrs.' for females.
@@ -233,7 +235,7 @@ class RMDataExtractor:
         self._normalize_list(data, "ls", ["n", "a", "w", "t", "emi", "emi_w", "r_rate"])
         self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w", "lat", "lng"])
         self._normalize_list(data, "ws", ["n", "r", "rn", "relation_text", "adr", "a", "dob", "id"])
-        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"])
+        self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan", "files"])
 
         if "bsign" in data and isinstance(data["bsign"], dict):
             bsign = data["bsign"]
@@ -415,8 +417,16 @@ class RMDataExtractor:
         clean_items = []
         for item in items:
             if not isinstance(item, dict): continue
-            clean_item = {f: str(item.get(f, "")).strip() for f in fields}
-            if "date" in clean_item:
+            clean_item = {}
+            for f in fields:
+                val = item.get(f)
+                if val is None:
+                    clean_item[f] = ""
+                elif isinstance(val, (dict, list)):
+                    clean_item[f] = val
+                else:
+                    clean_item[f] = str(val).strip()
+            if "date" in clean_item and isinstance(clean_item["date"], str):
                 clean_item["date"] = format_date_with_dots(clean_item["date"])
             clean_items.append(clean_item)
         data[key] = clean_items
