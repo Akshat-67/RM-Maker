@@ -1785,19 +1785,25 @@
                     </div>
                     <div class="card-body d-flex flex-column justify-content-between" style="min-height: 0;">
                         <!-- Preview Mode Switcher Tabs -->
-                        <ul class="nav nav-tabs mb-2 flex-shrink-0" id="narrativePreviewTabs" role="tablist" style="font-size: 0.78rem;">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active py-1 px-3 fw-bold" id="narrative-edit-tab" data-bs-toggle="tab" data-bs-target="#narrative-edit-pane" type="button" role="tab" aria-selected="true">✏️ Edit Text</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link py-1 px-3 fw-bold" id="narrative-rich-tab" data-bs-toggle="tab" data-bs-target="#narrative-rich-pane" type="button" role="tab" aria-selected="false" onclick="renderRichNarrative()">👁️ Rich View</button>
-                            </li>
-                        </ul>
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                            <ul class="nav nav-tabs" id="narrativePreviewTabs" role="tablist" style="font-size: 0.78rem; border-bottom: none;">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active py-1 px-3 fw-bold" id="narrative-edit-tab" data-bs-toggle="tab" data-bs-target="#narrative-edit-pane" type="button" role="tab" aria-selected="true">✏️ Edit Text</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link py-1 px-3 fw-bold" id="narrative-rich-tab" data-bs-toggle="tab" data-bs-target="#narrative-rich-pane" type="button" role="tab" aria-selected="false" onclick="renderRichNarrative()">👁️ Rich View</button>
+                                </li>
+                            </ul>
+                            <div class="d-flex gap-1.5 align-items-center">
+                                <button id="btnToggleItransTimeline" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2.5" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                                <button id="btnToggleDevLysTimeline" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2.5" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                            </div>
+                        </div>
                         
-                        <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column mb-3" style="min-height: 250px;">
+                        <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column mb-3" style="min-height: 500px;">
                             <!-- Editable Raw Area -->
                             <div class="tab-pane fade show active flex-grow-1 d-flex flex-column" id="narrative-edit-pane" role="tabpanel">
-                                <textarea class="form-control flex-grow-1 hindi-legacy-input font-monospace p-3" id="chainNarrativePreview" style="font-size: 0.88rem; line-height: 1.6; resize: none; min-height: 0;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
+                                <textarea class="form-control flex-grow-1 hindi-legacy-input font-monospace p-3" id="chainNarrativePreview" style="font-size: 0.88rem; line-height: 1.6; resize: vertical; min-height: 420px; height: 100%;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
                             </div>
                             <!-- Rich Preview Area -->
                             <div class="tab-pane fade flex-grow-1 overflow-y-auto p-3 bg-light border rounded" id="narrative-rich-pane" role="tabpanel" style="min-height: 0;">
