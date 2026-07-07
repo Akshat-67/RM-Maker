@@ -703,9 +703,17 @@ class SDDataExtractor:
             existing_list = current.get(key, [])
             for old_item in existing_list:
                 for new_item in new_list:
-                    id_match = new_item.get("id") and new_item.get("id").replace(" ", "") == old_item.get("id", "").replace(" ", "")
-                    pan_match = new_item.get("pan") and new_item.get("pan").replace(" ", "") == old_item.get("pan", "").replace(" ", "")
-                    name_match = new_item.get("n") and new_item.get("n").strip() == old_item.get("n", "").strip()
+                    new_id = str(new_item.get("id") or "").replace(" ", "")
+                    old_id = str(old_item.get("id") or "").replace(" ", "")
+                    id_match = bool(new_id and new_id == old_id)
+
+                    new_pan = str(new_item.get("pan") or "").replace(" ", "")
+                    old_pan = str(old_item.get("pan") or "").replace(" ", "")
+                    pan_match = bool(new_pan and new_pan == old_pan)
+
+                    new_name = str(new_item.get("n") or "").strip()
+                    old_name = str(old_item.get("n") or "").strip()
+                    name_match = bool(new_name and new_name == old_name)
                     
                     if id_match or pan_match or name_match:
                         # Merge newly extracted details
@@ -719,9 +727,17 @@ class SDDataExtractor:
         for new_item in new_list:
             matched = False
             for old_item in existing_ua:
-                id_match = new_item.get("id") and new_item.get("id").replace(" ", "") == old_item.get("id", "").replace(" ", "")
-                pan_match = new_item.get("pan") and new_item.get("pan").replace(" ", "") == old_item.get("pan", "").replace(" ", "")
-                name_match = new_item.get("n") and new_item.get("n").strip() == old_item.get("n", "").strip()
+                new_id = str(new_item.get("id") or "").replace(" ", "")
+                old_id = str(old_item.get("id") or "").replace(" ", "")
+                id_match = bool(new_id and new_id == old_id)
+
+                new_pan = str(new_item.get("pan") or "").replace(" ", "")
+                old_pan = str(old_item.get("pan") or "").replace(" ", "")
+                pan_match = bool(new_pan and new_pan == old_pan)
+
+                new_name = str(new_item.get("n") or "").strip()
+                old_name = str(old_item.get("n") or "").strip()
+                name_match = bool(new_name and new_name == old_name)
                 
                 if id_match or pan_match or name_match:
                     for field in ["s", "n", "n_en", "a", "dob", "r", "rn", "rn_en", "relation_text", "adr", "adr_en", "id", "pan"]:
