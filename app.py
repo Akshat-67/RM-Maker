@@ -2698,8 +2698,8 @@ def get_epanjiyan_data(case_id):
         executants_source = data.get("ss", []) if is_sd else data.get("bs", [])
         executants = []
         for b in executants_source:
-            name_en = clean_val(b.get("n_en", ""))
-            rel_name_en = clean_val(b.get("rn_en", ""))
+            name_en = clean_val(b.get("n_en", "")) or clean_val(b.get("n", ""))
+            rel_name_en = clean_val(b.get("rn_en", "")) or clean_val(b.get("rn", ""))
             
             sal = clean_val(b.get("s", ""))
             gender = "MALE"
@@ -2709,7 +2709,7 @@ def get_epanjiyan_data(case_id):
             if is_female_sal or is_female_rel or clean_val(b.get("gender", "")) == "FEMALE":
                 gender = "FEMALE"
                 
-            addr_str = clean_val(b.get("adr_en", ""))
+            addr_str = clean_val(b.get("adr_en", "")) or clean_val(b.get("adr", ""))
             addr_split = split_address(addr_str)
             
             rel_type = clean_val(b.get("r", "S/O"))
@@ -2746,8 +2746,8 @@ def get_epanjiyan_data(case_id):
         if is_sd:
             buyers = data.get("bs", [])
             for b in buyers:
-                buyer_name_en = clean_val(b.get("n_en", ""))
-                buyer_rel_name_en = clean_val(b.get("rn_en", ""))
+                buyer_name_en = clean_val(b.get("n_en", "")) or clean_val(b.get("n", ""))
+                buyer_rel_name_en = clean_val(b.get("rn_en", "")) or clean_val(b.get("rn", ""))
                 
                 buyer_sal = clean_val(b.get("s", ""))
                 buyer_gender = "MALE"
@@ -2757,7 +2757,7 @@ def get_epanjiyan_data(case_id):
                 if buyer_is_female_sal or buyer_is_female_rel or clean_val(b.get("gender", "")) == "FEMALE":
                     buyer_gender = "FEMALE"
                     
-                buyer_addr_str = clean_val(b.get("adr_en", ""))
+                buyer_addr_str = clean_val(b.get("adr_en", "")) or clean_val(b.get("adr", ""))
                 buyer_addr_split = split_address(buyer_addr_str)
                 
                 buyer_rel_type = clean_val(b.get("r", "S/O"))
@@ -2801,15 +2801,15 @@ def get_epanjiyan_data(case_id):
             bank_names = bank_map.get(bank_folder, bank_map["CHOLA"])
             
             sig = data.get("bsign", {})
-            sig_name_en = clean_val(sig.get("n", ""))
-            sig_rel_name_en = clean_val(sig.get("rn", ""))
+            sig_name_en = clean_val(sig.get("n_en", "")) or clean_val(sig.get("n", ""))
+            sig_rel_name_en = clean_val(sig.get("rn_en", "")) or clean_val(sig.get("rn", ""))
             
             sig_sal = clean_val(sig.get("s", ""))
             sig_gender = "MALE"
             if "MRS" in sig_sal or "MS" in sig_sal or "FEMALE" in sig_sal:
                 sig_gender = "FEMALE"
                 
-            sig_addr_str = sig.get("adr", "")
+            sig_addr_str = sig.get("adr_en", "") or sig.get("adr", "")
             if not sig_addr_str:
                 sig_addr_str = "JAIPUR"
             sig_addr_split = split_address(sig_addr_str)
@@ -2842,8 +2842,8 @@ def get_epanjiyan_data(case_id):
             
         witnesses = []
         for w in data.get("ws", []):
-            w_name_en = clean_val(w.get("n_en", ""))
-            w_rel_name_en = clean_val(w.get("rn_en", ""))
+            w_name_en = clean_val(w.get("n_en", "")) or clean_val(w.get("n", ""))
+            w_rel_name_en = clean_val(w.get("rn_en", "")) or clean_val(w.get("rn", ""))
             
             w_rel_type = clean_val(w.get("r", "S/O"))
             if "W/O" in w_rel_type or "WIFE" in w_rel_type:
@@ -2851,7 +2851,7 @@ def get_epanjiyan_data(case_id):
             else:
                 w_rel_type = "FATHER"
                 
-            w_addr_str = clean_val(w.get("adr_en", ""))
+            w_addr_str = clean_val(w.get("adr_en", "")) or clean_val(w.get("adr", ""))
             w_addr_split = split_address(w_addr_str)
             
             w_age = clean_val(w.get("a", ""))
