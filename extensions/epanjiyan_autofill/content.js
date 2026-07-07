@@ -1705,29 +1705,34 @@ async function oneClickAutofill(data, sendResponse) {
             } else {
                 // We are on Viewparty — detect already-added parties and auto-advance stage
                 
-                // Count existing party rows on the Viewparty page
-                const pageText = document.body.innerText.toUpperCase();
-                const partyRows = document.querySelectorAll('table tr, .party-row, [id*="party"]');
-                
-                // Count executants, claimants, witnesses already listed
+                // Only count actual DATA rows in the party grid (rows with 3+ <td> cells,
+                // which rules out header rows, button rows, and navigation elements)
                 let existingExecutants = 0;
                 let existingClaimants = 0;
                 let existingWitnesses = 0;
                 
-                partyRows.forEach(row => {
+                const allTableRows = document.querySelectorAll('table tr');
+                allTableRows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    // A real party data row has multiple cells (Sr No, Name, Type, Actions, etc.)
+                    if (cells.length < 3) return;
+                    
+                    // Also require an edit or delete link/button to confirm it's a data row
+                    const hasActionLink = row.querySelector('a[href*="edit" i], a[href*="delete" i], a[onclick], button[onclick], img[src*="edit" i], img[src*="delete" i], .fa-edit, .fa-trash, .glyphicon-edit, .glyphicon-trash');
+                    if (!hasActionLink) return;
+                    
+                    // Now check what type of party this data row represents
                     const rowText = (row.innerText || "").toUpperCase();
                     if (rowText.includes('EXECUTANT') || rowText.includes('निष्पादक')) {
                         existingExecutants++;
-                    }
-                    if (rowText.includes('CLAIMANT') || rowText.includes('दावेदार') || rowText.includes('क्लेमेंट')) {
+                    } else if (rowText.includes('CLAIMANT') || rowText.includes('दावेदार') || rowText.includes('क्लेमेंट')) {
                         existingClaimants++;
-                    }
-                    if (rowText.includes('WITNESS') || rowText.includes('गवाह') || rowText.includes('साक्षी')) {
+                    } else if (rowText.includes('WITNESS') || rowText.includes('गवाह') || rowText.includes('साक्षी')) {
                         existingWitnesses++;
                     }
                 });
                 
-                console.log(`[RM-Maker] Viewparty page scan: ${existingExecutants} executants, ${existingClaimants} claimants, ${existingWitnesses} witnesses already on page. Current stage: ${stage}`);
+                console.log(`[RM-Maker] Viewparty page scan: ${existingExecutants} executant data rows, ${existingClaimants} claimant data rows, ${existingWitnesses} witness data rows. Current stage: ${stage}`);
                 
                 // Auto-advance stage if the current stage's party type already exists
                 let correctedStage = stage;
