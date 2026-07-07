@@ -286,8 +286,32 @@ function cleanSalutation(name) {
     return cleaned;
 }
 
-async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
-    console.log("[RM-Maker] Starting fillPartyFormFields for:", partyData.name_en);
+function checkRequiredFields() {
+    const nameInput = document.getElementById('txtpartynameen') || document.querySelector('input[name="partynameen"]') || document.querySelector('input[id*="partyname" i]');
+    if (nameInput && !nameInput.value.trim()) {
+        return "Party Name (English)";
+    }
+    
+    const fatherInput = document.getElementById('txtfathernameen') || document.querySelector('input[name="fathernameen"]') || document.querySelector('input[id*="fathername" i]') || document.querySelector('input[id*="relationname" i]');
+    if (fatherInput && !fatherInput.value.trim()) {
+        return "Father/Husband Name (English)";
+    }
+    
+    const ageInput = document.getElementById('txtage') || document.querySelector('input[name="age"]') || document.querySelector('input[id*="age" i]');
+    if (ageInput && !ageInput.value.trim()) {
+        return "Age";
+    }
+    
+    const pinInput = document.getElementById('txtpincode') || document.querySelector('input[name="pincode"]') || document.querySelector('input[id*="pincode" i]') || document.querySelector('input[id*="pin" i]');
+    if (pinInput && !pinInput.value.trim()) {
+        return "Pincode";
+    }
+    
+    return null;
+}
+
+async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitness = false) {
+    console.log("[RM-Maker] Starting fillPartyFormFields for:", partyData.name_en, "isWitness:", isWitness);
     
     // 1. Checkboxes
     const presenterBox = getField('presenter');
@@ -303,6 +327,7 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
         purchaserBox.dispatchEvent(new Event('change', { bubbles: true }));
         purchaserBox.dispatchEvent(new Event('click', { bubbles: true }));
     }
+    await new Promise(r => setTimeout(r, 200));
     
     // 2. Gender Selection
     if (partyData.gender === 'FEMALE') {
@@ -327,100 +352,233 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser) {
             maleRadio.dispatchEvent(new Event('change', { bubbles: true }));
         }
     }
+    await new Promise(r => setTimeout(r, 200));
     
-    // 3. Parallel dropdown menus filling (Filled first so conditional fields like ID details are enabled)
-    await Promise.all([
-        (async () => {
-            const catSelect = getField('category');
-            if (catSelect) await setSelectValueByText(catSelect, "General");
-        })(),
-        (async () => {
-            const occSelect = getField('occupation');
-            if (occSelect) await setSelectValueByText(occSelect, "Other");
-        })(),
-        (async () => {
-            const idSelect = getField('idProof');
-            if (idSelect) await setSelectValueByText(idSelect, "Other than above");
-        })()
-    ]);
+    // 3. Dropdowns - Filled sequentially to avoid ng-select race conditions
+    const catSelect = getField('category');
+    if (catSelect) await setSelectValueByText(catSelect, "General");
     
-    // 4. Parallel static input fields filling
-    await Promise.all([
-        // Name and Relation
-        (async () => {
-            const partyNameEn = getField('partyNameEn');
-            if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
-        })(),
-        (async () => {
-            const relNameEn = getField('relNameEn');
-            if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
-        })(),
+    const occSelect = getField('occupation');
+    if (occSelect) await setSelectValueByText(occSelect, "Other");
+    
+    const idSelect = getField('idProof');
+    if (idSelect) await setSelectValueByText(idSelect, "Other than above");
+    
+    await new Promise(r => setTimeout(r, 250));
+    
+    // 4. Fill basic details
+    const partyNameEn = getField('partyNameEn');
+    if (partyNameEn) setInputValue(partyNameEn, cleanSalutation(partyData.name_en));
+    
+    const relNameEn = getField('relNameEn');
+    if (relNameEn) setInputValue(relNameEn, cleanSalutation(partyData.relation_name_en));
+    
+    const dobInput = document.getElementById('txtdob') || getField('dob');
+    const ageInput = getField('age');
+    if (dobInput) {
+        let dobValue = "";
+        if (partyData.dob) {
+            dobValue = partyData.dob.replace(/[-\.]/g, '/');
+            if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
+                dobValue = `01/01/${dobValue}`;
+            }
+        } else if (partyData.age) {
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - parseInt(partyData.age);
+            dobValue = `01/01/${birthYear}`;
+        } else {
+            dobValue = "01/01/1985";
+        }
+        setDatePickerValue(dobInput, dobValue);
+    } else if (ageInput) {
+        setInputValue(ageInput, partyData.age || "40");
+    }
+    
+    const casteEn = getField('casteEn');
+    if (casteEn) setInputValue(casteEn, "HINDU");
+    
+    const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
+    if (casteHi) setInputValue(casteHi, "हिन्दू");
+    
+    const idDetails = getField('idDetails');
+    const sampleAadhaar = "123456789012";
+    if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
+    
+    if (partyData.pan) {
+        const panInput = getField('pan');
+        if (panInput) setInputValue(panInput, partyData.pan);
+    }
+    
+    // Address Details
+    if (partyData.address) {
+        const houseInput = getField('houseNo');
+        const colonyInput = getField('colony');
+        const areaInput = getField('area');
+        const cityInput = getField('city');
+        const pinInput = getField('pincode');
         
-        // DOB / Age
-        (async () => {
-            const dobInput = document.getElementById('txtdob') || getField('dob');
-            const ageInput = getField('age');
-            if (dobInput) {
-                let dobValue = "";
-                if (partyData.dob) {
-                    dobValue = partyData.dob.replace(/[-\.]/g, '/');
-                    if (dobValue.length === 4 && /^\d+$/.test(dobValue)) {
-                        dobValue = `01/01/${dobValue}`;
-                    }
-                } else if (partyData.age) {
-                    const currentYear = new Date().getFullYear();
-                    const birthYear = currentYear - parseInt(partyData.age);
-                    dobValue = `01/01/${birthYear}`;
-                } else {
-                    dobValue = "01/01/1985";
+        if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
+        if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
+        if (areaInput) setInputValue(areaInput, partyData.address.area || "");
+        if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
+        if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
+    }
+    
+    await new Promise(r => setTimeout(r, 400));
+    
+    // 5. Contact Details (Mobile Number OTP verification)
+    if (isWitness) {
+        console.log("[RM-Maker] Skipping mobile verification for witness.");
+        console.log("[RM-Maker] Completed fillPartyFormFields for:", partyData.name_en);
+        return;
+    }
+    
+    // Check if OTP needs to be bypassed based on Property/Loan Valuation (< 25 lakhs)
+    let valuationAmount = 0;
+    try {
+        const valSelectors = [
+            'input[id*="valuation" i]', 'input[name*="valuation" i]',
+            'input[id*="marketval" i]', 'input[name*="marketval" i]',
+            'input[id*="consideration" i]', 'input[name*="consideration" i]',
+            'input[id*="dlc" i]', 'input[name*="dlc" i]',
+            'span[id*="valuation" i]', 'span[id*="marketval" i]', 'span[id*="consideration" i]',
+            'td[id*="valuation" i]', 'td[id*="marketval" i]'
+        ];
+        for (const sel of valSelectors) {
+            const el = document.querySelector(sel);
+            if (el) {
+                const valStr = el.value || el.textContent || "";
+                const parsed = parseFloat(valStr.replace(/[^0-9.]/g, ''));
+                if (parsed > valuationAmount) valuationAmount = parsed;
+            }
+        }
+        
+        const bodyText = document.body.innerText;
+        const regex = /(?:valuation|market\s*value|dlc|consideration|loan|amount|मूल्यांकन|ऋण|बाजार\s*मूल्य|प्रतिफल)\s*[:\-]?\s*(?:rs\.?|inr)?\s*([0-9,.]+)/i;
+        const matches = bodyText.match(new RegExp(regex.source, 'gi'));
+        if (matches) {
+            for (const m of matches) {
+                const cleanNum = m.match(/[0-9,.]+/);
+                if (cleanNum) {
+                    const parsed = parseFloat(cleanNum[0].replace(/,/g, ''));
+                    if (parsed > valuationAmount) valuationAmount = parsed;
                 }
-                console.log("[RM-Maker] Writing DOB using page-context datepicker:", dobValue);
-                setDatePickerValue(dobInput, dobValue);
-            } else if (ageInput) {
-                setInputValue(ageInput, partyData.age || "40");
             }
-        })(),
+        }
+    } catch (err) {
+        console.error("[RM-Maker] Error reading valuation from page:", err);
+    }
+    
+    console.log("[RM-Maker] Resolved property/loan valuation:", valuationAmount);
+    
+    // Only trigger mobile OTP sequence if valuation >= 25 lakhs (2,500,000)
+    // If valuation is 0, we default to doing it (safer default)
+    if (valuationAmount > 0 && valuationAmount < 2500000) {
+        console.log(`[RM-Maker] Valuation (${valuationAmount}) is less than 25 Lakhs. Skipping OTP mobile sequence.`);
+        console.log("[RM-Maker] Completed fillPartyFormFields for:", partyData.name_en);
+        return;
+    }
+    
+    let mobileVal = "";
+    if (chrome && chrome.storage && chrome.storage.local) {
+        const res = await new Promise(r => chrome.storage.local.get(['oneClickData', 'defaultMobile'], r));
+        mobileVal = (res.oneClickData && res.oneClickData.mobile) || res.defaultMobile || "";
+    }
+    if (!mobileVal) {
+        mobileVal = "8233658093";
+    }
+    
+    const chkMobile = document.getElementById('chkMobile') || document.querySelector('input[name="chkEnterMobile"]');
+    if (chkMobile) {
+        if (!chkMobile.checked) {
+            console.log("[RM-Maker] Checking Enter Mobile checkbox...");
+            chkMobile.click();
+        }
         
-        // Caste (English) & Caste (Hindi)
-        (async () => {
-            const casteEn = getField('casteEn');
-            if (casteEn) setInputValue(casteEn, "HINDU");
-        })(),
-        (async () => {
-            const casteHi = document.getElementById('txtcastehindi') || document.querySelector('input[name*="casteHindi" i]') || document.querySelector('input[id*="castehindi" i]');
-            if (casteHi) setInputValue(casteHi, "हिन्दू");
-        })(),
+        await new Promise(r => setTimeout(r, 450));
         
-        // ID & PAN
-        (async () => {
-            const idDetails = getField('idDetails');
-            const sampleAadhaar = "123456789012";
-            if (idDetails) setInputValue(idDetails, partyData.id || partyData.aadhaar || sampleAadhaar);
-        })(),
-        (async () => {
-            if (partyData.pan) {
-                const panInput = getField('pan');
-                if (panInput) setInputValue(panInput, partyData.pan);
-            }
-        })(),
-        
-        // Address Details
-        (async () => {
-            if (partyData.address) {
-                const houseInput = getField('houseNo');
-                const colonyInput = getField('colony');
-                const areaInput = getField('area');
-                const cityInput = getField('city');
-                const pinInput = getField('pincode');
+        const contactInput = document.getElementById('txtcontact') || document.querySelector('input[name="contactno"]');
+        if (contactInput) {
+            console.log("[RM-Maker] Found contact input. Filling with:", mobileVal);
+            setInputValue(contactInput, mobileVal);
+            
+            await new Promise(r => setTimeout(r, 450));
+            
+            const verifyBtn = document.getElementById('btnotpforvaluation') || 
+                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'VERIFY');
+            if (verifyBtn) {
+                console.log("[RM-Maker] Clicking Verify button to trigger OTP...");
+                verifyBtn.click();
                 
-                if (houseInput) setInputValue(houseInput, partyData.address.house_no || "00");
-                if (colonyInput) setInputValue(colonyInput, partyData.address.colony || "");
-                if (areaInput) setInputValue(areaInput, partyData.address.area || "");
-                if (cityInput) setInputValue(cityInput, partyData.address.city || "JAIPUR");
-                if (pinInput) setInputValue(pinInput, partyData.address.pincode || "");
+                // 1. Wait for and click OK on the "OTP Sent Successfully" SweetAlert modal
+                showStatusToast("Waiting for OTP sent confirmation...");
+                let clickedSentOk = false;
+                for (let i = 0; i < 40; i++) {
+                    const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Ok') || b.textContent.trim().includes('ठीक है'));
+                    if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                        await new Promise(r => setTimeout(r, 450));
+                        okBtn.click();
+                        okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                        clickedSentOk = true;
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                
+                if (clickedSentOk) {
+                    // 2. Poll for OTP from MacroDroid endpoint
+                    showStatusToast("Polling for forwarded OTP from MacroDroid...");
+                    let otpVal = "";
+                    for (let i = 0; i < 60; i++) { // Poll for up to 90 seconds
+                        try {
+                            const response = await fetch('http://localhost:5000/api/case/otp/recent');
+                            const resData = await response.json();
+                            if (resData && resData.otp) {
+                                otpVal = resData.otp;
+                                break;
+                            }
+                        } catch (err) {
+                            console.error("Error polling OTP:", err);
+                        }
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                    
+                    if (otpVal) {
+                        showStatusToast(`OTP Received: ${otpVal}. Filling...`);
+                        const otpInput = document.getElementById('txtotp') || document.querySelector('input[name="txtvaltionotp"]');
+                        if (otpInput) {
+                            setInputValue(otpInput, otpVal);
+                            await new Promise(r => setTimeout(r, 450));
+                            
+                            // 3. Click Verify Mobile button
+                            const verifyMobileBtn = document.getElementById('btnVerifyMobile');
+                            if (verifyMobileBtn) {
+                                console.log("[RM-Maker] Clicking Verify Mobile button...");
+                                verifyMobileBtn.click();
+                                
+                                // 4. Wait for and click OK on the "OTP verified successfully" SweetAlert modal
+                                showStatusToast("Waiting for OTP verified confirmation...");
+                                for (let i = 0; i < 40; i++) {
+                                    const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().includes('Ok') || b.textContent.trim().includes('ठीक है'));
+                                    if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                                        await new Promise(r => setTimeout(r, 450));
+                                        okBtn.click();
+                                        okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                        break;
+                                    }
+                                    await new Promise(r => setTimeout(r, 150));
+                                }
+                            }
+                        }
+                    } else {
+                        showStatusToast("OTP polling timed out. Please enter OTP manually.", false);
+                    }
+                }
             }
-        })()
-    ]);
+        }
+    }
     
     console.log("[RM-Maker] Completed fillPartyFormFields for:", partyData.name_en);
 }
@@ -1266,7 +1424,7 @@ function autofillWitnessN(data, index, sendResponse) {
     // PHASE B: PartyAdd form → fill witness details
     if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
         const wit = data.witnesses[index];
-        fillPartyFormFields(wit, false, false)
+        fillPartyFormFields(wit, false, false, true)
             .then(() => {
                 sendResponse({ success: true, message: `Autofilled Witness ${index + 1} details! Click Save.` });
             })
@@ -1436,7 +1594,7 @@ async function oneClickAutofill(data, sendResponse) {
                     const idx = (stage === "EXECUTANT") ? 0 : parseInt(stage.split("_")[1]);
                     const exec = data.executants[idx];
                     const isFirst = (idx === 0);
-                    fillPromise = fillPartyFormFields(exec, isFirst, isFirst);
+                    fillPromise = fillPartyFormFields(exec, isFirst, isFirst, false);
                     
                     if (idx + 1 < data.executants.length) {
                         nextStage = `EXECUTANT_${idx + 1}`;
@@ -1445,15 +1603,15 @@ async function oneClickAutofill(data, sendResponse) {
                     }
                 } else if (stage === "CLAIMANT") {
                     const cl = data.claimant;
-                    fillPromise = fillPartyFormFields(cl, false, false);
+                    fillPromise = fillPartyFormFields(cl, false, false, false);
                     nextStage = "WITNESS_1";
                 } else if (stage === "WITNESS_1") {
                     const wit = data.witnesses[0];
-                    fillPromise = fillPartyFormFields(wit, false, false);
+                    fillPromise = fillPartyFormFields(wit, false, false, true);
                     nextStage = "WITNESS_2";
                 } else if (stage === "WITNESS_2") {
                     const wit = data.witnesses[1];
-                    fillPromise = fillPartyFormFields(wit, false, false);
+                    fillPromise = fillPartyFormFields(wit, false, false, true);
                     nextStage = "PRESENTER";
                 }
                 
@@ -1461,49 +1619,75 @@ async function oneClickAutofill(data, sendResponse) {
                     try {
                         await fillPromise;
                         
+                        // Check missing fields before saving
+                        const missingField = checkRequiredFields();
+                        if (missingField) {
+                            showStatusToast(`⚠️ Missing required field: ${missingField}. Please fill it and click Save manually.`, false);
+                            sendResponse({ success: false, error: `${missingField} is required but empty.` });
+                            return;
+                        }
+                        
                         // Wait 800ms before clicking Save
                         await new Promise(r => setTimeout(r, 800));
                         
-                        const saveBtn = document.getElementById('saveDetail') || 
-                                        document.querySelector('button[onclick*="saveForm"]') ||
-                                        Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'SAVE');
-                                        
-                        if (saveBtn) {
-                            showStatusToast("Submitting Party Form (Clicking Save)...");
-                            saveBtn.click();
-                            
-                            // Poll for SweetAlert2 modal to appear
-                            const checkInterval = setInterval(() => {
-                                showStatusToast("Waiting for Party Saved popup...");
-                                const swalOkBtn = document.querySelector('.swal2-confirm') || 
-                                                  Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'OK' && (b.offsetWidth > 0 || b.offsetHeight > 0));
-                                if (swalOkBtn) {
-                                    showStatusToast("Confirming Save (Clicking OK)...");
-                                    clearInterval(checkInterval);
+                        const saved = triggerButtonByText("Save");
+                        if (saved) {
+                            showStatusToast("Waiting for success confirmation...");
+                            let clickedOk = false;
+                            for (let i = 0; i < 40; i++) {
+                                const swalContainer = document.querySelector('.swal2-container');
+                                if (swalContainer) {
+                                    const isError = swalContainer.querySelector('.swal2-error, .swal2-warning') || 
+                                                    swalContainer.innerText.toLowerCase().includes('error') || 
+                                                    swalContainer.innerText.toLowerCase().includes('select') || 
+                                                    swalContainer.innerText.toLowerCase().includes('required') || 
+                                                    swalContainer.innerText.includes('चुनें') || 
+                                                    swalContainer.innerText.includes('अनिवार्य');
+                                    if (isError) {
+                                        showStatusToast(`⚠️ Save Failed: "${swalContainer.innerText.split('\n')[0]}". Correct it and click Save manually.`, false);
+                                        sendResponse({ success: false, error: 'SweetAlert error modal detected.' });
+                                        return;
+                                    }
+                                }
+                                
+                                const okBtn = document.querySelector('.swal2-confirm, .swal-button--confirm') || 
+                                              Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toUpperCase() === 'OK' || b.textContent.trim().includes('ठीक है'));
+                                if (okBtn && (okBtn.offsetWidth > 0 || okBtn.offsetHeight > 0)) {
+                                    await new Promise(r => setTimeout(r, 450));
+                                    okBtn.click();
+                                    okBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                                     
-                                    // Update stage in local storage before clicking OK
+                                    await new Promise(r => setTimeout(r, 300));
+                                    const stillExists = document.querySelector('.swal2-confirm, .swal-button--confirm');
+                                    if (stillExists) {
+                                        stillExists.click();
+                                        stillExists.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                                    }
+                                    
+                                    // Update stage in local storage
                                     const updates = { partyStage: nextStage };
                                     if (nextStage === "DONE") {
                                         updates.oneClickRunning = false;
                                     }
                                     chrome.storage.local.set(updates, () => {
-                                        swalOkBtn.click();
                                         setTimeout(() => hideStatusToast(), 100);
                                         sendResponse({ success: true, message: `Successfully saved ${stage} and updated stage to ${nextStage}` });
                                     });
+                                    clickedOk = true;
+                                    break;
                                 }
-                            }, 50);
-                            
-                            // Safety timeout (clear interval after 10 seconds)
-                            setTimeout(() => {
-                                clearInterval(checkInterval);
-                            }, 10000);
+                                await new Promise(r => setTimeout(r, 150));
+                            }
+                            if (!clickedOk) {
+                                showStatusToast("Saved (confirmation popup timed out).", false);
+                                sendResponse({ success: true, message: "Saved, but popup confirmation timed out." });
+                            }
                         } else {
                             showStatusToast("Save button not found. Please click Save manually.", false);
                             sendResponse({ success: false, error: 'Could not find the Save button on the Party form.' });
                         }
                     } catch (err) {
-                        showStatusToast(`Error filling ${stage} form.`, false);
+                        showStatusToast(`Error filling ${stage} form: ${err.message}`, false);
                         sendResponse({ success: false, error: err.message });
                     }
                 } else {
@@ -1605,8 +1789,8 @@ function computeGenderCard(executants) {
 // Auto-run on page load if one-click automation is active
 try {
     if (chrome && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get(['oneClickRunning', 'activeCaseData'], (res) => {
-            if (res.oneClickRunning && res.activeCaseData) {
+        chrome.storage.local.get(['oneClickRunning', 'oneClickData', 'activeCaseData'], (res) => {
+            if (res.oneClickRunning && (res.oneClickData || res.activeCaseData)) {
                 const urlLower = window.location.href.toLowerCase();
                 // DO NOT auto-run on Dashboard to prevent accidental loops on fresh visits
                 if (urlLower.includes('/citizen/dashboard')) {
@@ -1616,7 +1800,7 @@ try {
                 }
                 
                 // Build the complete data payload, computing gender_card if missing
-                const caseData = res.activeCaseData;
+                const caseData = res.oneClickData || res.activeCaseData;
                 if (!caseData.gender_card) {
                     caseData.gender_card = computeGenderCard(caseData.executants);
                 }
