@@ -1389,12 +1389,15 @@ def generate_rm(case_id):
             context["chain_text"] = ""
 
     if context.get("rd"):
-        from utils.helpers import format_date_to_ordinal_english
-        ordinal_rd = format_date_to_ordinal_english(context["rd"])
-        context["rd"] = ordinal_rd
+        if doc_type == "RM":
+            from utils.helpers import format_date_to_ordinal_english
+            formatted_rd = format_date_to_ordinal_english(context["rd"])
+        else:
+            formatted_rd = str(context["rd"]).strip().replace("-", ".").replace("/", ".")
+        context["rd"] = formatted_rd
         if "deed" not in context:
             context["deed"] = {}
-        context["deed"]["execution_date"] = ordinal_rd
+        context["deed"]["execution_date"] = formatted_rd
         
     context['d'] = context.copy()  
 
@@ -1644,12 +1647,15 @@ def preview_draft(case_id):
             context["chain_text"] = ""
 
     if context.get("rd"):
-        from utils.helpers import format_date_to_ordinal_english
-        ordinal_rd = format_date_to_ordinal_english(context["rd"])
-        context["rd"] = ordinal_rd
+        if doc_type == "RM":
+            from utils.helpers import format_date_to_ordinal_english
+            formatted_rd = format_date_to_ordinal_english(context["rd"])
+        else:
+            formatted_rd = str(context["rd"]).strip().replace("-", ".").replace("/", ".")
+        context["rd"] = formatted_rd
         if "deed" not in context:
             context["deed"] = {}
-        context["deed"]["execution_date"] = ordinal_rd
+        context["deed"]["execution_date"] = formatted_rd
 
     context['d'] = context.copy()
 
