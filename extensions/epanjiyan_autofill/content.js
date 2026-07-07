@@ -1294,9 +1294,10 @@ function autofillExecutants(data, sendResponse, stage = "EXECUTANT") {
     
     const exec = data.executants[idx];
     const url = window.location.href;
+    const urlLower = url.toLowerCase();
     
     // PHASE A: If on Viewparty page → click Executant button → bypass verification modal
-    if (url.includes('/Party/Viewparty')) {
+    if (urlLower.includes('/party/viewparty')) {
         // Click Executant button
         const executantBtn = document.getElementById('exect') || 
                              document.querySelector('button[id*="exec" i]') || 
@@ -1319,7 +1320,7 @@ function autofillExecutants(data, sendResponse, stage = "EXECUTANT") {
     }
     
     // PHASE B: If on PartyAdd form page → fill the actual executant details
-    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+    if (urlLower.includes('/party/partyadd')) {
         const isFirst = (idx === 0);
         fillPartyFormFields(exec, isFirst, isFirst)
             .then(() => {
@@ -1347,9 +1348,10 @@ function autofillClaimant(data, sendResponse) {
     
     const cl = data.claimant;
     const url = window.location.href;
+    const urlLower = url.toLowerCase();
     
     // PHASE A: Viewparty → click Claimant → bypass modal
-    if (url.includes('/Party/Viewparty')) {
+    if (urlLower.includes('/party/viewparty')) {
         const claimantBtn = document.getElementById('clmnt') || 
                              document.getElementById('claim') || 
                              document.getElementById('claimant') || 
@@ -1372,7 +1374,7 @@ function autofillClaimant(data, sendResponse) {
     }
     
     // PHASE B: PartyAdd form → fill claimant details
-    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+    if (urlLower.includes('/party/partyadd')) {
         fillPartyFormFields(cl, false, false)
             .then(() => {
                 sendResponse({ success: true, message: 'Autofilled Claimant (Bank) details! Review and click Save.' });
@@ -1397,9 +1399,10 @@ function autofillWitnessN(data, index, sendResponse) {
     }
     
     const url = window.location.href;
+    const urlLower = url.toLowerCase();
     
     // PHASE A: Viewparty → click Witness → bypass modal
-    if (url.includes('/Party/Viewparty')) {
+    if (urlLower.includes('/party/viewparty')) {
         const witnessBtn = document.getElementById('wtns') || 
                            document.getElementById('witness') || 
                            document.getElementById('witnesses') || 
@@ -1422,7 +1425,7 @@ function autofillWitnessN(data, index, sendResponse) {
     }
     
     // PHASE B: PartyAdd form → fill witness details
-    if (url.includes('/Party/PartyAdd') || url.includes('/Party/partyadd')) {
+    if (urlLower.includes('/party/partyadd')) {
         const wit = data.witnesses[index];
         fillPartyFormFields(wit, false, false, true)
             .then(() => {
