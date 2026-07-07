@@ -1577,7 +1577,7 @@ async function oneClickAutofill(data, sendResponse) {
             const storage = await new Promise(resolve => {
                 chrome.storage.local.get(['partyStage'], resolve);
             });
-            const stage = storage.partyStage || "EXECUTANT";
+            let stage = storage.partyStage || "EXECUTANT";
             
             if (stage === "DONE") {
                 if (chrome && chrome.storage && chrome.storage.local) {
@@ -1682,12 +1682,18 @@ async function oneClickAutofill(data, sendResponse) {
                                 await new Promise(r => setTimeout(r, 150));
                             }
                             if (!clickedOk) {
-                                showStatusToast("Saved (confirmation popup timed out).", false);
-                                sendResponse({ success: true, message: "Saved, but popup confirmation timed out." });
+                                // User likely already saved manually — advance stage anyway
+                                console.log(`[RM-Maker] Popup timed out. Advancing stage to ${nextStage} (user likely saved manually).`);
+                                chrome.storage.local.set({ partyStage: nextStage });
+                                showStatusToast("Saved (confirmation popup timed out). Advancing...", false);
+                                sendResponse({ success: true, message: `Saved, popup timed out. Stage advanced to ${nextStage}.` });
                             }
                         } else {
-                            showStatusToast("Save button not found. Please click Save manually.", false);
-                            sendResponse({ success: false, error: 'Could not find the Save button on the Party form.' });
+                            // Save button not found — user likely already saved and page state changed
+                            console.log(`[RM-Maker] Save button not found. Advancing stage to ${nextStage} (user likely saved manually).`);
+                            chrome.storage.local.set({ partyStage: nextStage });
+                            showStatusToast("Save button not found (likely already saved). Advancing...", false);
+                            sendResponse({ success: true, message: `Save button not found. Stage advanced to ${nextStage}.` });
                         }
                     } catch (err) {
                         showStatusToast(`Error filling ${stage} form: ${err.message}`, false);
@@ -1697,7 +1703,60 @@ async function oneClickAutofill(data, sendResponse) {
                     sendResponse({ success: false, error: `Invalid partyStage: ${stage}` });
                 }
             } else {
-                // We are on Viewparty
+                // We are on Viewparty — detect already-added parties and auto-advance stage
+                
+                // Count existing party rows on the Viewparty page
+                const pageText = document.body.innerText.toUpperCase();
+                const partyRows = document.querySelectorAll('table tr, .party-row, [id*="party"]');
+                
+                // Count executants, claimants, witnesses already listed
+                let existingExecutants = 0;
+                let existingClaimants = 0;
+                let existingWitnesses = 0;
+                
+                partyRows.forEach(row => {
+                    const rowText = (row.innerText || "").toUpperCase();
+                    if (rowText.includes('EXECUTANT') || rowText.includes('निष्पादक')) {
+                        existingExecutants++;
+                    }
+                    if (rowText.includes('CLAIMANT') || rowText.includes('दावेदार') || rowText.includes('क्लेमेंट')) {
+                        existingClaimants++;
+                    }
+                    if (rowText.includes('WITNESS') || rowText.includes('गवाह') || rowText.includes('साक्षी')) {
+                        existingWitnesses++;
+                    }
+                });
+                
+                console.log(`[RM-Maker] Viewparty page scan: ${existingExecutants} executants, ${existingClaimants} claimants, ${existingWitnesses} witnesses already on page. Current stage: ${stage}`);
+                
+                // Auto-advance stage if the current stage's party type already exists
+                let correctedStage = stage;
+                const totalExpectedExecutants = data.executants ? data.executants.length : 1;
+                
+                if (correctedStage.startsWith("EXECUTANT") && existingExecutants >= totalExpectedExecutants) {
+                    console.log(`[RM-Maker] All ${totalExpectedExecutants} executant(s) already exist. Advancing past EXECUTANT stage.`);
+                    correctedStage = "CLAIMANT";
+                }
+                if (correctedStage === "CLAIMANT" && existingClaimants > 0) {
+                    console.log("[RM-Maker] Claimant already exists. Advancing past CLAIMANT stage.");
+                    correctedStage = "WITNESS_1";
+                }
+                if (correctedStage === "WITNESS_1" && existingWitnesses >= 1) {
+                    console.log("[RM-Maker] Witness 1 already exists. Advancing past WITNESS_1 stage.");
+                    correctedStage = "WITNESS_2";
+                }
+                if (correctedStage === "WITNESS_2" && existingWitnesses >= 2) {
+                    console.log("[RM-Maker] Witness 2 already exists. Advancing past WITNESS_2 stage.");
+                    correctedStage = "PRESENTER";
+                }
+                
+                // If stage was corrected, persist it
+                if (correctedStage !== stage) {
+                    console.log(`[RM-Maker] Auto-corrected partyStage from ${stage} to ${correctedStage}`);
+                    chrome.storage.local.set({ partyStage: correctedStage });
+                    stage = correctedStage;
+                }
+                
                 showStatusToast(`Routing party step: ${stage}...`);
                 if (stage.startsWith("EXECUTANT")) {
                     autofillExecutants(data, sendResponse, stage);
