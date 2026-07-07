@@ -471,10 +471,10 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitnes
     
     console.log("[RM-Maker] Resolved property/loan valuation:", valuationAmount);
     
-    // Only trigger mobile OTP sequence if valuation >= 25 lakhs (2,500,000)
+    // Only trigger mobile OTP sequence if valuation/loan >= 30 lakhs (3,000,000)
     // If valuation is 0, we default to doing it (safer default)
-    if (valuationAmount > 0 && valuationAmount < 2500000) {
-        console.log(`[RM-Maker] Valuation (${valuationAmount}) is less than 25 Lakhs. Skipping OTP mobile sequence.`);
+    if (valuationAmount > 0 && valuationAmount < 3000000) {
+        console.log(`[RM-Maker] Loan valuation (${valuationAmount}) is less than 30 Lakhs. Skipping OTP mobile sequence.`);
         console.log("[RM-Maker] Completed fillPartyFormFields for:", partyData.name_en);
         return;
     }
