@@ -2276,6 +2276,18 @@
     ].filter((v, i, a) => a.indexOf(v) === i && v.trim() !== "");
 
     function findPairedFile(filename) {
+        // 1. Try assigned pairings first
+        if (window.CURRENT_ACTIVE_PAIRINGS && window.CURRENT_ACTIVE_PAIRINGS[filename]) {
+            const pair = window.CURRENT_ACTIVE_PAIRINGS[filename];
+            return {
+                file: filename,
+                side: pair.side,
+                pairedFile: pair.pairedFile,
+                pairedSide: pair.side === 'front' ? 'back' : 'front'
+            };
+        }
+
+        // 2. Fall back to filename-based pairing (refined algorithm)
         const ext = filename.split('.').pop().toLowerCase();
         if (!['jpg', 'jpeg', 'png'].includes(ext)) return null;
 
@@ -4149,18 +4161,31 @@
             if (signerName) assignments.push({ role: 'Bank Signer', name: signerName, id: signerId });
         }
 
-        // Iterate through all files and rename their labels
+        // Helper to strip vowels and non-alphanumeric chars for phonetic match
+        const getPhoneticClean = (str) => {
+            return str.toLowerCase()
+                      .replace(/[^a-z0-9]/g, '')
+                      .replace(/[aeiou]/g, '');
+        };
+
+        const fileMappings = {}; // filename -> role
+
+        // Step 1: Map files to assigned roles using robust vowel-stripped matching
         ALL_CASE_FILES.forEach(filename => {
-            const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase().replace(/[^a-z0-9]/g, '');
+            const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
+            if (base.includes('pan')) return; // skip pan cards
+
+            const baseClean = getPhoneticClean(base);
             let matchedRole = "";
 
-            // 1. Try matching by Aadhaar ID (last 4 digits)
+            // A. Match by ID (last 4 digits)
             for (const ass of assignments) {
                 if (ass.id) {
                     const idClean = ass.id.replace(/\s/g, '');
                     if (idClean.length >= 4) {
                         const last4 = idClean.substring(idClean.length - 4);
-                        if (base.includes(last4)) {
+                        const baseDigits = base.replace(/[^0-9]/g, '');
+                        if (baseDigits.includes(last4)) {
                             matchedRole = ass.role;
                             break;
                         }
@@ -4168,19 +4193,13 @@
                 }
             }
 
-            // 2. Try fuzzy matching by Name
+            // B. Match by name (vowel stripped)
             if (!matchedRole) {
                 for (const ass of assignments) {
-                    const assClean = ass.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    if (assClean.length >= 3) {
-                        // Check if file base name is contained within or contains the person name
-                        if (base.includes(assClean) || assClean.includes(base)) {
-                            matchedRole = ass.role;
-                            break;
-                        }
-                        // Check if parts overlap
-                        const parts = assClean.split(/\s+/);
-                        if (parts.length > 1 && parts.every(part => base.includes(part))) {
+                    const assClean = getPhoneticClean(ass.name);
+                    if (assClean.length >= 2) {
+                        // Check if one contains the other
+                        if (baseClean.includes(assClean) || assClean.includes(baseClean)) {
                             matchedRole = ass.role;
                             break;
                         }
@@ -4188,16 +4207,69 @@
                 }
             }
 
-            // Construct new display label
-            let displayName = filename;
             if (matchedRole) {
-                const ext = filename.split('.').pop();
-                const pairInfo = findPairedFile(filename);
-                let sideLabel = "";
-                if (pairInfo) {
-                    sideLabel = pairInfo.side === 'front' ? ' [Front]' : ' [Back]';
+                fileMappings[filename] = matchedRole;
+            }
+        });
+
+        // Step 2: Group files by their matched roles
+        const roleGroups = {};
+        Object.entries(fileMappings).forEach(([filename, role]) => {
+            if (!roleGroups[role]) roleGroups[role] = [];
+            roleGroups[role].push(filename);
+        });
+
+        const activePairings = {}; // filename -> { pairedFile, side }
+
+        // Step 3: Determine sides for grouped files
+        Object.entries(roleGroups).forEach(([role, files]) => {
+            if (files.length === 2) {
+                const f1 = files[0];
+                const f2 = files[1];
+                
+                const hasBackWord = (f) => {
+                    const name = f.toLowerCase();
+                    return name.includes('back') || name.includes('reverse') || name.includes('rear') || name.includes('2') || name.includes('_b') || name.includes('-b');
+                };
+
+                const f1IsBack = hasBackWord(f1);
+                const f2IsBack = hasBackWord(f2);
+                
+                let frontFile = f1;
+                let backFile = f2;
+                
+                if (f1IsBack && !f2IsBack) {
+                    frontFile = f2;
+                    backFile = f1;
+                } else if (!f1IsBack && f2IsBack) {
+                    frontFile = f1;
+                    backFile = f2;
+                } else {
+                    // Alphabetical fallback
+                    if (f1.localeCompare(f2) > 0) {
+                        frontFile = f2;
+                        backFile = f1;
+                    }
                 }
-                displayName = `${matchedRole}${sideLabel}.${ext}`;
+
+                activePairings[frontFile] = { pairedFile: backFile, side: 'front' };
+                activePairings[backFile] = { pairedFile: frontFile, side: 'back' };
+            }
+        });
+
+        // Step 4: Update horizontal tabs and sidebar labels
+        ALL_CASE_FILES.forEach(filename => {
+            let displayName = filename;
+            const role = fileMappings[filename];
+            
+            if (role) {
+                const ext = filename.split('.').pop();
+                const pair = activePairings[filename];
+                let sideLabel = "";
+                if (pair) {
+                    sideLabel = pair.side === 'front' ? ' [Front]' : ' [Back]';
+                }
+                displayName = `${role}${sideLabel}.${ext}`;
             }
 
             // Rename Horizontal preview tab button text
@@ -4215,6 +4287,9 @@
                 sidebarSpan.title = displayName;
             }
         });
+
+        // Store pairings in window context for previewFile to use
+        window.CURRENT_ACTIVE_PAIRINGS = activePairings;
     }
     
     window.addEventListener('DOMContentLoaded', () => {
