@@ -676,6 +676,10 @@
                         {% endif %}
                     </div>
                     <div class="card-body">
+                        {% set has_extracted = false %}
+                        {% if (doc_type == 'SD' and data.get('sellers') and data.get('sellers')|length > 0 and (data.get('sellers')[0].get('n_en') or data.get('sellers')[0].get('n'))) or (doc_type == 'RM' and data.get('bs') and data.get('bs')|length > 0 and (data.get('bs')[0].get('n_en') or data.get('bs')[0].get('n'))) %}
+                            {% set has_extracted = true %}
+                        {% endif %}
                         
                         {% if doc_type == 'SD' %}
                             <!-- SD Buckets: KYC, Legal, ATS, Title, OCR -->
@@ -700,7 +704,7 @@
                                             {% for f in buckets.get('kyc', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-2.5 py-1 mb-1" style="font-size: 0.72rem;">
                                                 <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
-                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="kyc" data-filename="{{ f | basename }}" checked style="width: 12px; height: 12px; cursor: pointer;" />
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="kyc" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %} style="width: 12px; height: 12px; cursor: pointer;" />
                                                     <span class="text-truncate fw-medium" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
                                                 </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'kyc')">×</span>
@@ -729,7 +733,7 @@
                                             {% for f in buckets.get('legal', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-2.5 py-1 mb-1" style="font-size: 0.72rem;">
                                                 <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
-                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="legal" data-filename="{{ f | basename }}" checked style="width: 12px; height: 12px; cursor: pointer;" />
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-2" data-bucket="legal" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %} style="width: 12px; height: 12px; cursor: pointer;" />
                                                     <span class="text-truncate fw-medium" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
                                                 </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'legal')">×</span>
@@ -757,7 +761,7 @@
                                             {% for f in buckets.get('ats', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem;">
                                                 <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
-                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="ats" data-filename="{{ f | basename }}" checked style="width: 11px; height: 11px; cursor: pointer;" />
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="ats" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %} style="width: 11px; height: 11px; cursor: pointer;" />
                                                     <span class="text-truncate" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
                                                 </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'ats')">×</span>
@@ -784,7 +788,7 @@
                                             {% for f in buckets.get('title_chain', []) %}
                                             <div class="d-flex justify-content-between align-items-center bg-light rounded px-1.5 py-0.5 mb-1" style="font-size: 0.65rem;">
                                                 <div class="d-flex align-items-center text-truncate" style="max-width: 85%;">
-                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="title_chain" data-filename="{{ f | basename }}" checked style="width: 11px; height: 11px; cursor: pointer;" />
+                                                    <input type="checkbox" class="file-select-chk form-check-input mt-0 me-1.5" data-bucket="title_chain" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %} style="width: 11px; height: 11px; cursor: pointer;" />
                                                     <span class="text-truncate" style="cursor: pointer;" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
                                                 </div>
                                                 <span class="cursor-pointer text-danger fw-bold ms-1" onclick="deleteFile('{{ f | basename }}', 'title_chain')">×</span>
@@ -831,7 +835,7 @@
                                     {% for f in files %}
                                     <div class="d-flex justify-content-between align-items-center bg-white border rounded px-3 py-2 mb-2 shadow-sm" style="font-size: 0.85rem;">
                                         <div class="d-flex align-items-center text-truncate" style="max-width: 80%;">
-                                            <input type="checkbox" class="form-check-input me-2 file-select-checkbox" data-filename="{{ f | basename }}" checked>
+                                            <input type="checkbox" class="form-check-input me-2 file-select-checkbox" data-filename="{{ f | basename }}" {% if not has_extracted %}checked{% endif %}>
                                             <span class="text-truncate fw-bold cursor-pointer" onclick="previewFile('{{ f | basename }}')" title="Click to Preview">{{ f | basename }}</span>
                                         </div>
                                         <span class="cursor-pointer text-danger fw-bold fs-5 px-1" onclick="deleteFile('{{ f | basename }}')">×</span>
@@ -3890,6 +3894,38 @@
                 previewFile(filename);
             }
         }
+
+        // Shift-selection support for uploaded file checkboxes (both SD & RM modes)
+        let lastCheckedFile = null;
+        document.addEventListener('click', function (e) {
+            const isSdChk = e.target.classList.contains('file-select-chk');
+            const isRmChk = e.target.classList.contains('file-select-checkbox');
+            
+            if (isSdChk || isRmChk) {
+                const listContainer = e.target.closest('.file-list-scroll');
+                if (!listContainer) return;
+                
+                const selector = isSdChk ? '.file-select-chk' : '.file-select-checkbox';
+                const checkboxes = Array.from(listContainer.querySelectorAll(selector));
+                
+                if (e.shiftKey && lastCheckedFile && lastCheckedFile !== e.target && checkboxes.includes(lastCheckedFile)) {
+                    let start = checkboxes.indexOf(lastCheckedFile);
+                    let end = checkboxes.indexOf(e.target);
+                    
+                    if (start !== -1 && end !== -1) {
+                        const checkedState = e.target.checked;
+                        const [minIdx, maxIdx] = start < end ? [start, end] : [end, start];
+                        
+                        for (let i = minIdx; i <= maxIdx; i++) {
+                            checkboxes[i].checked = checkedState;
+                            checkboxes[i].dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                }
+                
+                lastCheckedFile = e.target;
+            }
+        });
     });
 </script>
 
