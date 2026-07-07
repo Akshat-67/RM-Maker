@@ -62,7 +62,7 @@
     <!-- Main Content Area -->
     <div class="app-main">
       <header class="app-header">
-        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Toggle menu" title="Toggle menu">☰</button>
         <div class="header-breadcrumbs">
           <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
           <span class="breadcrumb-separator">/</span>
@@ -108,7 +108,7 @@
         <div class="border border-zinc-800 bg-zinc-900/30 p-3 rounded-lg mb-3 shadow-sm">
           <div class="row g-2 align-items-end">
             <div class="col-12 col-md-6">
-              <label class="form-label small text-zinc-400 mb-1">Search</label>
+              <label for="searchInput" class="form-label small text-zinc-400 mb-1">Search</label>
               <input id="searchInput" type="search" class="form-control" placeholder="Search case id, borrower, bank..." autofocus />
             </div>
             <div class="col-6 col-md-3">
@@ -121,7 +121,7 @@
               </select>
             </div>
             <div class="col-6 col-md-2">
-              <label class="form-label small text-zinc-400 mb-1">Sort by</label>
+              <label for="sortSelect" class="form-label small text-zinc-400 mb-1">Sort by</label>
               <select id="sortSelect" class="form-select">
                 <option value="updated_desc">Updated (newest)</option>
                 <option value="updated_asc">Updated (oldest)</option>

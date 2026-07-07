@@ -60,7 +60,7 @@
     <!-- Main Content Area -->
     <div class="app-main">
       <header class="app-header">
-        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Toggle menu" title="Toggle menu">☰</button>
         <div class="header-breadcrumbs">
           <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
           <span class="breadcrumb-separator">/</span>
@@ -79,7 +79,7 @@
             <div class="panel shadow-sm">
               <h6 class="fw-bold mb-3 text-zinc-200">1. Setup Mode</h6>
               <div class="mb-3">
-                <label class="form-label small text-zinc-400">Template Type</label>
+                <label for="modeSelect" class="form-label small text-zinc-400">Template Type</label>
                 <select id="modeSelect" class="form-select form-select-sm">
                   <option value="RM">Mortgage (RM)</option>
                   <option value="SD">Sale Deed (SD)</option>
@@ -87,7 +87,7 @@
               </div>
               
               <div class="mb-3">
-                <label class="form-label small text-zinc-400">AI Model</label>
+                <label for="modelSelect" class="form-label small text-zinc-400">AI Model</label>
                 <select id="modelSelect" class="form-select form-select-sm">
                   {% for m in models %}
                     <option value="{{ m }}" {% if m == 'NVIDIA Nemotron-3 550B' %}selected{% endif %}>{{ m }}</option>
@@ -126,7 +126,7 @@
                </div>
                
                <div class="bg-zinc-950 p-3 rounded mb-4 border border-zinc-800 shadow-sm">
-                  <label class="form-label small fw-semibold text-zinc-400 mb-2">Manual Add</label>
+                  <label for="manualKey" class="form-label small fw-semibold text-zinc-400 mb-2">Manual Add</label>
                   <div class="row g-2">
                     <div class="col-md-6">
                       <input type="text" id="manualKey" class="form-control form-control-sm" placeholder="Copy-paste EXACT text from document...">
@@ -182,7 +182,7 @@
       <div class="modal-content border-zinc-800">
         <div class="modal-header border-bottom border-zinc-800 bg-zinc-950">
           <h5 class="modal-title text-zinc-50 fs-6">Document Context</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close modal"></button>
         </div>
         <div class="modal-body bg-zinc-900">
           <div id="contextContent" class="p-3 bg-zinc-950 border border-zinc-800 rounded font-monospace text-zinc-300 small" style="white-space: pre-wrap; line-height: 1.6;"></div>

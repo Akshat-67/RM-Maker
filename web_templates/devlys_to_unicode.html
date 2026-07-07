@@ -156,7 +156,7 @@
     <!-- Main Content Area -->
     <div class="app-main">
       <header class="app-header">
-        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Toggle menu" title="Toggle menu">☰</button>
         <div class="header-breadcrumbs">
           <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
           <span class="breadcrumb-separator">/</span>
@@ -179,8 +179,8 @@
                     <!-- Direction Selector -->
                     <div class="row mb-4">
                       <div class="col-12">
-                        <label class="form-label fw-semibold text-zinc-400 small mb-2">Conversion Direction</label>
-                        <div class="d-flex gap-2">
+                        <div class="form-label fw-semibold text-zinc-400 small mb-2" id="conversionDirectionLabel">Conversion Direction</div>
+                        <div class="d-flex gap-2" role="group" aria-labelledby="conversionDirectionLabel">
                           <input type="radio" class="btn-check" name="direction" id="dir_to_uni" value="dev_to_uni" checked onchange="updateOptions()">
                           <label class="btn btn-outline-primary flex-grow-1" for="dir_to_uni">🔠 DevLys → Unicode</label>
 
