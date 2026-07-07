@@ -4215,34 +4215,58 @@
 
         const storageKey = 'case_file_roles_' + CASE_ID;
         const manualRoles = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        const fileMappings = {}; // filename -> role
+        const fileMappings = {}; // filename -> role display name
+        const fileTypes = {}; // filename -> "aadhar_front|aadhar_back|pan"
 
-        // Step 1: Map files to assigned roles (using manual assignments first, then falling back to vowel-stripped matching)
+        function getRoleDisplayName(roleKey) {
+            if (!roleKey) return '';
+            if (roleKey === 'bsign') return 'Bank Signer';
+            const parts = roleKey.split('.');
+            if (parts.length === 2) {
+                const prefix = parts[0];
+                const index = parseInt(parts[1]) + 1;
+                if (prefix === 'bs') return `Borrower ${index}`;
+                if (prefix === 'ws') return `Witness ${index}`;
+                if (prefix === 'ss' || prefix === 'sellers') return `Seller ${index}`;
+                if (prefix === 'buyers') return `Buyer ${index}`;
+            }
+            return roleKey;
+        }
+
+        function inferFileType(fn) {
+            const name = fn.toLowerCase();
+            if (name.includes('pan')) return 'pan';
+            if (name.includes('back') || name.includes('reverse') || name.includes('rear') || name.includes('2') || name.includes('_b') || name.includes('-b')) {
+                return 'aadhar_back';
+            }
+            return 'aadhar_front';
+        }
+
         ALL_CASE_FILES.forEach(filename => {
             let matchedRole = "";
+            let matchedType = "";
 
             // A. Check manual assignments from localStorage first
             if (manualRoles[filename]) {
-                const assignedKey = manualRoles[filename]; // e.g. "bs.0" or "ws.1" or "bsign"
-                if (assignedKey === 'bsign') {
-                    matchedRole = 'Bank Signer';
-                } else {
-                    const parts = assignedKey.split('.');
-                    if (parts.length === 2) {
-                        const type = parts[0];
-                        const index = parseInt(parts[1]) + 1;
-                        if (type === 'bs') matchedRole = `Borrower ${index}`;
-                        else if (type === 'ws') matchedRole = `Witness ${index}`;
-                        else if (type === 'sellers') matchedRole = `Seller ${index}`;
-                        else if (type === 'buyers') matchedRole = `Buyer ${index}`;
-                    }
+                const assigned = manualRoles[filename];
+                if (assigned && typeof assigned === 'object') {
+                    matchedRole = getRoleDisplayName(assigned.role);
+                    matchedType = assigned.type;
+                } else if (typeof assigned === 'string') {
+                    matchedRole = getRoleDisplayName(assigned);
+                    matchedType = inferFileType(filename);
                 }
             }
 
             // B. Fall back to automatic matching if no manual role is assigned
             if (!matchedRole) {
                 const base = filename.substring(0, filename.lastIndexOf('.')).toLowerCase();
-                if (base.includes('pan')) return; // skip pan cards
+                if (base.includes('pan')) {
+                    // It's a PAN card
+                    matchedType = 'pan';
+                } else {
+                    matchedType = inferFileType(filename);
+                }
 
                 const baseClean = getPhoneticClean(base);
 
@@ -4266,7 +4290,6 @@
                     for (const ass of assignments) {
                         const assClean = getPhoneticClean(ass.name);
                         if (assClean.length >= 2) {
-                            // Check if one contains the other
                             if (baseClean.includes(assClean) || assClean.includes(baseClean)) {
                                 matchedRole = ass.role;
                                 break;
@@ -4278,87 +4301,74 @@
 
             if (matchedRole) {
                 fileMappings[filename] = matchedRole;
+                fileTypes[filename] = matchedType || inferFileType(filename);
             }
         });
 
-        // Step 2: Group files by their matched roles
+        // Group files by role
         const roleGroups = {};
         Object.entries(fileMappings).forEach(([filename, role]) => {
             if (!roleGroups[role]) roleGroups[role] = [];
-            roleGroups[role].push(filename);
+            roleGroups[role].push({ file: filename, type: fileTypes[filename] });
         });
 
-        const activePairings = {}; // filename -> { pairedFile, side }
+        window.CURRENT_ACTIVE_GROUPINGS = roleGroups;
 
-        // Step 3: Determine sides for grouped files
-        Object.entries(roleGroups).forEach(([role, files]) => {
-            if (files.length === 2) {
-                const f1 = files[0];
-                const f2 = files[1];
-                
-                const hasBackWord = (f) => {
-                    const name = f.toLowerCase();
-                    return name.includes('back') || name.includes('reverse') || name.includes('rear') || name.includes('2') || name.includes('_b') || name.includes('-b');
-                };
+        // Determine active representative and hidden files
+        const hiddenFiles = new Set();
+        const representativeFiles = {}; // role -> file
 
-                const f1IsBack = hasBackWord(f1);
-                const f2IsBack = hasBackWord(f2);
-                
-                let frontFile = f1;
-                let backFile = f2;
-                
-                if (f1IsBack && !f2IsBack) {
-                    frontFile = f2;
-                    backFile = f1;
-                } else if (!f1IsBack && f2IsBack) {
-                    frontFile = f1;
-                    backFile = f2;
-                } else {
-                    // Alphabetical fallback
-                    if (f1.localeCompare(f2) > 0) {
-                        frontFile = f2;
-                        backFile = f1;
-                    }
-                }
-
-                activePairings[frontFile] = { pairedFile: backFile, side: 'front' };
-                activePairings[backFile] = { pairedFile: frontFile, side: 'back' };
-            }
-        });
-
-        // Step 4: Update horizontal tabs and sidebar labels
-        ALL_CASE_FILES.forEach(filename => {
-            let displayName = filename;
-            const role = fileMappings[filename];
+        Object.entries(roleGroups).forEach(([role, filesList]) => {
+            let rep = filesList.find(f => f.type === 'aadhar_front') ||
+                      filesList.find(f => f.type === 'aadhar_back') ||
+                      filesList.find(f => f.type === 'pan') ||
+                      filesList[0];
             
-            if (role) {
-                const ext = filename.split('.').pop();
-                const pair = activePairings[filename];
-                let sideLabel = "";
-                if (pair) {
-                    sideLabel = pair.side === 'front' ? ' [Front]' : ' [Back]';
-                }
-                displayName = `${role}${sideLabel}.${ext}`;
-            }
-
-            // Rename Horizontal preview tab button text
-            const safeId = 'file-tab-' + filename.replace(/\./g, '_');
-            const tabBtn = document.getElementById(safeId) || document.querySelector(`.file-preview-btn[data-filename="${filename}"]`);
-            if (tabBtn) {
-                tabBtn.innerHTML = `📄 ${displayName}`;
-                tabBtn.title = displayName;
-            }
-
-            // Rename Sidebar list view span text
-            const sidebarSpan = document.querySelector(`span[data-filename-span="${filename}"]`);
-            if (sidebarSpan) {
-                sidebarSpan.textContent = displayName;
-                sidebarSpan.title = displayName;
+            if (rep) {
+                representativeFiles[role] = rep.file;
+                filesList.forEach(f => {
+                    if (f.file !== rep.file) {
+                        hiddenFiles.add(f.file);
+                    }
+                });
             }
         });
 
-        // Store pairings in window context for previewFile to use
-        window.CURRENT_ACTIVE_PAIRINGS = activePairings;
+        // Update horizontal tabs and sidebar labels
+        ALL_CASE_FILES.forEach(filename => {
+            const role = fileMappings[filename];
+            const isHidden = hiddenFiles.has(filename);
+            const isRepresentative = role && (representativeFiles[role] === filename);
+
+            const safeId = 'file-tab-' + filename.replace(/\./g, '_');
+            const tabs = document.querySelectorAll(`[id="${safeId}"]`);
+            const sidebarItems = document.querySelectorAll(`[data-sidebar-file="${filename}"]`);
+
+            if (isHidden) {
+                tabs.forEach(t => t.style.display = 'none');
+                sidebarItems.forEach(s => s.style.display = 'none');
+            } else {
+                tabs.forEach(t => t.style.display = '');
+                sidebarItems.forEach(s => s.style.display = '');
+
+                let displayName = filename;
+                if (isRepresentative) {
+                    const ext = filename.split('.').pop();
+                    displayName = `${role} [KYC].${ext}`;
+                }
+
+                tabs.forEach(t => {
+                    const textEl = t.querySelector('span') || t;
+                    textEl.textContent = '📄 ' + displayName;
+                });
+
+                const sidebarSpan = document.querySelector(`span[data-filename-span="${filename}"]`);
+                if (sidebarSpan) {
+                    sidebarSpan.textContent = displayName;
+                    sidebarSpan.title = displayName;
+                }
+            }
+        });
     }
     
     window.addEventListener('DOMContentLoaded', () => {
