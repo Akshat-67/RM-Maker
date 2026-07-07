@@ -194,7 +194,9 @@ class SDTemplateProcessor:
                 for s in sellers_list:
                     if isinstance(s, dict):
                         if s.get("r"): s["r"] = normalize_relation_prefix(s["r"], doc_type)
-                        if s.get("relation_text"):
+                        if s.get("r") and s.get("rn") and not s.get("relation_text"):
+                            s["relation_text"] = f"{s['r']} {s['rn']}"
+                        elif s.get("relation_text"):
                             r, rn = parse_relation_text(s["relation_text"])
                             s["r"] = r
                             s["rn"] = rn
@@ -209,7 +211,9 @@ class SDTemplateProcessor:
                 for b in buyers_list:
                     if isinstance(b, dict):
                         if b.get("r"): b["r"] = normalize_relation_prefix(b["r"], doc_type)
-                        if b.get("relation_text"):
+                        if b.get("r") and b.get("rn") and not b.get("relation_text"):
+                            b["relation_text"] = f"{b['r']} {b['rn']}"
+                        elif b.get("relation_text"):
                             r, rn = parse_relation_text(b["relation_text"])
                             b["r"] = r
                             b["rn"] = rn
