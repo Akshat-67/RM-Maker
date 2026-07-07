@@ -1936,22 +1936,22 @@ async function bypassVerificationModal(verifyType, sendResponse, successMsg) {
 }
 
 function checkRequiredFields() {
-    const nameInput = document.getElementById('txtpartynameen') || document.querySelector('input[name="partynameen"]') || document.querySelector('input[id*="partyname" i]');
+    const nameInput = getField('partyNameEn');
     if (nameInput && !nameInput.value.trim()) {
         return "Party Name (English)";
     }
     
-    const fatherInput = document.getElementById('txtfathernameen') || document.querySelector('input[name="fathernameen"]') || document.querySelector('input[id*="fathername" i]') || document.querySelector('input[id*="relationname" i]');
+    const fatherInput = getField('relNameEn');
     if (fatherInput && !fatherInput.value.trim()) {
         return "Father/Husband Name (English)";
     }
     
-    const ageInput = document.getElementById('txtage') || document.querySelector('input[name="age"]') || document.querySelector('input[id*="age" i]');
+    const ageInput = getField('age');
     if (ageInput && !ageInput.value.trim()) {
         return "Age";
     }
     
-    const pinInput = document.getElementById('txtpincode') || document.querySelector('input[name="pincode"]') || document.querySelector('input[id*="pincode" i]') || document.querySelector('input[id*="pin" i]');
+    const pinInput = getField('pincode');
     if (pinInput && !pinInput.value.trim()) {
         return "Pincode";
     }
@@ -2024,7 +2024,7 @@ async function fillPartyFormFields(partyData, isPresenter, isPurchaser, isWitnes
 
     const dobInput = document.getElementById('txtdob') || getField('dob');
     const ageInput = getField('age');
-    if (dobInput) {
+    if (dobInput && !isWitness) {
         let dobValue = "";
         if (partyData.dob) {
             dobValue = partyData.dob.replace(/[-\.]/g, '/');
