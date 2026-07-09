@@ -302,9 +302,14 @@ class RMDataExtractor:
                 ua["n"] = normalize_name_salutation(ua["n"], ua.get("r"))
 
         def split_sal(name_with_sal):
-            m = re.match(r'^((?:Mr|Mrs|Ms|Shri|Smt|Sh)\.)\s*(.*)', name_with_sal, re.IGNORECASE)
-            if m:
-                return m.group(1), m.group(2).strip()
+            if not name_with_sal: return "", ""
+            s = name_with_sal.strip()
+            salutations_pattern = r'^(?:M/s\.?|Messrs|Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Shri\.?|Shree\.?|Late\.?|LoxhZ;\.?|श्री|श्रीमती|सुश्री|डॉ\.?|स्व\.?|स्वर्गीय)\s*'
+            match = re.match(salutations_pattern, s, re.IGNORECASE)
+            if match:
+                sal = match.group(0).strip()
+                name_part = s[match.end():].strip()
+                return sal, name_part
             return "", name_with_sal
 
         for b in data.get("bs", []):
@@ -325,7 +330,10 @@ class RMDataExtractor:
                 bsign["rn"] = rn
             if bsign.get("n"):
                 bsign["n"] = normalize_name_salutation(bsign["n"], bsign.get("r"))
-        data["bsign"] = self._normalize_person(bsign, ["n", "a", "dob", "r", "rn", "relation_text", "pan", "id", "adr"])
+                sal, name = split_sal(bsign["n"])
+                bsign["s"] = sal
+                bsign["n"] = name
+        data["bsign"] = self._normalize_person(bsign, ["s", "n", "a", "dob", "r", "rn", "relation_text", "pan", "id", "adr"])
 
         self._apply_person_hints(data, borrower_hints, witness_hints)
 
