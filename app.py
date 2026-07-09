@@ -68,6 +68,33 @@ def title_case_address(text):
             
     return " ".join(title_words)
 
+def normalize_amount_in_words(w):
+    if not w:
+        return ""
+    s = str(w).strip().strip('.')
+    
+    # Remove prefix "Rs.", "Rs", "Rupees", "Rupee" (case-insensitive)
+    s = re.sub(r'^(?:Rs\.?|Rupees|Rupee)\s*', '', s, flags=re.IGNORECASE).strip()
+    
+    # Remove suffix "only", "rupees", "rupee" (case-insensitive)
+    s = re.sub(r'\s*(?:only|rupees|rupee)\.?$', '', s, flags=re.IGNORECASE).strip()
+    
+    # Clean up double spaces or commas
+    s = re.sub(r'\s+', ' ', s)
+    
+    if not s:
+        return ""
+        
+    words = s.split()
+    title_words = []
+    for word in words:
+        parts = word.split('-')
+        title_parts = [p.capitalize() for p in parts]
+        title_words.append('-'.join(title_parts))
+    
+    cleaned_words = " ".join(title_words)
+    return f"Rupees {cleaned_words} Only"
+
 CASES_DIR = "cases"
 TEMPLATES_DIR = "templates"
 
@@ -308,6 +335,11 @@ def load_case_session(case_id):
                             p["adr"] = title_case_address(p["adr"])
                         if p.get("full_address"):
                             p["full_address"] = title_case_address(p["full_address"])
+
+                # Normalize RM loan amount in words
+                for l in sess["data"].get("ls", []):
+                    if isinstance(l, dict) and l.get("w"):
+                        l["w"] = normalize_amount_in_words(l["w"])
             
             # Universal bidirectional synchronization between long and short keys for title chain
 
@@ -899,6 +931,9 @@ def save_case(case_id):
                     p["adr"] = title_case_address(p["adr"])
                 if p.get("full_address"):
                     p["full_address"] = title_case_address(p["full_address"])
+        for l in merged_data.get("ls", []):
+            if isinstance(l, dict) and l.get("w"):
+                l["w"] = normalize_amount_in_words(l["w"])
 
     session["data"] = merged_data
     session["bank"] = bank

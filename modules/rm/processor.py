@@ -87,6 +87,33 @@ def title_case_address(text):
             
     return " ".join(title_words)
 
+def normalize_amount_in_words(w):
+    if not w:
+        return ""
+    s = str(w).strip().strip('.')
+    
+    # Remove prefix "Rs.", "Rs", "Rupees", "Rupee" (case-insensitive)
+    s = re.sub(r'^(?:Rs\.?|Rupees|Rupee)\s*', '', s, flags=re.IGNORECASE).strip()
+    
+    # Remove suffix "only", "rupees", "rupee" (case-insensitive)
+    s = re.sub(r'\s*(?:only|rupees|rupee)\.?$', '', s, flags=re.IGNORECASE).strip()
+    
+    # Clean up double spaces or commas
+    s = re.sub(r'\s+', ' ', s)
+    
+    if not s:
+        return ""
+        
+    words = s.split()
+    title_words = []
+    for word in words:
+        parts = word.split('-')
+        title_parts = [p.capitalize() for p in parts]
+        title_words.append('-'.join(title_parts))
+    
+    cleaned_words = " ".join(title_words)
+    return f"Rupees {cleaned_words} Only"
+
 class RMTemplateProcessor:
     def __init__(self, template_path):
         self.template_path = template_path
@@ -297,6 +324,17 @@ class RMTemplateProcessor:
         format_all_addresses(context)
         if d_ctx is not context:
             format_all_addresses(d_ctx)
+
+        # Normalize amount in words for RM draft
+        def format_all_loan_words(ctx):
+            if not isinstance(ctx, dict): return
+            for l in ctx.get("ls", []):
+                if isinstance(l, dict) and l.get("w"):
+                    l["w"] = normalize_amount_in_words(l["w"])
+
+        format_all_loan_words(context)
+        if d_ctx is not context:
+            format_all_loan_words(d_ctx)
 
         # Process and standardize title chain documents
         raw_chain = d_ctx.get("ds_text", "") or d_ctx.get("second_schedule", "")
