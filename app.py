@@ -1817,6 +1817,27 @@ def preview_draft(case_id):
             context["deed"] = {}
         context["deed"]["execution_date"] = formatted_rd
 
+    # Format addresses and loan words to Title Case for RM preview
+    if doc_type == "RM":
+        for b in context.get("bs", []):
+            if isinstance(b, dict) and b.get("adr"):
+                b["adr"] = title_case_address(b["adr"])
+        for w in context.get("ws", []):
+            if isinstance(w, dict) and w.get("adr"):
+                w["adr"] = title_case_address(w["adr"])
+        bsign = context.get("bsign")
+        if isinstance(bsign, dict) and bsign.get("adr"):
+            bsign["adr"] = title_case_address(bsign["adr"])
+        for p in context.get("ps", []):
+            if isinstance(p, dict):
+                if p.get("adr"):
+                    p["adr"] = title_case_address(p["adr"])
+                if p.get("full_address"):
+                    p["full_address"] = title_case_address(p["full_address"])
+        for l in context.get("ls", []):
+            if isinstance(l, dict) and l.get("w"):
+                l["w"] = normalize_amount_in_words(l["w"])
+
     context['d'] = context.copy()
 
     try:
