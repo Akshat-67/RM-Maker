@@ -27,6 +27,47 @@ def basename_filter(s):
         return ""
     return str(s).replace('\\', '/').split('/')[-1]
 
+def title_case_address(text):
+    if not text:
+        return ""
+    words = str(text).strip().split()
+    if not words:
+        return ""
+        
+    lowercase_words = {"and", "or", "of", "in", "at", "by", "for", "with", "from", "on", "the", "a", "an", "to", "its"}
+    
+    title_words = []
+    for idx, w in enumerate(words):
+        w_lower = w.lower()
+        
+        # Strip trailing punctuation for exact match checks on connecting words/relations
+        w_clean = re.sub(r'[^a-zA-Z0-9/]', '', w_lower)
+        
+        if w_clean in ["s/o", "w/o", "d/o", "h/o", "c/o"]:
+            suffix = w[len(w_clean):]
+            title_words.append(w_clean[0].upper() + "/" + w_clean[2].lower() + suffix)
+        elif w_clean in ["m/s"]:
+            suffix = w[len(w_clean):]
+            title_words.append("M/s" + suffix)
+        elif w_clean in lowercase_words and idx > 0:
+            suffix = w[len(w_clean):]
+            title_words.append(w_clean + suffix)
+        else:
+            def replace_alpha(match):
+                part = match.group(0)
+                part_lower = part.lower()
+                if part_lower in lowercase_words:
+                    return part_lower
+                if re.match(r'^[ivx]+$', part_lower):
+                    return part.upper()
+                if len(part) == 1:
+                    return part.upper()
+                return part.capitalize()
+                
+            title_words.append(re.sub(r'[a-zA-Z\u0900-\u097F]+', replace_alpha, w))
+            
+    return " ".join(title_words)
+
 CASES_DIR = "cases"
 TEMPLATES_DIR = "templates"
 
@@ -250,6 +291,23 @@ def load_case_session(case_id):
                             bsign["n"] = ext_name
                             if not bsign.get("s"):
                                 bsign["s"] = ext_sal
+                
+                # Clean Addresses to Title Case
+                for b in sess["data"].get("bs", []):
+                    if isinstance(b, dict) and b.get("adr"):
+                        b["adr"] = title_case_address(b["adr"])
+                for w in sess["data"].get("ws", []):
+                    if isinstance(w, dict) and w.get("adr"):
+                        w["adr"] = title_case_address(w["adr"])
+                bsign = sess["data"].get("bsign")
+                if isinstance(bsign, dict) and bsign.get("adr"):
+                    bsign["adr"] = title_case_address(bsign["adr"])
+                for p in sess["data"].get("ps", []):
+                    if isinstance(p, dict):
+                        if p.get("adr"):
+                            p["adr"] = title_case_address(p["adr"])
+                        if p.get("full_address"):
+                            p["full_address"] = title_case_address(p["full_address"])
             
             # Universal bidirectional synchronization between long and short keys for title chain
 
@@ -823,6 +881,24 @@ def save_case(case_id):
             for p in merged_data["ps"]:
                 if isinstance(p, dict):
                     p["full_address"] = extractor.generate_full_property_address(p, property_type)
+
+    # Format address fields to Title Case for RM mode on saving
+    if doc_type == "RM":
+        for b in merged_data.get("bs", []):
+            if isinstance(b, dict) and b.get("adr"):
+                b["adr"] = title_case_address(b["adr"])
+        for w in merged_data.get("ws", []):
+            if isinstance(w, dict) and w.get("adr"):
+                w["adr"] = title_case_address(w["adr"])
+        bsign = merged_data.get("bsign")
+        if isinstance(bsign, dict) and bsign.get("adr"):
+            bsign["adr"] = title_case_address(bsign["adr"])
+        for p in merged_data.get("ps", []):
+            if isinstance(p, dict):
+                if p.get("adr"):
+                    p["adr"] = title_case_address(p["adr"])
+                if p.get("full_address"):
+                    p["full_address"] = title_case_address(p["full_address"])
 
     session["data"] = merged_data
     session["bank"] = bank
