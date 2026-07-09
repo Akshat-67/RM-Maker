@@ -1,35 +1,49 @@
-# Python
+# Python runtime
 __pycache__/
 *.py[cod]
 *.pyo
 *.egg-info/
 dist/
 build/
+venv/
+.venv/
+.pytest_cache/
 
 # Office temporary/lock files
 ~$*
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# IDE
+# IDE settings
 .vscode/
 .idea/
 
-# Environment
+# Environment and Secrets
 .env
 .env.*
 !.env.example
-venv/
-.venv/
 credentials.json
 secret*.json
 
-# Project specific
+# Node modules
+node_modules/
+
+# Graphify Knowledge Graph
+graphify-out/
+
+# SQLite databases
+*.db
+
+# Runtime directories and uploads
+cases/
+uploads/
+outputs/
+instance/
 scratch/
 
-# Generated output artifacts
+# Temporary generated files
 diff*.txt
 out.txt
 parity_diff*.txt
@@ -39,10 +53,11 @@ debug_output.docx
 debug_highlight_output.docx
 ReEval_AI.docx
 Validated_AI.docx
-.pytest_cache
-__pycache__
-*.pyc
-*.doc
+*.pdf
+
+# Word Document Filtering
+# Ignore all docx files except those in templates/, validation_cases/, and knowledge_corpus/ directories
 *.docx
 !templates/**/*.docx
 !validation_cases/**/*.docx
+!knowledge_corpus/**/*.docx
