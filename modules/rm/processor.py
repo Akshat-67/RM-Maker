@@ -46,6 +46,47 @@ def robust_normalize_name_salutation(name, relation=None, default_to_male=True):
         
     return normalize_name_salutation(s, relation, default_to_male)
 
+def title_case_address(text):
+    if not text:
+        return ""
+    words = str(text).strip().split()
+    if not words:
+        return ""
+        
+    lowercase_words = {"and", "or", "of", "in", "at", "by", "for", "with", "from", "on", "the", "a", "an", "to", "its"}
+    
+    title_words = []
+    for idx, w in enumerate(words):
+        w_lower = w.lower()
+        
+        # Strip trailing punctuation for exact match checks on connecting words/relations
+        w_clean = re.sub(r'[^a-zA-Z0-9/]', '', w_lower)
+        
+        if w_clean in ["s/o", "w/o", "d/o", "h/o", "c/o"]:
+            suffix = w[len(w_clean):]
+            title_words.append(w_clean[0].upper() + "/" + w_clean[2].lower() + suffix)
+        elif w_clean in ["m/s"]:
+            suffix = w[len(w_clean):]
+            title_words.append("M/s" + suffix)
+        elif w_clean in lowercase_words and idx > 0:
+            suffix = w[len(w_clean):]
+            title_words.append(w_clean + suffix)
+        else:
+            def replace_alpha(match):
+                part = match.group(0)
+                part_lower = part.lower()
+                if part_lower in lowercase_words:
+                    return part_lower
+                if re.match(r'^[ivx]+$', part_lower):
+                    return part.upper()
+                if len(part) == 1:
+                    return part.upper()
+                return part.capitalize()
+                
+            title_words.append(re.sub(r'[a-zA-Z\u0900-\u097F]+', replace_alpha, w))
+            
+    return " ".join(title_words)
+
 class RMTemplateProcessor:
     def __init__(self, template_path):
         self.template_path = template_path
@@ -233,6 +274,29 @@ class RMTemplateProcessor:
         context['d'] = d_ctx
         
         self._normalize_context_salutations(context)
+
+        # Format address fields to Title Case for RM draft
+        def format_all_addresses(ctx):
+            if not isinstance(ctx, dict): return
+            for b in ctx.get("bs", []):
+                if isinstance(b, dict) and b.get("adr"):
+                    b["adr"] = title_case_address(b["adr"])
+            for w in ctx.get("ws", []):
+                if isinstance(w, dict) and w.get("adr"):
+                    w["adr"] = title_case_address(w["adr"])
+            bsign = ctx.get("bsign")
+            if isinstance(bsign, dict) and bsign.get("adr"):
+                bsign["adr"] = title_case_address(bsign["adr"])
+            for p in ctx.get("ps", []):
+                if isinstance(p, dict):
+                    if p.get("adr"):
+                        p["adr"] = title_case_address(p["adr"])
+                    if p.get("full_address"):
+                        p["full_address"] = title_case_address(p["full_address"])
+
+        format_all_addresses(context)
+        if d_ctx is not context:
+            format_all_addresses(d_ctx)
 
         # Process and standardize title chain documents
         raw_chain = d_ctx.get("ds_text", "") or d_ctx.get("second_schedule", "")
