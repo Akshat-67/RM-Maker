@@ -18,6 +18,34 @@ from utils.helpers import (
 
 HL_MARKER = "~~HL~~"
 
+def robust_extract_salutation_and_name(full_name):
+    if not full_name: return "", ""
+    s = str(full_name).strip()
+    s = " ".join(s.split())
+    
+    # Case-insensitive English and exact Hindi/DevLys salutations
+    # Match longest salutation first to avoid matching "Mr" before "Mrs"
+    # Ensure they match as word prefixes or boundaries
+    salutations_pattern = r'^(?:M/s\.?|Messrs|Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Shri\.?|Shree\.?|Late\.?|LoxhZ;\.?|श्री|श्रीमती|सुश्री|डॉ\.?|स्व\.?|स्वर्गीय)\s*'
+    
+    match = re.match(salutations_pattern, s, re.IGNORECASE)
+    if match:
+        sal = match.group(0).strip()
+        name_part = s[match.end():].strip()
+        return sal, name_part
+    return "", s
+
+def robust_normalize_name_salutation(name, relation=None, default_to_male=True):
+    if not name: return ""
+    s = str(name).strip()
+    s = " ".join(s.split())
+    
+    sal, clean_name = robust_extract_salutation_and_name(s)
+    if sal:
+        return s
+        
+    return normalize_name_salutation(s, relation, default_to_male)
+
 class RMTemplateProcessor:
     def __init__(self, template_path):
         self.template_path = template_path
@@ -118,17 +146,17 @@ class RMTemplateProcessor:
                         if b.get("n"):
                             raw_name = b["n"]
                             existing_s = b.get("s", "").strip()
-                            starts_with_sal, _ = extract_salutation_and_name(raw_name)
+                            starts_with_sal, _ = robust_extract_salutation_and_name(raw_name)
                             if existing_s and not starts_with_sal:
                                 raw_name = f"{existing_s} {raw_name}"
-                            sal, clean_name = extract_salutation_and_name(raw_name)
+                            sal, clean_name = robust_extract_salutation_and_name(raw_name)
                             has_bs_s = bool(re.search(rf"bs\s*\[\s*{i}\s*\]\s*\.\s*s\b", xml_content))
                             if has_bs_s:
                                 b["s"] = sal
                                 b["n"] = clean_name
                             else:
                                 b["s"] = ""
-                                b["n"] = normalize_name_salutation(raw_name, b.get("r"))
+                                b["n"] = robust_normalize_name_salutation(raw_name, b.get("r"))
             
             # 2. Normalize Witnesses names and relative names
             if "ws" in ctx and isinstance(ctx["ws"], list):
@@ -186,17 +214,17 @@ class RMTemplateProcessor:
                     if bsign.get("n"):
                         raw_name = bsign["n"]
                         existing_s = bsign.get("s", "").strip()
-                        starts_with_sal, _ = extract_salutation_and_name(raw_name)
+                        starts_with_sal, _ = robust_extract_salutation_and_name(raw_name)
                         if existing_s and not starts_with_sal:
                             raw_name = f"{existing_s} {raw_name}"
-                        sal, clean_name = extract_salutation_and_name(raw_name)
+                        sal, clean_name = robust_extract_salutation_and_name(raw_name)
                         
                         if has_bsign_s:
                             bsign["s"] = sal
                             bsign["n"] = clean_name
                         else:
                             bsign["s"] = ""
-                            bsign["n"] = normalize_name_salutation(raw_name, bsign.get("r"))
+                            bsign["n"] = robust_normalize_name_salutation(raw_name, bsign.get("r"))
 
     def generate(self, context, output_path, highlight_ai=False, highlight_missing=False, verified_fields=None):
         if verified_fields is None: verified_fields = set()
