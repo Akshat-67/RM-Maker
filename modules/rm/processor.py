@@ -366,16 +366,20 @@ class RMTemplateProcessor:
                     context["ds_text"] = formatted_chain
                     context["second_schedule"] = formatted_chain
 
-        # Populate Chain_Text in all contexts
+        # Populate Chain_Text and chain_text in all contexts
         formatted_chain = d_ctx.get("ds_text", "")
         d_ctx["Chain_Text"] = formatted_chain
+        d_ctx["chain_text"] = formatted_chain
         if d_ctx is not context:
             context["Chain_Text"] = formatted_chain
+            context["chain_text"] = formatted_chain
             
-        # Ensure verification status carries over to Chain_Text and all ds list items
+        # Ensure verification status carries over to Chain_Text, chain_text and all ds list items
         if "ds_text" in verified_fields:
             verified_fields.add("Chain_Text")
             verified_fields.add("d.Chain_Text")
+            verified_fields.add("chain_text")
+            verified_fields.add("d.chain_text")
             for idx in range(len(d_ctx.get("ds", []))):
                 verified_fields.add(f"ds.{idx}.t")
                 verified_fields.add(f"d.ds.{idx}.t")
