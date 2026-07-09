@@ -214,7 +214,7 @@ class RMDataExtractor:
         7. ADDRESS & RELATIONS: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
         7b. STRICT RELATION FORMATTING: ALWAYS format relations using exact English (e.g. 'S/o Mr. ...', 'W/o Mr. ...', 'D/o Mr. ...'). DO NOT leave them as 'Son of' or 'Wife of' in the extracted output.
         8. AUTHORISED SIGNATORY (bsign): STRICTLY DO NOT extract, infer, or fill any bank signatory details from legal reports or sanction letters. ONLY extract if a physical ID card (Aadhaar or PAN) belonging to the bank signatory is present.
-        9. SCHEDULE: For "second_schedule", extract all items that start with 'Original' or 'Endorsed copy'.
+        9. SCHEDULE: For "second_schedule", extract all items that start with 'Original' or 'Endorsed copy' (including 'Original Proposed Registered sale deed' but excluding other proposed documents like proposed mortgage deed).
         10. INCREMENTAL: Do not re-extract existing fields. Focus on new documents.
         11. TENURE: Always in months.
         12. PAN CARDS: Extract 10-char alphanumeric PAN into 'pan' field.

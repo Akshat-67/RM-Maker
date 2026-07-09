@@ -375,6 +375,14 @@ def parse_and_format_chain(raw_text):
             
         line_lower = line_str.lower()
         if any(w in line_lower for w in ["proposed", "purposed", "undertaking"]):
+            # Check if this is a proposed Sale Deed
+            if "sale deed" in line_lower or "sale-deed" in line_lower:
+                match_exec = re.search(r'executed\s+by\s+(.*?)(?:\s+for\s+the\s+sale\s+of|\s+for\s+sale\s+of|$)', line_str, re.IGNORECASE)
+                executant = match_exec.group(1).strip().rstrip('.') if match_exec else "_________________"
+                
+                # Format to the template requested by user
+                formatted_doc = f"Original Registered Sale deed dated _________________ executed by {executant}, for the sale of Said Property alongwith site plan and the same has been registered in the office of Sub Registrar Jaipur __________ on _____________, as R.S. No. _______________________________________, Book No. ________, Vol. No. _________, at Page No. ___________ and affixed on Additional Book No. _________ Volume No. ____________ at Page No. ___________ to____________."
+                clean_docs.append(formatted_doc)
             continue
             
         cleaned = re.sub(r'^(?:[a-zA-Z0-9]+[\.\)]|[\-\*•\s]+)\s*', '', line_str).strip()
@@ -426,15 +434,15 @@ def select_relevant_pdf_pages(pdf_path, keywords=None):
                 
         sorted_indices = sorted(list(selected_indices))
         
-        # Cap at 5 pages max (prioritizing first 2, last 1, and then middle matching pages)
-        if len(sorted_indices) > 5:
+        # Cap at 12 pages max (prioritizing first 2, last 1, and then middle matching pages)
+        if len(sorted_indices) > 12:
             # Always keep first two and last page if they were selected
             essential = {0, 1, total_pages - 1}
             essential = {idx for idx in essential if idx in sorted_indices}
             extras = [idx for idx in sorted_indices if idx not in essential]
             
-            # Take extra pages up to the cap of 5
-            allowed_extras_count = 5 - len(essential)
+            # Take extra pages up to the cap of 12
+            allowed_extras_count = 12 - len(essential)
             sorted_indices = sorted(list(essential) + extras[:allowed_extras_count])
             
         return sorted_indices
