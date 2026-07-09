@@ -3539,7 +3539,7 @@
             bCards.forEach(card => {
                 if (card.textContent.includes('Witness')) {
                     const w = {};
-                    ['n','r','rn','adr','a','dob'].forEach(k => {
+                    ['n','r','rn','adr','a','dob','id'].forEach(k => {
                         const el = document.getElementById(`field_ws_${wIdx}_${k}`);
                         if (el) w[k] = el.value || '';
                     });
@@ -3933,7 +3933,13 @@
                     const dobInput = document.getElementById(`field_ws_${wIdx}_dob`);
                     if (dobInput) dobInput.value = dob || "";
 
-                    ['n','r','rn','adr'].forEach(k => {
+                    const aInput = document.getElementById(`field_ws_${wIdx}_a`);
+                    if (aInput) aInput.value = age || "";
+
+                    const idInput = document.getElementById(`field_ws_${wIdx}_id`);
+                    if (idInput) idInput.value = id || "";
+
+                    ['n','r','rn','adr','a','id'].forEach(k => {
                         const cb = document.querySelector(`.verify-check[data-path="ws.${wIdx}.${k}"]`);
                         if (cb) cb.checked = true;
                     });
