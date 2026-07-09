@@ -192,15 +192,64 @@ def load_case_session(case_id):
     with open(path, "r", encoding="utf-8") as f:
         sess = json.load(f)
     # Auto-correct doc_type if it was incorrectly mutated or set to RM
-    if sess.get("doc_type") == "RM":
+    doc_type = sess.get("doc_type", "RM")
+    if doc_type == "RM":
         sel_temp = sess.get("selected_template", "")
         if "SD-" in sel_temp or "sale_deed" in sel_temp.lower():
             sess["doc_type"] = "SD"
+            doc_type = "SD"
+            
     if "data" in sess:
         sess["data"] = convert_hindi_digits_to_english(sess["data"])
         if isinstance(sess["data"], dict):
             property_type = sess.get("property_type", "Plot")
             sess["data"]["property_type"] = property_type
+            
+            # Clean up duplicate and embedded salutations for RM mode
+            if doc_type == "RM":
+                from modules.rm.processor import robust_extract_salutation_and_name
+                
+                def clean_duplicate_salutation(s, n):
+                    if not s or not n: return n
+                    s_clean = s.strip().lower().rstrip('.')
+                    n_clean = n.strip()
+                    pattern = rf'^{re.escape(s_clean)}\.?\s*'
+                    match_prefix = re.match(pattern, n_clean, re.IGNORECASE)
+                    if match_prefix:
+                        return n_clean[match_prefix.end():].strip()
+                    return n_clean
+
+                # Clean Borrowers
+                for b in sess["data"].get("bs", []):
+                    if isinstance(b, dict):
+                        raw_n = b.get("n", "").strip()
+                        raw_s = b.get("s", "").strip()
+                        if raw_s and raw_n:
+                            cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
+                            b["n"] = cleaned_n
+                            raw_n = cleaned_n
+                        if raw_n:
+                            ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
+                            if ext_sal:
+                                b["n"] = ext_name
+                                if not b.get("s"):
+                                    b["s"] = ext_sal
+
+                # Clean Bank Signatory
+                bsign = sess["data"].get("bsign")
+                if isinstance(bsign, dict):
+                    raw_n = bsign.get("n", "").strip()
+                    raw_s = bsign.get("s", "").strip()
+                    if raw_s and raw_n:
+                        cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
+                        bsign["n"] = cleaned_n
+                        raw_n = cleaned_n
+                    if raw_n:
+                        ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
+                        if ext_sal:
+                            bsign["n"] = ext_name
+                            if not bsign.get("s"):
+                                bsign["s"] = ext_sal
             
             # Universal bidirectional synchronization between long and short keys for title chain
 
