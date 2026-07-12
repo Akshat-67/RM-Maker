@@ -290,7 +290,7 @@
         <!-- Main Content Area -->
         <div class="app-main">
             <header class="app-header">
-                <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+                <button class="mobile-menu-trigger" onclick="toggleSidebar()" aria-label="Toggle mobile menu">☰</button>
                 <div class="header-breadcrumbs">
                     <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
                     <span class="breadcrumb-separator">/</span>
@@ -1032,8 +1032,8 @@
                                                             <div class="d-flex align-items-center gap-2">
                                                                 <span class="fw-bold text-secondary">Link #{{ loop.index }} - <span id="card-title-text-{{ loop.index0 }}">{{ c.get('event_type','SALE_DEED') }}</span></span>
                                                                 <div class="btn-group btn-group-xs ms-2">
-                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard({{ loop.index0 }}, -1)" title="Move Up">▲</button>
-                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard({{ loop.index0 }}, 1)" title="Move Down">▼</button>
+                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard({{ loop.index0 }}, -1)" title="Move Up" aria-label="Move Up">▲</button>
+                                                                    <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard({{ loop.index0 }}, 1)" title="Move Down" aria-label="Move Down">▼</button>
                                                                 </div>
                                                             </div>
                                                             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="removeChainCard({{ loop.index0 }})">✖ Remove</button>
@@ -3638,8 +3638,8 @@
                 <div class="d-flex align-items-center gap-2">
                     <span class="fw-bold text-secondary">Link #${idx + 1} - <span id="card-title-text-${idx}">SALE_DEED</span></span>
                     <div class="btn-group btn-group-xs ms-2">
-                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard(${idx}, -1)" title="Move Up">▲</button>
-                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard(${idx}, 1)" title="Move Down">▼</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-up" onclick="moveChainCard(${idx}, -1)" title="Move Up" aria-label="Move Up">▲</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1.5 fw-bold btn-move-down" onclick="moveChainCard(${idx}, 1)" title="Move Down" aria-label="Move Down">▼</button>
                     </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="removeChainCard(${idx})">✖ Remove</button>
