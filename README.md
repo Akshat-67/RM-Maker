@@ -1,31 +1,107 @@
-# LegalDoc Automator (v3)
+# LegalDoc Automator (RM-Maker) - V2.0
 
-An automated Registered Mortgage (RM) generation system for law firms.
+RM-Maker is a production-hardened legal document automation system designed to extract entity data from KYC files, manage template schedules, perform automated cross-document discrepancies checks, and compile Registered Mortgage (RM) and Sale Deed (SD) documents.
 
-## Workflow
-1. **Choose Settings:** Select the Bank, number of borrowers, and number of loans.
-2. **Choose Template:** Let the app auto-pick from `templates/`, or upload your own `.docx` containing placeholders such as `{{bs[0].n}}`, `{{ls[0].a}}`, and `{{ws[0].n}}`.
-3. **Dump Documents:** Add all photos (JPG/PNG) or PDFs of source documents at once.
-4. **Guide AI:** Optionally type known borrower/witness names. This is useful when signatures or witness sections could confuse extraction.
-5. **Automate:** Click "START AUTOMATION". The tool performs OCR and extraction via Gemini AI.
-6. **Verify:** Check the extracted data on the right panel and edit any fields.
-7. **Generate:** Click "GENERATE FINAL RM DOCX". The app fills the selected template and safely leaves missing indexed fields blank instead of crashing.
+---
 
-## Formatting
-The final RM keeps the static formatting from the selected Word template. Inserted values inherit the formatting applied to their placeholders, so place each placeholder exactly where the variable text belongs and style the placeholder with the required font, size, bold, underline, etc.
+## 🏛️ Architecture Overview
 
-## Folder Structure
-- `templates/`: Contains the Master .docx files with short-tags/placeholders.
-- `template_tools/`: Contains `template_builder.py` to create new Master Templates for other banks.
-- `app.py`: The main Flask web application.
+The core pipeline follows this sequence:
+```
+Upload → Extraction → Schema Validation → Processing & Transliteration → Template Context Generation → docxtpl Rendering
+```
 
-## Installation
-1. Install Python 3.10+ (Check "Add to PATH").
-2. Run: `pip install -r requirements.txt`
-3. Run: `python app.py` and open `http://127.0.0.1:5000` in your browser.
+### Key Subsystems:
+1. **AI Extraction Subsystem:** Utilizes the new `google-genai` SDK and model adapters to perform structured fact extraction from PDFs and images.
+2. **Verification Workspace:** An interactive 3-step GUI for reviewing entity fields, applying real-time transliteration, validating details, and structuring property title chains.
+3. **Validation Framework:** Extensible, domain-oriented validators (e.g. Identity, Property, Title Chain) that run complex legal/format checks (e.g., Aadhaar Verhoeff checksums, duplicate identity markers).
+4. **Optimistic Concurrency Engine:** Server-side locks and case revision checks to prevent data loss or silent overwrites in concurrent-user scenarios.
+5. **e-Panjiyan Autofill Extension:** Integrated content-scripts that pull verified case data and auto-populate state registration portals.
 
-## Adding New Banks (e.g., Piramal)
-1. Run `python template_tools/template_builder.py`.
-2. Follow the 'Audit -> Approve -> Tag' workflow to create a new Master Template.
-3. Place the new file in the `templates/` folder.
-4. (Optional) Update the `self.template_map` in `app.py` to include the new bank.
+---
+
+## 🛠️ Feature Support
+
+### Registered Mortgage (RM)
+- Core RM entity mapping: Borrowers, Loans, Properties, Witnesses, Bank Signatories, and Document Schedules.
+- Automatic formatting of currency values and ordinal dates.
+- High stability and production-hardened pipeline compatibility.
+
+### Sale Deed (SD)
+- Sale Deed entity support: Sellers (`ss`), Buyers (`bs`), Witnesses (`ws`), and Properties (`ps`).
+- Automatic timeline narrative compiler generating a chronological Hindi ownership history block using LLM synthesis.
+
+---
+
+## 🚦 Validation & Safety Framework
+
+The V2.0 engine checks structural parameters before document compilation:
+- **Identity Checks:** Verifies Aadhaar 12-digit format, validates Verhoeff checksums, executes PAN regex format validation, and flags duplicate PANs or Aadhaars across all parties.
+- **Case Health Badges:** Renders real-time feedback (🟢 Ready, 🟡 Mismatches, 🔴 Blocked) to prevent compiling documents with invalid or unverified details.
+- **Server Safety Gate:** Rejects compile requests via a strict server-side validation block if critical fields (such as buyer/seller names, execution dates, consideration amounts) are absent.
+
+---
+
+## 📂 Codebase Directory Structure
+
+- `routes/`: Blueprint controllers managing cases, uploads, e-Panjiyan, and generation routes.
+- `services/`: Core logic including session manager, compile safety gate, file storage services, e-Panjiyan integration, and the validation framework.
+- `modules/`: Pipeline extractors, processors, schemas, and narrative builders segmented by domain:
+  - `modules/rm/`: Stable Registered Mortgage modules.
+  - `modules/sd/`: Sale Deed modules and timeline template narrative generators.
+- `utils/`: Address splitters, Hindi font converter engines (DevLys 010 <-> Unicode), API configuration parameters, and common validation helpers.
+- `extensions/`: Content scripts for Chrome/Firefox integrations.
+- `templates/`: Categorized Word (`.docx`) template directories.
+
+---
+
+## 🚀 Installation & Setup
+
+1. **Prerequisites:** Python 3.10+ and Node.js (for Playwright e2e checks).
+2. **Python Setup:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Environment Setup:** Copy `.env.example` to `.env` and fill in your Gemini API keys:
+   ```env
+   GEMINI_API_KEY_1=your_key_here
+   GEMINI_API_KEY_2=your_key_here
+   ```
+4. **Running the Application:**
+   ```bash
+   python app.py
+   ```
+   Open `http://localhost:5000` in your web browser.
+
+---
+
+## 🧪 Testing and Verification Suite
+
+### Pytest (Unit & Integration Tests)
+Runs backend validations, revision counters, Verhoeff checksums, and template compiling:
+```bash
+pytest
+```
+
+### Playwright (E2E Browser Tests)
+Validates UI updates, verification badges, conflict resolution dialogs, and keyboard mappings:
+1. Install browsers:
+   ```bash
+   npx playwright install
+   ```
+2. Run tests:
+   ```bash
+   npx playwright test
+   ```
+
+---
+
+## 🔄 Development Engineering Workflow
+
+All future code contributions must follow the strict sequence outlined in `AGENTS.md`:
+1. Review Serena memories and Rules.
+2. Review Graphify knowledge representation.
+3. Implement minimal changes respecting domain isolation.
+4. Run Pytest suite & Playwright suite.
+5. Verify zero regressions on RM and SD pipelines.
+6. Regenerate Graphify database (`graphify update .`).

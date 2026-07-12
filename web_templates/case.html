@@ -40,6 +40,12 @@
     <script>
     const CASE_ID = '{{ case_id }}';
     const DOC_TYPE = '{{ doc_type }}';
+    const CASE_EXTRACTIONS = {{ extractions | tojson | safe if extractions else '{}' }};
+    const CONFIDENCE_SCORES = {{ confidence_scores | tojson | safe if confidence_scores else '{}' }};
+
+    // Optimistic concurrency – tracks the revision number the server last gave us.
+    // Updated after every successful save; sent on every subsequent save request.
+    let _caseRevision = {{ initial_revision | default(0) }};
 
 
 
@@ -906,11 +912,16 @@
         }
     }
 
-    function saveCase(callback) {
+    function saveCase(callback, _forceRevision) {
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
-        
+
+        // Send the last known revision so the server can detect conflicts.
+        // _forceRevision is only used internally when the user chooses
+        // "Force-save my version" from the conflict dialog.
+        const revisionToSend = (_forceRevision !== undefined) ? _forceRevision : _caseRevision;
+
         fetch(`/case/${CASE_ID}/save`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -925,20 +936,131 @@
                 buyers_count: document.getElementById('buyersSelect')?.value || '1',
                 property_type: document.getElementById('propertyTypeSelect')?.value || 'Plot',
                 selected_template: customTemplateFilename,
-                verified_fields: verified
+                verified_fields: verified,
+                revision: revisionToSend
             })
         })
-        .then(r => r.json())
-        .then(resp => {
-            if (callback) callback(resp);
-            else {
-                const btn = document.querySelector('button[onclick="saveCase()"]');
-                const oldText = btn.textContent;
-                btn.textContent = '✅ Saved!';
-                setTimeout(() => btn.textContent = oldText, 1500);
+        .then(r => ({ status: r.status, json: r.json() }))
+        .then(({ status, json }) => json.then(resp => {
+            if (status === 409 || resp.error === 'revision_conflict') {
+                // Server has a newer revision – surface the conflict dialog
+                _showConflictDialog(callback);
+                return;
             }
-        })
+            if (resp.revision) {
+                // Update our tracked revision to the one the server just wrote
+                _caseRevision = resp.revision;
+            }
+            if (callback) {
+                callback(resp);
+            } else {
+                const btn = document.querySelector('button[onclick="saveCase()"]');
+                if (btn) {
+                    const oldText = btn.textContent;
+                    btn.textContent = '\u2705 Saved!';
+                    setTimeout(() => btn.textContent = oldText, 1500);
+                }
+            }
+        }))
         .catch(e => alert('Save failed: ' + e));
+    }
+
+    /**
+     * Show a non-destructive conflict resolution dialog.
+     * The user can:
+     *   1. Reload server version  – discard local edits, reload page
+     *   2. Keep local changes     – force-save with no revision check (sends null)
+     *   3. Compare differences    – future placeholder (shows alert for now)
+     *   4. Merge manually         – future placeholder
+     */
+    function _showConflictDialog(pendingCallback) {
+        // Remove any existing conflict dialog
+        const existing = document.getElementById('rm-conflict-dialog');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'rm-conflict-dialog';
+        overlay.style.cssText = [
+            'position:fixed;inset:0;z-index:99999;',
+            'background:rgba(10,10,30,0.75);',
+            'display:flex;align-items:center;justify-content:center;',
+            'font-family:"Segoe UI",system-ui,sans-serif;',
+            'animation:rmFadeIn 0.18s ease;'
+        ].join('');
+
+        overlay.innerHTML = `
+            <style>
+              @keyframes rmFadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+              #rm-conflict-box{background:#1e1e2e;border:1.5px solid #7c3aed;border-radius:14px;
+                padding:28px 32px;max-width:480px;width:92%;box-shadow:0 8px 48px rgba(0,0,0,.6);color:#e0e0f0;}
+              #rm-conflict-box h3{margin:0 0 8px;font-size:1.15rem;color:#c084fc;display:flex;align-items:center;gap:8px;}
+              #rm-conflict-box p{margin:0 0 22px;font-size:.88rem;color:#a0a0c0;line-height:1.55;}
+              .rm-cf-btn{display:block;width:100%;padding:10px 14px;margin-bottom:10px;
+                border-radius:8px;border:none;cursor:pointer;font-size:.9rem;text-align:left;
+                transition:filter .15s;}
+              .rm-cf-btn:hover{filter:brightness(1.12);}
+              .rm-cf-btn-reload{background:#1d4ed8;color:#fff;}
+              .rm-cf-btn-force{background:#7c3aed;color:#fff;}
+              .rm-cf-btn-compare{background:#374151;color:#d1d5db;}
+              .rm-cf-btn-cancel{background:#111827;color:#6b7280;border:1px solid #374151;}
+              .rm-cf-icon{font-size:1.1rem;}
+            </style>
+            <div id="rm-conflict-box" role="dialog" aria-labelledby="rm-cf-title" aria-modal="true">
+              <h3><span class="rm-cf-icon">⚡</span>
+                  <span id="rm-cf-title">Save Conflict Detected</span></h3>
+              <p>Another tab or user saved this case after you loaded it.<br>
+                 Your local changes are <strong>not lost</strong> — choose how to proceed.</p>
+              <button class="rm-cf-btn rm-cf-btn-reload" id="rm-cf-reload">
+                  🔄&nbsp; <strong>Reload server version</strong>
+                  <span style="display:block;font-size:.78rem;opacity:.75;margin-top:2px">
+                      Discard your current changes and load the latest saved data.</span>
+              </button>
+              <button class="rm-cf-btn rm-cf-btn-force" id="rm-cf-force">
+                  💾&nbsp; <strong>Keep my version &amp; overwrite</strong>
+                  <span style="display:block;font-size:.78rem;opacity:.75;margin-top:2px">
+                      Force-save your edits on top of the server version.</span>
+              </button>
+              <button class="rm-cf-btn rm-cf-btn-compare" id="rm-cf-compare">
+                  🔍&nbsp; <strong>Compare differences</strong>
+                  <span style="display:block;font-size:.78rem;opacity:.75;margin-top:2px">
+                      (Coming soon) Side-by-side diff of your edits vs server.</span>
+              </button>
+              <button class="rm-cf-btn rm-cf-btn-cancel" id="rm-cf-cancel">
+                  ✖&nbsp; Cancel — keep editing without saving
+              </button>
+            </div>`;
+
+        document.body.appendChild(overlay);
+
+        // 1. Reload server version
+        document.getElementById('rm-cf-reload').addEventListener('click', () => {
+            overlay.remove();
+            location.reload();
+        });
+
+        // 2. Force-save (bypass revision check by sending null)
+        document.getElementById('rm-cf-force').addEventListener('click', () => {
+            overlay.remove();
+            saveCase(pendingCallback, null);  // null = skip revision check on server
+        });
+
+        // 3. Compare (placeholder)
+        document.getElementById('rm-cf-compare').addEventListener('click', () => {
+            alert('\u{1F6A7} Diff view is planned for a future release.\n\nFor now, copy important fields before reloading.');
+        });
+
+        // 4. Cancel
+        document.getElementById('rm-cf-cancel').addEventListener('click', () => {
+            overlay.remove();
+        });
+
+        // Close on backdrop click
+        overlay.addEventListener('click', e => {
+            if (e.target === overlay) overlay.remove();
+        });
+
+        // Trap focus inside dialog
+        document.getElementById('rm-cf-reload').focus();
     }
 
     function toggleAllFiles(checked) {
@@ -1096,10 +1218,10 @@
     }
 
 </script>
-    <script src="{{ url_for('static', filename='js/workspace_core.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/workspace_preview.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/workspace_review.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/workspace_upload.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/workspace_core.js') }}?v=2.1"></script>
+    <script src="{{ url_for('static', filename='js/workspace_preview.js') }}?v=2.1"></script>
+    <script src="{{ url_for('static', filename='js/workspace_review.js') }}?v=2.1"></script>
+    <script src="{{ url_for('static', filename='js/workspace_upload.js') }}?v=2.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

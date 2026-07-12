@@ -58,6 +58,7 @@ Preserve the shorthand list names for SD cases in session databases:
 ---
 
 ## 3. Editing and Refactoring Rules
+*   **Token Optimization Constraint**: You MUST prioritize using Serena MCP tools (for symbol lookup, semantic queries, body replacement) and Graphify tools (for relationship mapping and codebase architecture) over raw manual file reads (`view_file`), directory lists, or command loop polling. View files only when surgically necessary.
 *   **Historical Code Preservation**: Historical code may look unusual because it fixes real legal workflow edge cases. Do not simplify without understanding why it exists.
 *   **Serena Integration**: Use Serena symbol search or get file/symbol overviews before executing edits.
 *   **Check Callers**: Inspect caller references before changing function signatures. Explain design impacts.

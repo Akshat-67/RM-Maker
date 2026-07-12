@@ -34,7 +34,6 @@
           </button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="toolsDropdown">
             <li><a class="dropdown-item" href="{{ url_for('devlys_to_unicode_route') }}">🔠 Convert DevLys DOCX to Unicode</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('template_builder') }}">🛠 Template Builder</a></li>
           </ul>
         </div>
       </div>
@@ -338,7 +337,11 @@
 
     function deleteCase(caseId) {
         if (confirm("Are you sure you want to delete this case? This action cannot be undone.")) {
-            window.location.href = "/delete_case/" + caseId;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "/delete_case/" + caseId;
+            document.body.appendChild(form);
+            form.submit();
         }
     }
 

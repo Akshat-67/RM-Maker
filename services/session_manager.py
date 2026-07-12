@@ -2,9 +2,24 @@ import os
 import json
 import time
 import re
+import threading
 from utils.helpers import parse_relation_text, normalize_relation_prefix, convert_hindi_digits_to_english
 
 CASES_DIR = "cases"
+
+# ---------------------------------------------------------------------------
+# Per-case threading locks — prevent concurrent reads/writes on Windows where
+# file sharing violations (PermissionError) can corrupt session.json.
+# ---------------------------------------------------------------------------
+_case_locks: dict[str, threading.Lock] = {}
+_case_locks_meta = threading.Lock()
+
+def _get_case_lock(case_id: str) -> threading.Lock:
+    """Return (creating if needed) the dedicated Lock for a given case_id."""
+    with _case_locks_meta:
+        if case_id not in _case_locks:
+            _case_locks[case_id] = threading.Lock()
+        return _case_locks[case_id]
 
 def title_case_address(text):
     if not text:
@@ -74,14 +89,32 @@ def normalize_amount_in_words(w):
     cleaned_words = " ".join(title_words)
     return f"Rupees {cleaned_words} Only"
 
+_session_file_cache = {}  # path -> (mtime, parsed_json)
+
 def list_cases():
+    global _session_file_cache
     cases = []
-    if not os.path.exists(CASES_DIR): return []
+    if not os.path.exists(CASES_DIR):
+        return []
+    
     for d in os.listdir(CASES_DIR):
         path = os.path.join(CASES_DIR, d, "session.json")
+        if not os.path.exists(path):
+            continue
         try:
-            with open(path, "r", encoding="utf-8") as f: cases.append(json.load(f))
-        except: pass
+            mtime = os.path.getmtime(path)
+            cached = _session_file_cache.get(path)
+            if cached and cached[0] == mtime:
+                import copy
+                cases.append(copy.deepcopy(cached[1]))
+            else:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                _session_file_cache[path] = (mtime, data)
+                import copy
+                cases.append(copy.deepcopy(data))
+        except Exception:
+            pass
     return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
 
 def sync_template_keys_to_property_type(chain_list, property_type):
@@ -123,11 +156,23 @@ def prune_case_data(data, doc_type):
 def load_case_session(case_id):
     path = os.path.join(CASES_DIR, case_id, "session.json")
     if not os.path.exists(path): return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            sess = json.load(f)
-    except Exception:
-        return None
+    lock = _get_case_lock(case_id)
+    with lock:
+        _retries = 3
+        for _attempt in range(_retries):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    sess = json.load(f)
+                break
+            except PermissionError:
+                if _attempt < _retries - 1:
+                    time.sleep(0.05 * (2 ** _attempt))  # 50ms, 100ms
+                    continue
+                return None
+            except Exception:
+                return None
+        else:
+            return None
     # Auto-correct doc_type if it was incorrectly mutated or set to RM
     doc_type = sess.get("doc_type", "RM")
     if doc_type == "RM":
@@ -228,11 +273,30 @@ def load_case_session(case_id):
                         p["unit"] = p["area_unit"]
     return sess
 
-def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None, **kwargs):
+def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None, expected_revision=None, **kwargs):
+    """Save case session to disk.
+
+    Args:
+        expected_revision: If provided, the save will raise a ``RevisionConflictError``
+            when the on-disk revision is newer than the caller's snapshot.  Pass
+            ``None`` (the default) to skip the check (e.g. during AI extraction).
+    """
     os.makedirs(os.path.join(CASES_DIR, case_id), exist_ok=True)
-    
+
+    lock = _get_case_lock(case_id)
+    with lock:
+        return _save_case_session_locked(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count, processed_files, doc_type, sellers_count, buyers_count, chain_scenario, selected_template, property_type, legal_report_files, buckets, expected_revision, **kwargs)
+
+
+class RevisionConflictError(Exception):
+    """Raised when the client sends an out-of-date revision during a save."""
+    pass
+
+
+def _save_case_session_locked(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None, expected_revision=None, **kwargs):
+    """Internal implementation — must only be called while holding _get_case_lock(case_id)."""
     # Load existing to preserve fields if not explicitly passed
-    existing = load_case_session(case_id) or {}
+    existing = _load_session_raw(case_id) or {}
     if doc_type is None:
         doc_type = existing.get("doc_type", "RM")
     if sellers_count is None:
@@ -291,6 +355,14 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
     else:
         display_name = pruned_data.get("bs", [{}])[0].get("n", "New Case") if pruned_data.get("bs") else "New Case"
 
+    # Optimistic concurrency check (Bug 2 fix)
+    stored_revision = existing.get("revision", 0)
+    if expected_revision is not None and int(expected_revision) < stored_revision:
+        raise RevisionConflictError(
+            f"Save conflict: client revision {expected_revision} is older than stored revision {stored_revision}."
+        )
+    new_revision = stored_revision + 1
+
     session = {
         "id": case_id,
         "borrower_name": display_name,
@@ -299,6 +371,7 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
         "loan_count": loan_count,
         "properties_count": properties_count or "1",
         "last_updated": time.time(),
+        "revision": new_revision,
         "data": pruned_data,
         "verified_fields": list(verified_fields),
         "files": files,
@@ -327,12 +400,41 @@ def save_case_session(case_id, data, files, verified_fields, bank, borrower_coun
         session["data"] = convert_hindi_digits_to_english(session["data"])
     path = os.path.join(CASES_DIR, case_id, "session.json")
     temp_path = path + ".tmp"
-    try:
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(session, f, ensure_ascii=False)
-        os.replace(temp_path, path)
-    except Exception as e:
-        # Fallback to direct write if replace fails
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(session, f, ensure_ascii=False)
+    _retries = 3
+    for _attempt in range(_retries):
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(session, f, ensure_ascii=False)
+            os.replace(temp_path, path)
+            break
+        except PermissionError:
+            if _attempt < _retries - 1:
+                time.sleep(0.05 * (2 ** _attempt))  # 50ms, 100ms
+                continue
+            # Final fallback: direct write (avoids stale .tmp on Windows)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(session, f, ensure_ascii=False)
+            except Exception:
+                pass
+        except Exception as e:
+            # Non-PermissionError: attempt direct write once
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(session, f, ensure_ascii=False)
+            except Exception:
+                pass
+            break
     return session
+
+
+def _load_session_raw(case_id: str) -> dict | None:
+    """Read session.json without acquiring the lock (caller must hold it)."""
+    path = os.path.join(CASES_DIR, case_id, "session.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None

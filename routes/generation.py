@@ -1,8 +1,21 @@
 from flask import Blueprint, request, jsonify, send_file
 from services.session_manager import load_case_session, save_case_session
 from services.generation_service import compile_and_render_document, generate_draft_preview
+from services.compile_gate import check_compile_prerequisites
+from utils.helpers import validate_case_id
 
 generation_bp = Blueprint('generation', __name__)
+
+@generation_bp.before_request
+def check_case_id():
+    case_id = None
+    if request.view_args and 'case_id' in request.view_args:
+        case_id = request.view_args['case_id']
+    elif request.args and 'case_id' in request.args:
+        case_id = request.args['case_id']
+    if case_id:
+        if not validate_case_id(case_id):
+            return jsonify({"success": False, "error": "Invalid case_id format"}), 400
 
 @generation_bp.route("/case/<case_id>/generate", methods=["POST"])
 def generate_rm(case_id):
@@ -46,7 +59,17 @@ def generate_rm(case_id):
 
     # Reload from session to get the fully merged data
     session = load_case_session(case_id)
-    
+
+    # --- Server-side compile safety gate (Bug 4 fix) ---
+    missing = check_compile_prerequisites(session, doc_type)
+    if missing:
+        return jsonify({
+            "success": False,
+            "error": "compile_gate_failed",
+            "missing_fields": missing,
+            "detail": f"Cannot compile: {len(missing)} critical field(s) are empty: {', '.join(missing)}"
+        }), 422
+
     try:
         output_filepath, output_filename = compile_and_render_document(
             case_id=case_id,

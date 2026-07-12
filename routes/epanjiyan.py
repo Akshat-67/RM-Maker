@@ -5,8 +5,20 @@ import re
 import datetime
 from services.session_manager import load_case_session, save_case_session
 from services.epanjiyan_service import generate_epanjiyan_payload
+from utils.helpers import validate_case_id
 
 epanjiyan_bp = Blueprint('epanjiyan', __name__)
+
+@epanjiyan_bp.before_request
+def check_case_id():
+    case_id = None
+    if request.view_args and 'case_id' in request.view_args:
+        case_id = request.view_args['case_id']
+    elif request.args and 'case_id' in request.args:
+        case_id = request.args['case_id']
+    if case_id:
+        if not validate_case_id(case_id):
+            return jsonify({"success": False, "error": "Invalid case_id format"}), 400
 
 LATEST_OTP = {"otp": None, "timestamp": 0}
 

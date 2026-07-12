@@ -558,53 +558,7 @@ def test_delete_case_directory(temp_cases_dir):
     res = delete_case_directory(case_id)
     assert res is True
     assert not os.path.exists(case_path)
-    
     # Run deletion on non-existent case
     res2 = delete_case_directory("non_existent_case_abc")
     assert res2 is False
-
-
-# --- Template Builder Core Tests ---
-
-def test_template_builder_manipulator(tmp_path):
-    import docx
-    from template_tools.builder_core import DocManipulator, generate_master_template, clean_mapping
-    
-    # 1. Create a dummy docx template file
-    doc_path = str(tmp_path / "input.docx")
-    output_path = str(tmp_path / "output.docx")
-    
-    doc = docx.Document()
-    doc.add_paragraph("This agreement is made between John Doe and Jane Smith.")
-    doc.save(doc_path)
-    
-    # Verify reading docx contents
-    text_content = DocManipulator.get_doc_content(docx.Document(doc_path))
-    assert "John Doe" in text_content
-    assert "Jane Smith" in text_content
-    
-    # 2. Run master template generation with a field mapping
-    mapping = {
-        "John Doe": "{{bs[0].n}}",
-        "Jane Smith": "{{ss[0].n}}",
-        "invalid_mapping": None
-    }
-    
-    cleaned = clean_mapping(mapping)
-    assert cleaned["John Doe"] == "{{bs[0].n}}"
-    assert cleaned["Jane Smith"] == "{{ss[0].n}}"
-    assert "invalid_mapping" not in cleaned
-    
-    # Generate template
-    generate_master_template(doc_path, cleaned, output_path)
-    
-    # Verify generated output contains placeholders
-    output_doc = docx.Document(output_path)
-    output_text = DocManipulator.get_doc_content(output_doc)
-    assert "{{bs[0].n}}" in output_text
-    assert "{{ss[0].n}}" in output_text
-    assert "John Doe" not in output_text
-
-
-
 

@@ -1205,6 +1205,8 @@ class SDDataExtractor:
             - land_area = total area of the ORIGINAL PLOT
             - length_ew, length_ns = dimensions of the ORIGINAL PLOT
             - n,s,e,w = four boundaries of the ORIGINAL PLOT
+        11. SOURCE ATTRIBUTION: Include a top-level JSON key "extractions" which is an object mapping each extracted key path (e.g. "ss.0.n", "ss.0.id", "bs.0.n", "ps.0.adr", "rd") to an object containing: "source_file" (string, the exact filename of the source document where this fact was found), "page_number" (integer page number, 1-indexed, where found, default 1), "extracted_text" (string, the exact raw text that was matched/extracted), and "bounding_box" (always null).
+        12. CONFIDENCE SCORES: Include a top-level JSON key "confidence_scores" which is an object mapping each extracted key path (e.g. "ss.0.n", "ss.0.id", "rd") to an object containing: "score" (a float between 0.0 and 1.0 representing extraction confidence) and "reason" (string, explaining why the score is less than 1.0, or null if the score is 1.0).
         """
         return prompt + count_instruction + previously_identified_instruction
 

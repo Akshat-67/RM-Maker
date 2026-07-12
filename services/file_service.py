@@ -8,13 +8,37 @@ TEMPLATES_DIR = "templates"
 
 
 # --- Template Discovery ---
+import time
+import copy
+
+_discover_cache = None
+_discover_cache_mtime = 0
+
+# --- Template Discovery ---
 def discover_templates():
+    global _discover_cache, _discover_cache_mtime
+    
+    if not os.path.exists(TEMPLATES_DIR):
+        return {}, {}, []
+
+    # Get combined mtime of TEMPLATES_DIR and bank folders to detect changes
+    try:
+        current_mtime = os.path.getmtime(TEMPLATES_DIR)
+        for item in os.listdir(TEMPLATES_DIR):
+            bank_dir = os.path.join(TEMPLATES_DIR, item)
+            if os.path.isdir(bank_dir):
+                current_mtime = max(current_mtime, os.path.getmtime(bank_dir))
+    except Exception:
+        # Fallback to force refresh on any mtime lookup error
+        current_mtime = time.time()
+
+    if _discover_cache is not None and _discover_cache_mtime == current_mtime:
+        # Return copies so callers mutating lists/dicts won't pollute our cache
+        return copy.deepcopy(_discover_cache[0]), copy.deepcopy(_discover_cache[1]), list(_discover_cache[2])
+
     template_map = {}
     sd_template_map = {}
     bank_folders = []
-
-    if not os.path.exists(TEMPLATES_DIR):
-        return {}, {}, []
 
     for item in os.listdir(TEMPLATES_DIR):
         bank_dir = os.path.join(TEMPLATES_DIR, item)
@@ -82,7 +106,11 @@ def discover_templates():
     if "ICICI" in bank_folders:
         bank_folders.remove("ICICI")
         bank_folders.insert(0, "ICICI")
-    return template_map, sd_template_map, bank_folders
+
+    _discover_cache = (template_map, sd_template_map, bank_folders)
+    _discover_cache_mtime = current_mtime
+
+    return copy.deepcopy(template_map), copy.deepcopy(sd_template_map), list(bank_folders)
 
 
 # --- Smart Merge Utility ---

@@ -189,6 +189,8 @@ class RMDataExtractor:
         15. PRECISION: EXTRACT ALL DIGITS OF THE LOAN AMOUNT AND EMI AMOUNT. DO NOT MISS ANY NUMBERS.
         16. MANDATORY ENGLISH SCRIPT: You MUST use English script for ALL descriptive text including names ('n'), relations ('relation_text'), and addresses ('adr'). DO NOT USE HINDI/Devanagari script for these fields.
         17. ENGLISH SOURCE PRIORITY: Always prefer extracting names and addresses natively from English text in the uploaded documents.
+        18. SOURCE ATTRIBUTION: Include a top-level JSON key "extractions" which is an object mapping each extracted key path (e.g. "bs.0.n", "bs.0.id", "ls.0.n", "ps.0.adr", "ad") to an object containing: "source_file" (string, the exact filename of the source document where this fact was found), "page_number" (integer page number, 1-indexed, where found, default 1), "extracted_text" (string, the exact raw text that was matched/extracted), and "bounding_box" (always null).
+        19. CONFIDENCE SCORES: Include a top-level JSON key "confidence_scores" which is an object mapping each extracted key path (e.g. "bs.0.n", "bs.0.id", "ad") to an object containing: "score" (a float between 0.0 and 1.0 representing extraction confidence) and "reason" (string, explaining why the score is less than 1.0, or null if the score is 1.0).
         """
         return prompt
 

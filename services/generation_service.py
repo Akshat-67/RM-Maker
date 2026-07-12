@@ -547,13 +547,45 @@ def generate_draft_preview(
             if isinstance(l, dict) and l.get("w"):
                 l["w"] = normalize_amount_in_words(l["w"])
 
-    context['d'] = context.copy()
+    # Renders template draft preview with highlight tags for substituted fields
+    import copy
+
+    def wrap_highlights(val):
+        if isinstance(val, str) and val.strip():
+            if val in ["RM", "SD", "true", "false", "Plot", "Flat", "JDA_2SD_Flat"]:
+                return val
+            if val.startswith("[!!HL_START!!]") and val.endswith("[!!HL_END!!]"):
+                return val
+            return f"[!!HL_START!!]{val}[!!HL_END!!]"
+        return val
+
+    def apply_highlight_markers(ctx):
+        for key in ["bs", "ws", "ps", "ls", "ss", "sellers", "buyers", "chain", "ds"]:
+            if key in ctx and isinstance(ctx[key], list):
+                for item in ctx[key]:
+                    if isinstance(item, dict):
+                        for subkey in item:
+                            if subkey not in ["event_type", "template_key", "is_registered", "property_type"]:
+                                item[subkey] = wrap_highlights(item[subkey])
+        for key in ["bsign", "sale", "deed"]:
+            if key in ctx and isinstance(ctx[key], dict):
+                for subkey in ctx[key]:
+                    ctx[key][subkey] = wrap_highlights(ctx[key][subkey])
+        for key in ["amount", "amount_words", "rd", "chain_text", "second_schedule", "ds_text"]:
+            if key in ctx:
+                ctx[key] = wrap_highlights(ctx[key])
+
+    preview_context = copy.deepcopy(context)
+    apply_highlight_markers(preview_context)
+    preview_context['d'] = preview_context.copy()
 
     doc = DocxTemplate(template_path)
-    doc.render(context)
+    doc.render(preview_context)
 
     pages = []
     current_page_elements = []
+
+    font_family = "Cambria, Georgia, serif" if doc_type == "RM" else "'Segoe UI', 'Mangal', sans-serif"
 
     for element in doc.element.body:
         if element.tag.endswith('p'):
@@ -569,38 +601,61 @@ def generate_draft_preview(
 
             if txt:
                 unicode_parts = []
+                run_htmls = []
                 for run in p.runs:
                     run_txt = run.text
                     if not run_txt:
                         continue
-                    if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
-                        unicode_parts.append(run_txt)
+                    
+                    if doc_type == "RM":
+                        unicode_run_txt = run_txt
                     else:
-                        unicode_parts.append(DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt))
+                        if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
+                            unicode_run_txt = run_txt
+                        else:
+                            unicode_run_txt = DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt)
+                    
+                    unicode_parts.append(unicode_run_txt)
+                    escaped_run = html.escape(unicode_run_txt)
+                    
+                    if run.bold:
+                        escaped_run = f"<strong>{escaped_run}</strong>"
+                    if run.italic:
+                        escaped_run = f"<em>{escaped_run}</em>"
+                    if run.underline:
+                        escaped_run = f"<u>{escaped_run}</u>"
+                    run_htmls.append(escaped_run)
                 
                 unicode_txt = "".join(unicode_parts).strip()
+                paragraph_html = "".join(run_htmls).strip()
+                
+                paragraph_html = paragraph_html.replace(
+                    "[!!HL_START!!]",
+                    '<span class="extracted-highlight" style="background-color: rgba(254, 240, 138, 0.8); border-bottom: 2px solid #eab308; padding: 2px 4px; border-radius: 3px; font-weight: 600; color: #1e293b;" title="AI Extracted Value">'
+                ).replace(
+                    "[!!HL_END!!]",
+                    "</span>"
+                )
                 
                 if unicode_txt:
-                    escaped = html.escape(unicode_txt)
-                    escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
-                    
-                    normalized_txt = unicode_txt.replace(" ", "")
-                    if len(unicode_txt.strip()) < 20 and "!!श्री!!" in normalized_txt:
-                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: 'Segoe UI', 'Mangal';"
+                    clean_txt = unicode_txt.replace("[!!HL_START!!]", "").replace("[!!HL_END!!]", "")
+                    normalized_txt = clean_txt.replace(" ", "")
+                    if len(clean_txt.strip()) < 20 and "!!श्री!!" in normalized_txt:
+                        p_style = f"text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; margin-top: 1rem; margin-bottom: 1.5rem; font-family: {font_family};"
                         current_page_elements.append(f"<p style=\"{p_style}\">!! श्री !!</p>")
-                    elif len(unicode_txt.strip()) < 20 and ("विक्रय-पत्र" in unicode_txt or "विक्रय पत्र" in unicode_txt):
-                        p_style = "text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: 'Segoe UI', 'Mangal';"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
-                    elif len(unicode_txt.strip()) < 30 and unicode_txt.strip().startswith("-") and unicode_txt.strip().endswith("-"):
-                        p_style = "text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: 'Segoe UI', 'Mangal';"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                    elif len(clean_txt.strip()) < 20 and ("विक्रय-पत्र" in clean_txt or "विक्रय पत्र" in clean_txt):
+                        p_style = f"text-align: center; color: #dc2626; font-weight: bold; font-size: 1.35rem; text-decoration: underline; margin-bottom: 2.5rem; font-family: {font_family};"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{paragraph_html}</p>")
+                    elif len(clean_txt.strip()) < 30 and clean_txt.strip().startswith("-") and clean_txt.strip().endswith("-"):
+                        p_style = f"text-align: center; font-weight: bold; font-size: 1.15rem; margin: 1.8rem 0; font-family: {font_family};"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{paragraph_html}</p>")
                     else:
-                        p_style = "text-align: justify; text-indent: 45px; font-size: 1.05rem; line-height: 1.75; margin-bottom: 1.2rem; font-family: 'Segoe UI', 'Mangal'; color: #111827;"
-                        current_page_elements.append(f"<p style=\"{p_style}\">{escaped}</p>")
+                        p_style = f"text-align: justify; text-indent: 45px; font-size: 1.05rem; line-height: 1.75; margin-bottom: 1.2rem; font-family: {font_family}; color: #111827;"
+                        current_page_elements.append(f"<p style=\"{p_style}\">{paragraph_html}</p>")
         
         elif element.tag.endswith('tbl'):
             t = Table(element, doc)
-            table_html = ["<table class='table table-sm table-bordered shadow-sm bg-white' style='margin-bottom: 1.2rem; font-size: 0.85rem; font-family: Segoe UI, Mangal;'>"]
+            table_html = [f"<table class='table table-sm table-bordered shadow-sm bg-white' style='margin-bottom: 1.2rem; font-size: 0.85rem; font-family: {font_family};'>"]
             for row in t.rows:
                 table_html.append("<tr>")
                 for cell in row.cells:
@@ -611,13 +666,32 @@ def generate_draft_preview(
                             run_txt = run.text
                             if not run_txt:
                                 continue
-                            if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
-                                cell_unicode_parts.append(run_txt)
+                            if doc_type == "RM":
+                                unicode_run_txt = run_txt
                             else:
-                                cell_unicode_parts.append(DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt))
+                                if DevLysToUnicodeConverter._devanagari_regex.search(run_txt):
+                                    unicode_run_txt = run_txt
+                                else:
+                                    unicode_run_txt = DevLysToUnicodeConverter.devlys_to_unicode_text(run_txt)
+                            
+                            escaped_run = html.escape(unicode_run_txt)
+                            if run.bold:
+                                escaped_run = f"<strong>{escaped_run}</strong>"
+                            if run.italic:
+                                escaped_run = f"<em>{escaped_run}</em>"
+                            if run.underline:
+                                escaped_run = f"<u>{escaped_run}</u>"
+                            cell_unicode_parts.append(escaped_run)
                         cell_parts.append("".join(cell_unicode_parts))
                     unicode_cell = "\n".join(cell_parts).strip()
-                    table_html.append(f"<td style='padding: 8px 12px; border: 1px solid #dee2e6; vertical-align: middle;'>{html.escape(unicode_cell)}</td>")
+                    unicode_cell = unicode_cell.replace(
+                        "[!!HL_START!!]",
+                        '<span class="extracted-highlight" style="background-color: rgba(254, 240, 138, 0.8); border-bottom: 2px solid #eab308; padding: 2px 4px; border-radius: 3px; font-weight: 600; color: #1e293b;" title="AI Extracted Value">'
+                    ).replace(
+                        "[!!HL_END!!]",
+                        "</span>"
+                    )
+                    table_html.append(f"<td style='padding: 8px 12px; border: 1px solid #dee2e6; vertical-align: middle;'>{unicode_cell}</td>")
                 table_html.append("</tr>")
             table_html.append("</table>")
             current_page_elements.append("".join(table_html))
@@ -628,8 +702,23 @@ def generate_draft_preview(
     html_parts = []
     for idx, page_elems in enumerate(pages):
         page_content = "".join(page_elems)
-        page_header = f"<div class='word-page-number' style='text-align: center; font-size: 0.85rem; color: #64748b; margin-bottom: 35px; font-family: sans-serif;'>{idx + 1}</div>" if idx > 0 else ""
-        html_parts.append(f"<div class='word-page' style='background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.09); border: 1px solid #cbd5e1; border-radius: 2px; max-width: 800px; margin: 15px auto 25px auto; padding: 50px 65px; min-height: 297mm; box-sizing: border-box; text-align: left;'>{page_header}{page_content}</div>")
+        page_header = f"<div class='word-page-number' style='text-align: center; font-size: 0.85rem; color: #64748b; margin-bottom: 35px; font-family: sans-serif;' contenteditable='false'>{idx + 1}</div>" if idx > 0 else ""
+        html_parts.append(
+            f"<div class='word-page' contenteditable='true' style='"
+            f"background: #ffffff; "
+            f"box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04); "
+            f"border: 1px solid #e2e8f0; "
+            f"border-radius: 4px; "
+            f"max-width: 800px; "
+            f"margin: 20px auto 30px auto; "
+            f"padding: 60px 80px; "
+            f"min-height: 297mm; "
+            f"box-sizing: border-box; "
+            f"text-align: left; "
+            f"outline: none; "
+            f"position: relative;"
+            f"'>{page_header}{page_content}</div>"
+        )
 
     preview_html = "".join(html_parts)
     if not preview_html:

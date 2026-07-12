@@ -463,3 +463,20 @@ def extract_pdf_pages_text(pdf_path, page_indices):
     except Exception as e:
         print(f"[PDF Helper Warning] Failed to extract text for PDF {pdf_path}: {e}")
         return ""
+
+def validate_case_id(case_id):
+    import re
+    if not case_id or not isinstance(case_id, str):
+        return False
+    return bool(re.match(r"^case_\d+$", case_id))
+
+def validate_bucket_name(bucket_name):
+    whitelist = {'kyc', 'legal', 'ats', 'title_chain', 'ocr'}
+    return bucket_name in whitelist
+
+def is_safe_path(base_dir, path):
+    import os
+    base = os.path.realpath(base_dir)
+    matchpath = os.path.realpath(path)
+    return matchpath == base or matchpath.startswith(base + os.sep)
+

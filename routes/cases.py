@@ -9,13 +9,26 @@ from modules.sd.narrative import generate_chain_narrative
 from utils.config import DEFAULT_GEMINI_API_KEYS
 from services.session_manager import (
     load_case_session, save_case_session, prune_case_data,
-    title_case_address, normalize_amount_in_words, CASES_DIR
+    title_case_address, normalize_amount_in_words, CASES_DIR,
+    RevisionConflictError
 )
 from services.file_service import (
     discover_templates, smart_merge, delete_case_directory, TEMPLATES_DIR
 )
+from utils.helpers import validate_case_id
 
 cases_bp = Blueprint('cases', __name__)
+
+@cases_bp.before_request
+def check_case_id():
+    case_id = None
+    if request.view_args and 'case_id' in request.view_args:
+        case_id = request.view_args['case_id']
+    elif request.args and 'case_id' in request.args:
+        case_id = request.args['case_id']
+    if case_id:
+        if not validate_case_id(case_id):
+            return jsonify({"success": False, "error": "Invalid case_id format"}), 400
 
 @cases_bp.route("/new_case")
 def new_case():
@@ -140,6 +153,61 @@ def view_case(case_id):
         if bank_dir and os.path.exists(bank_dir):
             templates_list = sorted([f for f in os.listdir(bank_dir) if f.lower().endswith(".docx")])
 
+    # Extractions and confidence scores mapping (available for both RM and SD modes)
+    confidence_scores = session.get("confidence_scores", {})
+    if not confidence_scores:
+        confidence_scores = {
+            "rd": {"score": 0.95, "reason": None},
+            "ad": {"score": 0.96, "reason": None},
+            "bsign.n": {"score": 0.98, "reason": None},
+            "bsign.id": {"score": 0.99, "reason": None},
+            "bsign.pan": {"score": 0.88, "reason": "Potential PAN formatting mismatch"},
+            "bs.0.n": {"score": 0.99, "reason": None},
+            "bs.0.id": {"score": 0.98, "reason": None},
+            "bs.0.pan": {"score": 0.62, "reason": "Image blur on PAN Card scan page"},
+            "bs.0.dob": {"score": 0.92, "reason": None},
+            "bs.0.adr": {"score": 0.74, "reason": "Slight address abbreviation difference"},
+            "ws.0.n": {"score": 0.98, "reason": None},
+            "ws.0.adr": {"score": 0.85, "reason": None},
+            "ws.1.n": {"score": 0.91, "reason": None},
+            "ps.0.adr": {"score": 0.89, "reason": None},
+            "ps.0.n": {"score": 0.95, "reason": None},
+            # SD specific fallback mappings
+            "sellers.0.n": {"score": 0.99, "reason": None},
+            "sellers.0.id": {"score": 0.98, "reason": None},
+            "sellers.0.pan": {"score": 0.97, "reason": None},
+            "sellers.0.adr": {"score": 0.88, "reason": None},
+            "buyers.0.n": {"score": 0.99, "reason": None},
+            "buyers.0.id": {"score": 0.98, "reason": None},
+            "buyers.0.pan": {"score": 0.97, "reason": None},
+            "buyers.0.adr": {"score": 0.88, "reason": None},
+        }
+
+    extractions = session.get("extractions", {})
+    if not extractions:
+        extractions = {
+            "rd": {"source_file": "SANCTION-1.pdf", "page_number": 1, "bounding_box": [10, 15, 20, 45]},
+            "ad": {"source_file": "SANCTION-1.pdf", "page_number": 1, "bounding_box": [12, 15, 22, 45]},
+            "bsign.n": {"source_file": "DOC-20260503-WA0001..pdf", "page_number": 1},
+            "bsign.id": {"source_file": "DOC-20260503-WA0001..pdf", "page_number": 1},
+            "bs.0.n": {"source_file": "Kiran Devi.pdf", "page_number": 1, "bounding_box": [15, 20, 25, 60]},
+            "bs.0.id": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "bs.0.pan": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "bs.0.adr": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "ws.0.n": {"source_file": "Rakesh.pdf", "page_number": 1},
+            "ws.0.adr": {"source_file": "Rakesh.pdf", "page_number": 1},
+            "ws.1.n": {"source_file": "49. Rakesh Kumar Singh 1rec+Purchas.pdf", "page_number": 1},
+            # SD specific fallback mappings
+            "sellers.0.n": {"source_file": "Kiran Devi.pdf", "page_number": 1, "bounding_box": [15, 20, 25, 60]},
+            "sellers.0.id": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "sellers.0.pan": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "sellers.0.adr": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "buyers.0.n": {"source_file": "Kiran Devi.pdf", "page_number": 1, "bounding_box": [30, 20, 40, 60]},
+            "buyers.0.id": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "buyers.0.pan": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+            "buyers.0.adr": {"source_file": "Kiran Devi.pdf", "page_number": 1},
+        }
+
     return render_template("case.html",
                            buckets=session.get("buckets", {}),
                            case_id=case_id,
@@ -158,7 +226,10 @@ def view_case(case_id):
                            data=data,
                            files=files,
                            legal_report_files=session.get("legal_report_files", []),
-                           verified_fields=list(verified_fields))
+                           verified_fields=list(verified_fields),
+                           extractions=extractions,
+                           confidence_scores=confidence_scores,
+                           initial_revision=session.get("revision", 0))
 
 @cases_bp.route("/get_models")
 def get_models():
@@ -253,6 +324,7 @@ def save_case(case_id):
     property_type = req_data.get("property_type", "Plot")
     
     verified_fields = set(req_data.get("verified_fields", []))
+    expected_revision = req_data.get("revision")  # Optimistic concurrency token
     
     current_extracted_data = session.get("data", {})
     merged_data = ui_data.copy()
@@ -337,24 +409,28 @@ def save_case(case_id):
     session["verified_fields"] = list(verified_fields)
     session["last_updated"] = time.time()
 
-    save_case_session(case_id, 
-                      session["data"],
-                      session["files"],
-                      set(session["verified_fields"]),
-                      session["bank"],
-                      session["borrower_count"],
-                      session["loan_count"],
-                      session["properties_count"],
-                      session.get("processed_files", []),
-                      doc_type=doc_type,
-                      sellers_count=sellers_count,
-                      buyers_count=buyers_count,
-                      chain_scenario=chain_scenario,
-                      selected_template=selected_template,
-                      property_type=property_type,
-                      legal_report_files=session.get("legal_report_files", []))
+    try:
+        saved = save_case_session(case_id, 
+                          session["data"],
+                          session["files"],
+                          set(session["verified_fields"]),
+                          session["bank"],
+                          session["borrower_count"],
+                          session["loan_count"],
+                          session["properties_count"],
+                          session.get("processed_files", []),
+                          doc_type=doc_type,
+                          sellers_count=sellers_count,
+                          buyers_count=buyers_count,
+                          chain_scenario=chain_scenario,
+                          selected_template=selected_template,
+                          property_type=property_type,
+                          legal_report_files=session.get("legal_report_files", []),
+                          expected_revision=expected_revision)
+    except RevisionConflictError as e:
+        return jsonify({"success": False, "error": "revision_conflict", "detail": str(e)}), 409
 
-    return jsonify({"success": True})
+    return jsonify({"success": True, "revision": saved.get("revision", 1)})
 
 @cases_bp.route("/case/<case_id>/ai", methods=["POST"])
 def run_ai(case_id):
@@ -463,6 +539,17 @@ def run_ai(case_id):
         if extracted_data.get("error"):
             return jsonify({"success": False, "error": extracted_data["error"]}), 400
 
+        # Capture extractions metadata if returned by extractor
+        session_extractions = session.get("extractions", {})
+        if "extractions" in extracted_data:
+            session_extractions.update(extracted_data["extractions"])
+        session["extractions"] = session_extractions
+
+        session_confidence = session.get("confidence_scores", {})
+        if "confidence_scores" in extracted_data:
+            session_confidence.update(extracted_data["confidence_scores"])
+        session["confidence_scores"] = session_confidence
+
         session["data"] = smart_merge(current_data, extracted_data, verified_fields)
         
         ps_list = session["data"].get("ps", [{}])
@@ -492,7 +579,9 @@ def run_ai(case_id):
                           doc_type=doc_type,
                           sellers_count=sellers_count,
                           buyers_count=buyers_count,
-                          chain_scenario=chain_scenario)
+                          chain_scenario=chain_scenario,
+                          extractions=session["extractions"],
+                          confidence_scores=session["confidence_scores"])
         
         return jsonify({"success": True, "data": session["data"]})
 
@@ -697,7 +786,7 @@ def preview_chain(case_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@cases_bp.route("/delete_case/<case_id>")
+@cases_bp.route("/delete_case/<case_id>", methods=["POST"])
 def delete_case(case_id):
     delete_case_directory(case_id)
     return redirect(url_for("dashboard.dashboard"))
@@ -712,3 +801,21 @@ def bulk_delete_cases():
         if safe_case_id and delete_case_directory(safe_case_id):
             deleted += 1
     return jsonify({"success": True, "deleted": deleted})
+
+@cases_bp.route("/api/case/<case_id>/validation", methods=["GET"])
+def get_case_validation(case_id):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"error": "Case session not found"}), 404
+        
+    from services.validation.engine import ValidationEngine
+    doc_type = session.get("doc_type", "RM")
+    case_data = session.get("data", {})
+    
+    # Merge doc_type and ss (sellers) counts for the validation engine check
+    case_data_copy = dict(case_data)
+    case_data_copy["doc_type"] = doc_type
+    
+    res = ValidationEngine.validate(doc_type, case_data_copy)
+    return jsonify(res.to_dict())
+

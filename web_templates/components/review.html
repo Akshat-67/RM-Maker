@@ -55,6 +55,7 @@
             <div style="position: relative; flex: 1; width: 100%; overflow: hidden;">
                 <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
                 <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
+                <div id="previewHighlightOverlay" style="position: absolute; border: 2px solid #eab308; background-color: rgba(234, 179, 8, 0.18); display: none; pointer-events: none; z-index: 5; border-radius: 4px; transition: all 0.2s ease;"></div>
                 <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
                     <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
                     <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
@@ -65,7 +66,6 @@
 
     <!-- Right Panel: Case Verification Workspace (tabbed) -->
     <div class="editor-pane">
-        <!-- Main Right Tabs -->
         <ul class="nav nav-tabs flex-shrink-0" id="mainRightTabs" role="tablist" style="margin-bottom: 0;">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active fw-bold py-2 px-3" id="editor-main-tab" data-bs-toggle="tab" data-bs-target="#pane-editor-main" type="button" role="tab" aria-selected="true" style="font-size: 0.82rem;">✏️ Verification Editor</button>
@@ -73,16 +73,19 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link fw-bold py-2 px-3" id="draft-main-tab" data-bs-toggle="tab" data-bs-target="#pane-draft-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">📄 Generated Draft</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-2 px-3" id="auditor-main-tab" data-bs-toggle="tab" data-bs-target="#pane-auditor-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">🔍 Draft Auditor</button>
+            </li>
         </ul>
 
         <div class="tab-content" id="mainRightTabsContent">
             <!-- MAIN TAB PANE 1: VERIFICATION EDITOR -->
-            <div class="tab-pane fade show active" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="overflow-y: auto; height: calc(100vh - 105px); padding: 8px 4px;">
+            <div class="tab-pane show active" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="overflow-y: auto; height: calc(100vh - 105px); padding: 8px 4px;">
                 <!-- Unified Compact Control Bar -->
                 <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-shrink-0" style="gap: 8px;">
                     <!-- Section Dropdown Selector -->
-                    <div style="flex-grow: 1; max-width: 250px;">
-                        <select class="form-select form-select-sm fw-bold text-secondary" id="verificationSectionSelector" onchange="switchVerificationSection(this.value)" style="font-size: 0.8rem; border-color: #cbd5e1; height: 31px; padding: 4px 8px;">
+                    <div style="flex-grow: 1; max-width: 220px; min-width: 180px;">
+                        <select class="form-select form-select-sm fw-bold text-secondary" id="verificationSectionSelector" onchange="switchVerificationSection(this.value)" style="font-size: 0.8rem; border-color: #cbd5e1; height: 31px; padding: 4px 24px 4px 8px; min-width: 180px; width: 100%; background-position: right 8px center;">
                             {% if doc_type == 'RM' %}
                                 <option value="pane-parties">👤 Borrowers & Signatory</option>
                                 <option value="pane-witnesses">👥 Witnesses</option>
@@ -97,14 +100,34 @@
                             {% endif %}
                         </select>
                     </div>
+
+                    <!-- Overall Verification Progress Bar -->
+                    <div class="verification-progress-container px-2 d-flex align-items-center">
+                        <div class="d-flex flex-column">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span id="overallProgressLabel" class="text-truncate" style="min-width: 140px; font-size: 0.72rem;">Verified: 0 / 0 fields (0%)</span>
+                            </div>
+                            <div class="verification-progress-bar-wrapper" style="height: 6px; width: 140px; margin-top: 2px;">
+                                <div id="overallProgressBar" class="verification-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Mini Toggles & Badges -->
                     <div class="d-flex gap-1.5 align-items-center flex-shrink-0">
                         <span class="badge bg-secondary me-1" style="font-size: 0.68rem;">{{ doc_type }} Mode</span>
-                        <button id="btnToggleItrans" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
-                        <button id="btnToggleDevLys" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
-                        <button class="btn btn-xs btn-outline-secondary fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="verifyAllFields()">Verify All</button>
+                        {% if doc_type != 'RM' %}
+                            <button id="btnToggleItrans" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                            <button id="btnToggleDevLys" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                        {% endif %}
+                        <button class="btn btn-xs btn-outline-secondary fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="verifySection()">Verify Section</button>
                     </div>
+                </div>
+
+                <!-- Floating/Inline Bulk Undo Banner -->
+                <div id="bulkUndoBanner" class="alert alert-info py-2 px-3 mb-3 d-none justify-content-between align-items-center" style="font-size: 0.75rem; border-radius: 6px; border-color: #bee5eb; background-color: #d1ecf1; color: #0c5460;">
+                    <span id="bulkUndoMessage" class="fw-bold">Bulk action completed.</span>
+                    <button class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2 ms-2" onclick="undoLastBulkAction()">↩ Undo</button>
                 </div>
                 
                 <div id="verificationContent">
@@ -113,32 +136,32 @@
                         <ul class="nav nav-pills nav-fill mb-3" id="verificationTabs" role="tablist">
                             {% if doc_type == 'RM' %}
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Borrowers & Signatory</button>
+                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Borrowers & Signatory <span id="badge-parties" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
+                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses <span id="badge-witnesses" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
+                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property <span id="badge-property" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="loan-tab" data-bs-toggle="pill" data-bs-target="#pane-loan" type="button" role="tab" aria-controls="pane-loan" aria-selected="false">💰 Loan Accounts</button>
+                                    <button class="nav-link fw-bold" id="loan-tab" data-bs-toggle="pill" data-bs-target="#pane-loan" type="button" role="tab" aria-controls="pane-loan" aria-selected="false">💰 Loan Accounts <span id="badge-loans" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="schedules-tab" data-bs-toggle="pill" data-bs-target="#pane-schedules" type="button" role="tab" aria-controls="pane-schedules" aria-selected="false">📋 Schedules</button>
+                                    <button class="nav-link fw-bold" id="schedules-tab" data-bs-toggle="pill" data-bs-target="#pane-schedules" type="button" role="tab" aria-controls="pane-schedules" aria-selected="false">📋 Schedules <span id="badge-schedules" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                             {% else %}
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Sellers & Buyers</button>
+                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Sellers & Buyers <span id="badge-parties" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
+                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses <span id="badge-witnesses" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
+                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property <span id="badge-property" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation">
-                                    <button class="nav-link fw-bold" id="payments-tab" data-bs-toggle="pill" data-bs-target="#pane-payments" type="button" role="tab" aria-controls="pane-payments" aria-selected="false">💳 Payments & Execution</button>
+                                    <button class="nav-link fw-bold" id="payments-tab" data-bs-toggle="pill" data-bs-target="#pane-payments" type="button" role="tab" aria-controls="pane-payments" aria-selected="false">💳 Payments & Execution <span id="badge-loans" class="tab-completion-badge tab-badge-incomplete">0/0</span></button>
                                 </li>
                             {% endif %}
                         </ul>
@@ -797,11 +820,10 @@
                         </div>
                         {% endif %}
                     </div> <!-- End of verificationContent -->
-                </div>
             </div> <!-- End of MAIN TAB PANE 1 (pane-editor-main) -->
 
             <!-- MAIN TAB PANE 2: GENERATED DRAFT -->
-            <div class="tab-pane fade" id="pane-draft-main" role="tabpanel" aria-labelledby="draft-main-tab" style="height: calc(100vh - 105px); padding: 8px 4px;">
+            <div class="tab-pane" id="pane-draft-main" role="tabpanel" aria-labelledby="draft-main-tab" style="height: calc(100vh - 105px); padding: 8px 4px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 4px 4px 0 0; padding: 8px 12px; flex-shrink: 0;">
                     <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
                     <button class="btn btn-xs btn-primary py-0 px-2.5 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
@@ -810,6 +832,27 @@
                     <div style="text-align: center; color: #999; padding: 40px 0;">
                         <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
                         <span style="font-size: 0.85rem;">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
+                    </div>
+                </div>
+            </div>
+            <!-- MAIN TAB PANE 3: DRAFT AUDITOR -->
+            <div class="tab-pane" id="pane-auditor-main" role="tabpanel" aria-labelledby="auditor-main-tab" style="height: calc(100vh - 105px); padding: 8px 4px; overflow-y: auto;">
+                <div class="card shadow-sm border border-slate-200 bg-white">
+                    <div class="card-header bg-slate-50 d-flex justify-content-between align-items-center py-2 px-3">
+                        <span class="small fw-bold text-secondary">🔍 Smart Draft Auditor</span>
+                        <button class="btn btn-xs btn-primary fw-bold px-3 py-1" onclick="triggerCaseAudit()">🔍 Run AI Audit</button>
+                    </div>
+                    <div class="card-body p-3">
+                        <div id="auditProgressWrapper" class="d-none mb-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2 small text-muted">Scanning draft document text and validating original files...</span>
+                        </div>
+                        <div id="auditResultsContent">
+                            <div class="text-center text-muted py-5">
+                                <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">🔎</span>
+                                <span class="small">Click "Run AI Audit" above to perform syntactic, structural, and semantic AI audits on the draft document.</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

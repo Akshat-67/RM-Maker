@@ -3,8 +3,8 @@ from routes.dashboard import dashboard_bp
 from routes.cases import cases_bp
 from routes.upload import upload_bp
 from routes.generation import generation_bp
-from routes.template_builder import template_builder_bp
 from routes.epanjiyan import epanjiyan_bp
+from routes.auditor import auditor_bp
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
 
@@ -28,7 +28,6 @@ def override_url_for():
             'dashboard': 'dashboard.dashboard',
             'new_case': 'cases.new_case',
             'view_case': 'cases.view_case',
-            'template_builder': 'template_builder.template_builder',
             'devlys_to_unicode_route': 'dashboard.devlys_to_unicode_route'
         }
         if endpoint in global_endpoints_map:
@@ -41,8 +40,11 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(cases_bp)
 app.register_blueprint(upload_bp)
 app.register_blueprint(generation_bp)
-app.register_blueprint(template_builder_bp)
 app.register_blueprint(epanjiyan_bp)
+app.register_blueprint(auditor_bp)
+
+import os
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', debug=True, port=5000)
+    debug_mode = os.environ.get("FLASK_DEBUG", "true").lower() in ("true", "1")
+    app.run(host='0.0.0.0', debug=debug_mode, port=5000)

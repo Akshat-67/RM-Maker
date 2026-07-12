@@ -57,6 +57,16 @@ ReEval_AI.docx
 Validated_AI.docx
 *.pdf
 
+# Git dumps and audit logs
+git_*.txt
+scratch_*.txt
+*.log
+*.pid
+
+# Obsolete builder/temporary output directories
+temp_builder/
+Test/
+
 # Word Document Filtering
 # Ignore all docx files except those in templates/, validation_cases/, and knowledge_corpus/ directories
 *.docx
