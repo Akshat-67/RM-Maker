@@ -20,6 +20,8 @@ from utils.helpers import (
     convert_hindi_digits_to_english
 )
 
+from services.ai_client import AIClient
+
 class RMDataExtractor:
     def __init__(self, api_key=None, api_keys=None, provider="gemini", *args, **kwargs):
         self.provider = "gemini"
@@ -29,43 +31,27 @@ class RMDataExtractor:
             self.api_keys = [api_key]
         else:
             self.api_keys = []
-        self.active_key_index = 0
-        self.client = None
-        self._init_client()
+        self.ai_client = AIClient(api_keys=self.api_keys)
+
+    @property
+    def client(self):
+        return self.ai_client.client
+
+    @property
+    def active_key_index(self):
+        return self.ai_client.active_key_index
 
     def _init_client(self):
-        if self.api_keys and self.active_key_index < len(self.api_keys):
-            key = self.api_keys[self.active_key_index]
-            self.client = genai.Client(api_key=key)
-        else:
-            self.client = None
+        if hasattr(self, 'ai_client'):
+            self.ai_client._init_client()
 
     def _rotate_key(self):
-        if not self.api_keys:
-            return False
-        self.active_key_index = (self.active_key_index + 1) % len(self.api_keys)
-        print(f"[FAILOVER] Rotating Gemini API key to index {self.active_key_index}...")
-        self._init_client()
-        return True
+        if hasattr(self, 'ai_client'):
+            return self.ai_client._rotate_key()
+        return False
 
     def get_available_models(self):
-        if not self.client:
-            self._init_client()
-        if not self.client:
-            return ["gemini-2.5-flash"]
-        try:
-            models_list = self.client.models.list()
-            valid_models = []
-            for m in models_list:
-                try:
-                    if m.name:
-                        valid_models.append(m.name)
-                except Exception:
-                    pass
-            return valid_models if valid_models else ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
-        except Exception as e:
-            print(f"[Extractor Warning] Failed to query Gemini models list: {e}")
-            return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+        return self.ai_client.list_models()
 
     def generate_full_property_address(self, prop, property_type="Plot"):
         """Compiles components into a formal address string for RM."""
@@ -130,41 +116,21 @@ class RMDataExtractor:
         prompt = self._build_prompt(bank_name, expected_borrowers, expected_loans,
                                     expected_witnesses, borrower_hints, witness_hints, current_data)
                                     
-        attempts = 0
-        max_attempts = len(self.api_keys)
-        last_error = "Unknown Error"
-
-        while attempts < max_attempts:
-            if not self.client:
-                self._init_client()
-            if not self.client:
-                return {"error": "Gemini API Client Initialization Failed"}
-                
-            @retry(
-                wait=wait_exponential(multiplier=1, min=4, max=10),
-                stop=stop_after_attempt(3),
-                retry=retry_if_exception_type(APIError)
+        try:
+            final_contents = contents + [types.Part.from_text(text=prompt)]
+            raw_text = self.ai_client.generate_text(
+                contents=final_contents,
+                model=selected_model.replace("models/", "", 1) if selected_model else "gemini-2.5-flash"
             )
-            def _call_api_with_retry(client, model, contents):
-                return client.models.generate_content(model=model, contents=contents)
-
-            try:
-                final_contents = contents + [types.Part.from_text(text=prompt)]
-                response = _call_api_with_retry(self.client, selected_model, final_contents)
-                match = re.search(r'\{.*\}', response.text, re.DOTALL)
-                if match:
-                    data = json.loads(match.group(0))
-                    norm_data = self._normalize_response(data, expected_borrowers, expected_loans,
-                                                    expected_witnesses, borrower_hints, witness_hints)
-                    return convert_hindi_digits_to_english(norm_data)
-                return {"error": "AI returned non-JSON response", "raw": response.text}
-            except Exception as e:
-                last_error = str(e)
-                print(f"[FAILOVER WARNING] Gemini extraction failed: {last_error}")
-                self._rotate_key()
-                attempts += 1
-                
-        return {"error": f"Gemini AI Failover Error: All API keys failed. Last error: {last_error}"}
+            match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(0))
+                norm_data = self._normalize_response(data, expected_borrowers, expected_loans,
+                                                expected_witnesses, borrower_hints, witness_hints)
+                return convert_hindi_digits_to_english(norm_data)
+            return {"error": "AI returned non-JSON response", "raw": raw_text}
+        except Exception as e:
+            return {"error": f"Gemini AI Failover Error: {str(e)}"}
 
     def _build_prompt(self, bank_name, expected_borrowers, expected_loans, expected_witnesses, borrower_hints, witness_hints, current_data):
         count_instruction = f"""
@@ -494,38 +460,19 @@ class RMDataExtractor:
 
         from google.genai import types
 
-        @retry(
-            wait=wait_exponential(multiplier=1, min=4, max=10),
-            stop=stop_after_attempt(3),
-            retry=retry_if_exception_type(APIError)
-        )
-        def _call_api_with_retry(client, model, contents):
-            return client.models.generate_content(model=model, contents=contents)
-
         for current_model in fallback_queue:
-            attempts = 0
-            max_attempts = len(self.api_keys)
-            
-            print(f"[DIAGNOSTIC] raw_generate: Attempting model {current_model}...")
-
-            while attempts < max_attempts:
-                if not self.client:
-                    self._init_client()
-                if not self.client:
-                    print(f"[DIAGNOSTIC] raw_generate: Client init failed for key index {self.active_key_index}")
-                    return None
-
-                try:
-                    contents = [types.Part.from_text(text=prompt)]
-                    response = _call_api_with_retry(self.client, current_model, contents)
-                    if response and response.text:
-                        return response.text
-                except Exception as e:
-                    print(f"[FAILOVER WARNING] Gemini raw_generate failed ({current_model}, Key {self.active_key_index}): {e}")
-                    self._rotate_key()
-                    attempts += 1
-            
-            print(f"[FAILOVER] Model {current_model} exhausted all keys. Trying next fallback...")
+            try:
+                print(f"[DIAGNOSTIC] raw_generate: Attempting model {current_model}...")
+                contents = [types.Part.from_text(text=prompt)]
+                res_text = self.ai_client.generate_text(
+                    contents=contents,
+                    model=current_model
+                )
+                if res_text:
+                    return res_text
+            except Exception as e:
+                print(f"[FAILOVER WARNING] Gemini raw_generate failed for model {current_model}: {e}")
+                continue
         # Fallback to NVIDIA NIM Llama 3.1 8B
         print("[FAILOVER] Gemini exhausted. Attempting fallback to NVIDIA NIM Llama 3.1 8B...")
         try:

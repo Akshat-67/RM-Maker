@@ -66,7 +66,7 @@ SD data handles property sales.
 
 ---
 
-## 6. AI Model Adapters
-*   **Gemini Extractor Client**: Structured around the new `google-genai` SDK using `genai.Client`.
-*   **API Key Rotation**: Accepts a list of keys and automatically executes failover rotations upon encountering rate limits or API errors.
+## 6. AI Infrastructure & Adapters
+*   **API Client Wrapper (`services/ai_client.py`)**: Centralizes the new `google-genai` SDK initialization, API key failover, retries, and network call parameters. Provides generic string generation and JSON parsing methods.
+*   **Domain Extractors**: `RMDataExtractor` ([modules/rm/extractor.py](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/modules/rm/extractor.py)) and `SDDataExtractor` ([modules/sd/extractor.py](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/modules/sd/extractor.py)) inherit or delegate calls to `AIClient`, while keeping prompts, schemas, page selection, and specific extraction rules strictly inside the domain boundary.
 *   **Hybrid PDF Pre-filtering**: Extracts plain text from searchable PDFs using `pypdf`, matches legal terms (e.g., plot, boundaries) to select up to 12 critical pages, reducing prompt size and token costs.

@@ -137,10 +137,11 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
     await page.goto('/');
     await page.getByRole('link', { name: '+ New SD Case' }).click();
     await page.locator('#step-indicator-upload').click();
+    await page.locator('.large-dropzone').first().waitFor({ state: 'visible' });
 
     // Verify KYC dropzone is clickable and responds by opening a file chooser
     const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser'),
+      page.waitForEvent('filechooser', { timeout: 15000 }),
       page.locator('.large-dropzone').first().click(),
     ]);
     expect(fileChooser).toBeDefined();
@@ -230,5 +231,52 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
     // Parse JSON parameters from intercepted request
     const body = JSON.parse(aiRequest.postData() || '{}');
     expect(body.bucket).toBe('kyc');
+  });
+
+  test('14. Workspace workflow integration', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: '+ New RM Case' }).click();
+    await page.locator('#step-indicator-upload').click();
+
+    // 1. Modify case configuration settings silently (avoid triggering onBorrowerChange/
+    //    onLoanChange which call saveCase(()=>location.reload()) and cause an uncontrolled
+    //    mid-test navigation before switchStep is available on the reloaded page).
+    await page.locator('#borrowerSelect').evaluate((el: HTMLSelectElement) => { el.value = '2'; });
+    await page.locator('#loanSelect').evaluate((el: HTMLSelectElement) => { el.value = '2'; });
+
+    // Save configuration change and wait for the page to fully settle
+    const savePromise = page.waitForResponse(res => res.url().includes('/save') && res.status() === 200);
+    await page.getByRole('button', { name: '💾 Save Progress' }).click();
+    await savePromise;
+    // Ensure no pending navigation is still in progress before proceeding
+    await page.waitForLoadState('domcontentloaded');
+
+    // 2. Go to step 2 (Verify & Review)
+    await page.locator('#step-indicator-review').click();
+    await expect(page.locator('#step-review-view')).toBeVisible();
+
+    // Verify sections select dropdown and Generate button exist in review step
+    await expect(page.locator('#verificationSectionSelector')).toBeVisible();
+    await expect(page.getByRole('button', { name: /generate final/i })).toBeVisible();
+
+    // 3. Switch to Step 3 (Interactive Title Chain / Narrative Flow)
+    await page.locator('#step-indicator-chain').click();
+    await expect(page.locator('#step-chain-view')).toBeVisible();
+  });
+
+  test('15. Template Builder workflow integration', async ({ page }) => {
+    await page.goto('/template-builder');
+
+    // 1. Verify UI components are fully loaded
+    await expect(page.locator('#modeSelect')).toHaveValue('RM');
+    await expect(page.locator('#modelSelect')).toBeVisible();
+    await expect(page.locator('#fieldCatalog')).toBeVisible();
+
+    // 2. Select different setup mode (e.g. Sale Deed)
+    await page.locator('#modeSelect').selectOption('SD');
+    
+    // Verify field catalog updates to show Sale Deed specific catalog fields
+    await expect(page.locator('#fieldCatalog')).toContainText(/caste/i);
+    await expect(page.locator('#fieldCatalog')).toContainText(/amount/i);
   });
 });

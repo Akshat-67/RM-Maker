@@ -8,6 +8,8 @@ build/
 venv/
 .venv/
 .pytest_cache/
+.coverage
+
 
 # Office temporary/lock files
 ~$*
@@ -61,3 +63,10 @@ Validated_AI.docx
 !templates/**/*.docx
 !validation_cases/**/*.docx
 !knowledge_corpus/**/*.docx
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

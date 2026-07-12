@@ -1,0 +1,146 @@
+<!-- STEP 3: TITLE CHAIN TIMELINE WORKSPACE -->
+<div id="step-chain-view" class="container py-4 flex-grow-1 overflow-y-auto d-none">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-dark text-white fw-bold py-2.5 d-flex justify-content-between align-items-center">
+            <span>🔗 Interactive Chronological Title Chain Flow</span>
+            <div>
+                <button class="btn btn-info btn-sm py-1 px-3 fw-bold text-white shadow-sm" onclick="addChainNode()">+ Add Chain Document</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Timeline nodes container (Scrollable list of nodes connected by lines) -->
+            <div class="timeline-track-wrapper">
+                <div class="timeline-line" id="timelineLine"></div>
+                <div class="timeline-nodes-container" id="timelineNodesList">
+                    <!-- Rendered dynamically by javascript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left Panel: Active Deed Details Editor -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-secondary text-white fw-bold py-2" id="nodeEditorHeader">
+                    Edit Chain Document #1
+                </div>
+                <div class="card-body">
+                    <!-- Hidden inputs to track active node index & manual override -->
+                    <input type="hidden" id="activeNodeIndex" value="0">
+                    <input type="hidden" id="chain_is_manual_input" value="{% if data.get('chain_is_manual') in ['true', True] %}true{% else %}false{% endif %}">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Document Type</label>
+                            <select class="form-select form-select-sm" id="node_doc_type" onchange="updateActiveNodeData()">
+                                <option value="SALE_DEED_PLOT">Sale Deed (Plot)</option>
+                                <option value="SALE_DEED_FLAT">Sale Deed (Flat)</option>
+                                <option value="ALLOTMENT_PLOT">Allotment Letter (Plot)</option>
+                                <option value="ALLOTMENT_FLAT">Allotment Letter (Flat)</option>
+                                <option value="TRANSFER_PLOT">Transfer Letter (Plot)</option>
+                                <option value="TRANSFER_FLAT">Transfer Letter (Flat)</option>
+                                <option value="GIFT_DEED">Gift Deed</option>
+                                <option value="HAK_TYAG">Hak Tyag (Relinquishment)</option>
+                                <option value="POA_AGRICULTURAL">POA (Agricultural)</option>
+                                <option value="POA_NON_AGRICULTURAL">POA (Non-Agricultural)</option>
+                                <option value="DEVELOPER_AGREEMENT">Developer Agreement</option>
+                                <option value="DEATH_HEIRS_SINGLE">Death / Succession</option>
+                                <option value="CONSTRUCTION_FLAT">Construction (Flat)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Execution Date</label>
+                            <input type="text" class="form-control form-control-sm" id="node_date" placeholder="e.g. 15-08-2015" oninput="updateActiveNodeData()">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">First Party (Sellers / Transferors - Hindi)</label>
+                            <input type="text" class="form-control form-control-sm hindi-legacy-input" id="node_sellers" placeholder="Hindi/DevLys Sellers" oninput="updateActiveNodeData()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Second Party (Buyers / Transferees - Hindi)</label>
+                            <input type="text" class="form-control form-control-sm hindi-legacy-input" id="node_buyers" placeholder="Hindi/DevLys Buyers" oninput="updateActiveNodeData()">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Registration No</label>
+                            <input type="text" class="form-control form-control-sm" id="node_reg_no" placeholder="e.g. 2356" oninput="updateActiveNodeData()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Bahi / Book No</label>
+                            <input type="text" class="form-control form-control-sm" id="node_bahi_no" placeholder="e.g. 1" oninput="updateActiveNodeData()">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Volume / Jild No</label>
+                            <input type="text" class="form-control form-control-sm" id="node_volume_no" placeholder="e.g. 543" oninput="updateActiveNodeData()">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Page Range (From-To)</label>
+                            <input type="text" class="form-control form-control-sm" id="node_page_range" placeholder="e.g. 12-45" oninput="updateActiveNodeData()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Consideration Amount</label>
+                            <input type="text" class="form-control form-control-sm" id="node_consideration" placeholder="e.g. 15,00,000/-" oninput="updateActiveNodeData()">
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="deleteActiveNode()">✖ Delete This Document</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="moveNode(-1)">◀ Move Earlier</button>
+                            <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="moveNode(1)">Move Later ▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Narrative Preview & Actions -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 d-flex flex-column h-100">
+                <div class="card-header bg-success text-white fw-bold py-2.5 d-flex justify-content-between align-items-center flex-shrink-0">
+                    <span>📝 Hindi Narrative Preview</span>
+                    <button class="btn btn-light btn-xs fw-bold text-success py-0.5 px-2.5 shadow-sm" onclick="refreshNarrativePreview()">⚡ Re-Generate</button>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between" style="min-height: 0;">
+                    <!-- Preview Mode Switcher Tabs -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-shrink-0">
+                        <ul class="nav nav-tabs" id="narrativePreviewTabs" role="tablist" style="font-size: 0.78rem; border-bottom: none;">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active py-1 px-3 fw-bold" id="narrative-edit-tab" data-bs-toggle="tab" data-bs-target="#narrative-edit-pane" type="button" role="tab" aria-selected="true">✏️ Edit Text</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link py-1 px-3 fw-bold" id="narrative-rich-tab" data-bs-toggle="tab" data-bs-target="#narrative-rich-pane" type="button" role="tab" aria-selected="false" onclick="renderRichNarrative()">👁️ Rich View</button>
+                            </li>
+                        </ul>
+                        <div class="d-flex gap-1.5 align-items-center">
+                            <button id="btnToggleItransTimeline" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2.5" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                            <button id="btnToggleDevLysTimeline" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2.5" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column mb-3" style="min-height: 500px;">
+                        <!-- Editable Raw Area -->
+                        <div class="tab-pane fade show active flex-grow-1 d-flex flex-column" id="narrative-edit-pane" role="tabpanel">
+                            <textarea class="form-control flex-grow-1 hindi-legacy-input font-monospace p-3" id="chainNarrativePreview" style="font-size: 0.88rem; line-height: 1.6; resize: vertical; min-height: 420px; height: 100%;" oninput="syncNarrativeToMainData()">{{ data.get('chain_text', '') }}</textarea>
+                        </div>
+                        <!-- Rich Preview Area -->
+                        <div class="tab-pane fade flex-grow-1 overflow-y-auto p-3 bg-light border rounded" id="narrative-rich-pane" role="tabpanel" style="min-height: 0;">
+                            <div id="richNarrativeContent" style="font-family: 'Segoe UI', 'Mangal'; text-align: justify;">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-light p-3 rounded border flex-shrink-0">
+                        <h6 class="fw-bold text-secondary mb-1">Verify & Save Workspace</h6>
+                        <p class="small text-muted mb-3">Ensure you click "Save Workspace" after modifications to persist the chain sequence.</p>
+                        <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm" onclick="saveCase()">💾 Save Chain Workspace</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

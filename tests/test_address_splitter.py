@@ -1,5 +1,5 @@
 import pytest
-from app import split_address
+from services.epanjiyan_service import split_address
 
 def test_split_address_slashed_house_no():
     # Slashed house numbers

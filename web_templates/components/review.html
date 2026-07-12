@@ -1,0 +1,818 @@
+<!-- STEP 2: VERIFY AND REVIEW splitscreen WORKSPACE -->
+<div id="step-review-view" class="split-workspace d-none">
+    
+    <!-- Left Panel: Document Preview Console -->
+    <div class="preview-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span class="fw-bold text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">📄 Source Documents</span>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="switchStep(1)" style="font-size: 0.68rem;">⚙️ Settings & Files</button>
+        </div>
+        
+        <!-- Horizontal File Tabs selector -->
+        <div class="preview-scroll-container">
+            {% set unique_files = [] %}
+            {% for f in files %}
+                {% if f not in unique_files %}
+                    {% set _ = unique_files.append(f) %}
+                {% endif %}
+            {% endfor %}
+            {% for b_name, b_files in buckets.items() %}
+                {% for f in b_files %}
+                    {% if f not in unique_files %}
+                        {% set _ = unique_files.append(f) %}
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+            
+            {% for file in unique_files %}
+                {% set filename = file | basename %}
+                {% set safeId = 'file-tab-' + filename.replace('.', '_') %}
+                <button class="btn btn-outline-secondary btn-sm me-1 file-preview-btn text-truncate" 
+                        id="{{ safeId }}"
+                        data-filename="{{ filename }}"
+                        style="max-width: 140px; font-size: 0.7rem; padding: 0.2rem 0.5rem;" 
+                        onclick="previewFile('{{ filename }}')"
+                        title="{{ filename }}">
+                    📄 {{ filename }}
+                </button>
+            {% endfor %}
+        </div>
+        
+        <!-- Preview frame container: height is calculated directly from viewport -->
+        <div style="position: relative; height: calc(100vh - 145px); border: 1px solid #E5E5E0; border-radius: 4px; background: #f8fafc; overflow: hidden; display: flex; flex-direction: column;">
+            <!-- Preview Toolbar -->
+            <div id="previewToolbar" class="d-flex align-items-center justify-content-between px-3 py-2 bg-light border-bottom" style="height: 45px; flex-shrink: 0; font-size: 0.8rem; z-index: 10;">
+                <div class="d-flex align-items-center" style="gap: 10px; min-width: 0; flex: 1;">
+                    <strong class="text-secondary text-truncate" id="previewTitle" style="max-width: 350px;" title="Document Preview">Document Preview</strong>
+                </div>
+                <div id="frontBackToggleContainer" style="display: none; gap: 6px;">
+                    <button id="btnToggleFront" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem; display: none;" onclick="showGroupedFile('aadhar_front')">Front</button>
+                    <button id="btnToggleBack" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem; display: none;" onclick="showGroupedFile('aadhar_back')">Back</button>
+                    <button id="btnTogglePan" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem; display: none;" onclick="showGroupedFile('pan')">PAN</button>
+                </div>
+            </div>
+            <!-- Preview display area taking remaining space -->
+            <div style="position: relative; flex: 1; width: 100%; overflow: hidden;">
+                <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
+                <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
+                <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
+                    <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
+                    <span style="font-size: 0.85rem;">Select an uploaded file tab above to preview it in this pane.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Case Verification Workspace (tabbed) -->
+    <div class="editor-pane">
+        <!-- Main Right Tabs -->
+        <ul class="nav nav-tabs flex-shrink-0" id="mainRightTabs" role="tablist" style="margin-bottom: 0;">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold py-2 px-3" id="editor-main-tab" data-bs-toggle="tab" data-bs-target="#pane-editor-main" type="button" role="tab" aria-selected="true" style="font-size: 0.82rem;">✏️ Verification Editor</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold py-2 px-3" id="draft-main-tab" data-bs-toggle="tab" data-bs-target="#pane-draft-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">📄 Generated Draft</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainRightTabsContent">
+            <!-- MAIN TAB PANE 1: VERIFICATION EDITOR -->
+            <div class="tab-pane fade show active" id="pane-editor-main" role="tabpanel" aria-labelledby="editor-main-tab" style="overflow-y: auto; height: calc(100vh - 105px); padding: 8px 4px;">
+                <!-- Unified Compact Control Bar -->
+                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom flex-shrink-0" style="gap: 8px;">
+                    <!-- Section Dropdown Selector -->
+                    <div style="flex-grow: 1; max-width: 250px;">
+                        <select class="form-select form-select-sm fw-bold text-secondary" id="verificationSectionSelector" onchange="switchVerificationSection(this.value)" style="font-size: 0.8rem; border-color: #cbd5e1; height: 31px; padding: 4px 8px;">
+                            {% if doc_type == 'RM' %}
+                                <option value="pane-parties">👤 Borrowers & Signatory</option>
+                                <option value="pane-witnesses">👥 Witnesses</option>
+                                <option value="pane-property">🏠 Property</option>
+                                <option value="pane-loan">💰 Loan Accounts</option>
+                                <option value="pane-schedules">📋 Schedules</option>
+                            {% else %}
+                                <option value="pane-parties">👤 Sellers & Buyers</option>
+                                <option value="pane-witnesses">👥 Witnesses</option>
+                                <option value="pane-property">🏠 Property</option>
+                                <option value="pane-payments">💳 Payments & Execution</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <!-- Mini Toggles & Badges -->
+                    <div class="d-flex gap-1.5 align-items-center flex-shrink-0">
+                        <span class="badge bg-secondary me-1" style="font-size: 0.68rem;">{{ doc_type }} Mode</span>
+                        <button id="btnToggleItrans" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleItransMode()">A→अ ITRANS (Off)</button>
+                        <button id="btnToggleDevLys" class="btn btn-xs btn-outline-info text-dark fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="toggleDevLysMode()">⌨️ DevLys (Off)</button>
+                        <button class="btn btn-xs btn-outline-secondary fw-bold py-1 px-2" style="font-size: 0.68rem;" onclick="verifyAllFields()">Verify All</button>
+                    </div>
+                </div>
+                
+                <div id="verificationContent">
+            {% if data %}
+                        <!-- Tab Navigation Header -->
+                        <ul class="nav nav-pills nav-fill mb-3" id="verificationTabs" role="tablist">
+                            {% if doc_type == 'RM' %}
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Borrowers & Signatory</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="loan-tab" data-bs-toggle="pill" data-bs-target="#pane-loan" type="button" role="tab" aria-controls="pane-loan" aria-selected="false">💰 Loan Accounts</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="schedules-tab" data-bs-toggle="pill" data-bs-target="#pane-schedules" type="button" role="tab" aria-controls="pane-schedules" aria-selected="false">📋 Schedules</button>
+                                </li>
+                            {% else %}
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active fw-bold" id="parties-tab" data-bs-toggle="pill" data-bs-target="#pane-parties" type="button" role="tab" aria-controls="pane-parties" aria-selected="true">👤 Sellers & Buyers</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="witnesses-tab" data-bs-toggle="pill" data-bs-target="#pane-witnesses" type="button" role="tab" aria-controls="pane-witnesses" aria-selected="false">👥 Witnesses</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="property-tab" data-bs-toggle="pill" data-bs-target="#pane-property" type="button" role="tab" aria-controls="pane-property" aria-selected="false">🏠 Property</button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link fw-bold" id="payments-tab" data-bs-toggle="pill" data-bs-target="#pane-payments" type="button" role="tab" aria-controls="pane-payments" aria-selected="false">💳 Payments & Execution</button>
+                                </li>
+                            {% endif %}
+                        </ul>
+
+                        <div class="tab-content" id="verificationTabsContent">
+                            
+                            <!-- ==================== TAB 1: PARTIES (RM & SD) ==================== -->
+                            <div class="tab-pane fade show active" id="pane-parties" role="tabpanel" aria-labelledby="parties-tab">
+                                <!-- Interactive Aadhaar Role Mapping Panel -->
+                                {% if data.get('unassigned_aadhars') %}
+                                <div class="card border-warning mb-4 shadow-sm bg-light">
+                                    <div class="card-header bg-warning text-dark fw-bold d-flex align-items-center">
+                                        <span class="fs-5 me-2">📋</span> Unassigned Aadhaar Cards Found
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                            <p class="card-text small text-muted mb-0">
+                                                Select a role for each extracted Aadhaar, then click "Apply Assignments" to populate their fields.
+                                            </p>
+                                            <button class="btn btn-warning btn-sm fw-bold shadow-sm" onclick="assignSelectedAadhars()">⚡ Apply Assignments</button>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered bg-white align-middle">
+                                                <thead class="table-light small fw-bold">
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>ID / Aadhaar</th>
+                                                        <th>Age / Relation</th>
+                                                        <th>Address</th>
+                                                        <th style="width: 250px;">Assign Role</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="small">
+                                                    {% for ua in data.get('unassigned_aadhars', []) %}
+                                                    <tr id="ua-row-{{ loop.index0 }}" 
+                                                        data-n="{{ ua.get('n','') }}"
+                                                        data-n_en="{{ ua.get('n_en','') }}"
+                                                        data-id="{{ ua.get('id','') }}"
+                                                        data-a="{{ ua.get('a','') }}"
+                                                        data-dob="{{ ua.get('dob','') }}"
+                                                        data-r="{{ ua.get('r','') }}"
+                                                        data-rn="{{ ua.get('rn','') }}"
+                                                        data-rn_en="{{ ua.get('rn_en','') }}"
+                                                        data-adr="{{ ua.get('adr','') }}"
+                                                        data-adr_en="{{ ua.get('adr_en','') }}"
+                                                        data-is_bpl="{{ ua.get('is_bpl','') }}"
+                                                        data-pan="{{ ua.get('pan','') }}"
+                                                        data-s="{{ ua.get('s','') }}"
+                                                        data-files="{{ ua.get('files', []) | tojson | forceescape }}">
+                                                        <td class="fw-bold">{{ ua.get('n','') }}</td>
+                                                        <td><code>{{ ua.get('id','') }}</code></td>
+                                                        <td>Age {{ ua.get('a','') }} ({{ ua.get('r','') }} {{ ua.get('rn','') }})</td>
+                                                        <td class="text-truncate" style="max-width: 200px;" title="{{ ua.get('adr','') }}">{{ ua.get('adr','') }}</td>
+                                                        <td>
+                                                            <select class="form-select form-select-sm ua-role-select" data-index="{{ loop.index0 }}">
+                                                                <option value="">-- Select Role --</option>
+                                                                {% if doc_type == 'SD' %}
+                                                                    <option value="sellers.0">Seller 1</option>
+                                                                    <option value="sellers.1">Seller 2</option>
+                                                                    <option value="sellers.2">Seller 3</option>
+                                                                    <option value="buyers.0">Buyer 1</option>
+                                                                    <option value="buyers.1">Buyer 2</option>
+                                                                    <option value="buyers.2">Buyer 3</option>
+                                                                    <option value="ws.0">Witness 1</option>
+                                                                    <option value="ws.1">Witness 2</option>
+                                                                {% else %}
+                                                                    <option value="bs.0">Borrower 1</option>
+                                                                    <option value="bs.1">Borrower 2</option>
+                                                                    <option value="bs.2">Borrower 3</option>
+                                                                    <option value="ws.0">Witness 1</option>
+                                                                    <option value="ws.1">Witness 2</option>
+                                                                    <option value="bsign">Bank Signatory</option>
+                                                                {% endif %}
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                {% if doc_type == 'RM' %}
+                                    <!-- Execution Dates (RM only in Parties tab) -->
+                                    <div class="card mb-3 shadow-sm border-0">
+                                        <div class="card-body">
+                                            <h6 class="section-title">Execution Dates</h6>
+                                            <div class="mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <label class="form-label small fw-bold">RM Execution Date</label>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input verify-check" type="checkbox" data-path="rd" {% if 'rd' in verified_fields %}checked{% endif %}>
+                                                        <label class="form-check-label small text-muted">Verify</label>
+                                                    </div>
+                                                </div>
+                                                <input class="form-control" id="field_rd" value="{{ data.get('rd','') }}" placeholder="e.g. 25-05-2026">
+                                            </div>
+                                            <div class="mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <label class="form-label small fw-bold">Loan Agreement Date</label>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input verify-check" type="checkbox" data-path="ad" {% if 'ad' in verified_fields %}checked{% endif %}>
+                                                        <label class="form-check-label small text-muted">Verify</label>
+                                                    </div>
+                                                </div>
+                                                <input class="form-control" id="field_ad" value="{{ data.get('ad','') }}">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Borrowers (RM) -->
+                                    <h6 class="section-title">Borrowers</h6>
+                                    {% for b in data.get('bs', []) %}
+                                    <div class="card mb-2 borrower-card">
+                                        <div class="card-body">
+                                            <h6 class="text-muted">Borrower {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small">Salutation</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.s" {% if 'bs.' ~ loop.index0 ~ '.s' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_s" value="{{ b.get('s','') }}">
+                                                </div>
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between"><label class="small">Name</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.n" {% if 'bs.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_n" value="{{ b.get('n','') }}">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.a" {% if 'bs.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_a" value="{{ b.get('a','') }}">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small">Relation</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.r" {% if 'bs.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_r" value="{{ b.get('r','') }}">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.rn" {% if 'bs.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_rn" value="{{ b.get('rn','') }}">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.adr" {% if 'bs.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_bs_{{ loop.index0 }}_adr">{{ b.get('adr','') }}</textarea>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Aadhar/ID</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.id" {% if 'bs.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_id" value="{{ b.get('id','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">PAN Card</label><input class="verify-check" type="checkbox" data-path="bs.{{ loop.index0 }}.pan" {% if 'bs.' ~ loop.index0 ~ '.pan' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bs_{{ loop.index0 }}_pan" value="{{ b.get('pan','') }}">
+                                                </div>
+                                                <input type="hidden" id="field_bs_{{ loop.index0 }}_dob" value="{{ b.get('dob','') }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+
+                                    <!-- Bank Signatory (RM) -->
+                                    <h6 class="section-title">Bank Signatory</h6>
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <div class="row g-2">
+                                                {% set sig = data.get('bsign', {}) %}
+                                                <div class="col-2">
+                                                    <div class="d-flex justify-content-between"><label class="small">Salutation</label><input class="verify-check" type="checkbox" data-path="bsign.s" {% if 'bsign.s' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_s" value="{{ sig.get('s','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">Name</label><input class="verify-check" type="checkbox" data-path="bsign.n" {% if 'bsign.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_n" value="{{ sig.get('n','') }}">
+                                                </div>
+                                                <div class="col-1">
+                                                    <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="bsign.a" {% if 'bsign.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_a" value="{{ sig.get('a','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">Relation</label><input class="verify-check" type="checkbox" data-path="bsign.r" {% if 'bsign.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_r" value="{{ sig.get('r','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="bsign.rn" {% if 'bsign.rn' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_rn" value="{{ sig.get('rn','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">PAN Card</label><input class="verify-check" type="checkbox" data-path="bsign.pan" {% if 'bsign.pan' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_pan" value="{{ sig.get('pan','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Aadhar/ID</label><input class="verify-check" type="checkbox" data-path="bsign.id" {% if 'bsign.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_bsign_id" value="{{ sig.get('id','') }}">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="bsign.adr" {% if 'bsign.adr' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_bsign_adr">{{ sig.get('adr','') }}</textarea>
+                                                </div>
+                                                <input type="hidden" id="field_bsign_dob" value="{{ sig.get('dob','') }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <!-- Sellers (SD) -->
+                                    <h6 class="section-title">Sellers (First Party - Hindi)</h6>
+                                    {% for s in data.get('sellers', []) %}
+                                    <div class="card mb-3 shadow-sm border-0 seller-card">
+                                        <div class="card-body">
+                                            <input type="hidden" id="field_sellers_{{ loop.index0 }}_n_en" value="{{ s.get('n_en','') }}">
+                                            <input type="hidden" id="field_sellers_{{ loop.index0 }}_rn_en" value="{{ s.get('rn_en','') }}">
+                                            <input type="hidden" id="field_sellers_{{ loop.index0 }}_adr_en" value="{{ s.get('adr_en','') }}">
+                                            <input type="hidden" id="field_sellers_{{ loop.index0 }}_is_bpl" value="{{ s.get('is_bpl','') }}">
+                                            <input type="hidden" id="field_sellers_{{ loop.index0 }}_dob" value="{{ s.get('dob','') }}">
+                                            <h6 class="text-primary fw-bold">Seller {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.n" {% if 'sellers.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_sellers_{{ loop.index0 }}_n" value="{{ s.get('n','') }}" placeholder="Hindi / DevLys Name">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Age</label><input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.a" {% if 'sellers.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_a" value="{{ s.get('a','') }}" placeholder="Age figures (e.g. 58)">
+                                                </div>
+
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Relation (Hindi)</label><input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.r" {% if 'sellers.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_r" value="{{ s.get('r','') }}" placeholder="e.g. iqr Jh (Son of)">
+                                                </div>
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Relative Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.rn" {% if 'sellers.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_sellers_{{ loop.index0 }}_rn" value="{{ s.get('rn','') }}" placeholder="Hindi / DevLys Relative Name">
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Address (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.adr" {% if 'sellers.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_sellers_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ s.get('adr','') }}</textarea>
+                                                </div>
+
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.id" {% if 'sellers.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_id" value="{{ s.get('id','') }}" placeholder="e.g. 5564 0963 9476">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">PAN Card</label><input class="verify-check" type="checkbox" data-path="sellers.{{ loop.index0 }}.pan" {% if 'sellers.' ~ loop.index0 ~ '.pan' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_sellers_{{ loop.index0 }}_pan" value="{{ s.get('pan','') }}" placeholder="e.g. BSOPS8468K">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+
+                                    <!-- Buyers (SD) -->
+                                    <h6 class="section-title">Buyers (Second Party - Hindi)</h6>
+                                    {% for b in data.get('buyers', []) %}
+                                    <div class="card mb-3 shadow-sm border-0 buyer-card">
+                                        <div class="card-body">
+                                            <input type="hidden" id="field_buyers_{{ loop.index0 }}_n_en" value="{{ b.get('n_en','') }}">
+                                            <input type="hidden" id="field_buyers_{{ loop.index0 }}_rn_en" value="{{ b.get('rn_en','') }}">
+                                            <input type="hidden" id="field_buyers_{{ loop.index0 }}_adr_en" value="{{ b.get('adr_en','') }}">
+                                            <input type="hidden" id="field_buyers_{{ loop.index0 }}_is_bpl" value="{{ b.get('is_bpl','') }}">
+                                            <h6 class="text-success fw-bold">Buyer {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.n" {% if 'buyers.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_buyers_{{ loop.index0 }}_n" value="{{ b.get('n','') }}" placeholder="Hindi / DevLys Name">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Age</label><input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.a" {% if 'buyers.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_a" value="{{ b.get('a','') }}" placeholder="Age (e.g. 25)">
+                                                </div>
+
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Relation (Hindi)</label><input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.r" {% if 'buyers.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_r" value="{{ b.get('r','') }}" placeholder="e.g. iRuh Jh (Wife of)">
+                                                </div>
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Relative Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.rn" {% if 'buyers.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_buyers_{{ loop.index0 }}_rn" value="{{ b.get('rn','') }}" placeholder="Hindi / DevLys Relative Name">
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Address (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.adr" {% if 'buyers.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_buyers_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ b.get('adr','') }}</textarea>
+                                                </div>
+
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.id" {% if 'buyers.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_id" value="{{ b.get('id','') }}" placeholder="e.g. 6693 2771 2261">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">PAN Card</label><input class="verify-check" type="checkbox" data-path="buyers.{{ loop.index0 }}.pan" {% if 'buyers.' ~ loop.index0 ~ '.pan' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_buyers_{{ loop.index0 }}_pan" value="{{ b.get('pan','') }}" placeholder="e.g. BQOPL5182P">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+
+                            <!-- ==================== TAB 1.5: WITNESSES (RM & SD) ==================== -->
+                            <div class="tab-pane fade" id="pane-witnesses" role="tabpanel" aria-labelledby="witnesses-tab">
+                                {% if doc_type == 'RM' %}
+                                    <h6 class="section-title">Witnesses</h6>
+                                    {% for w in data.get('ws', []) %}
+                                    <div class="card mb-2 witness-card">
+                                        <div class="card-body">
+                                            <h6 class="text-muted">Witness {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.n" {% if 'ws.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_n" value="{{ w.get('n','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Relation</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.r" {% if 'ws.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_r" value="{{ w.get('r','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Rel Name</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.rn" {% if 'ws.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Age</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.a" {% if 'ws.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_a" value="{{ w.get('a','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.id" {% if 'ws.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_id" value="{{ w.get('id','') }}">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.adr" {% if 'ws.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_ws_{{ loop.index0 }}_adr">{{ w.get('adr','') }}</textarea>
+                                                </div>
+                                                <input type="hidden" id="field_ws_{{ loop.index0 }}_dob" value="{{ w.get('dob','') }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <h6 class="section-title">Witnesses (Hindi)</h6>
+                                    {% for w in data.get('ws', []) %}
+                                    <div class="card mb-3 shadow-sm border-0 witness-card">
+                                        <div class="card-body">
+                                            <input type="hidden" id="field_ws_{{ loop.index0 }}_n_en" value="{{ w.get('n_en','') }}">
+                                            <input type="hidden" id="field_ws_{{ loop.index0 }}_rn_en" value="{{ w.get('rn_en','') }}">
+                                            <input type="hidden" id="field_ws_{{ loop.index0 }}_adr_en" value="{{ w.get('adr_en','') }}">
+                                            <h6 class="text-secondary fw-bold">Witness {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.n" {% if 'ws.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ws_{{ loop.index0 }}_n" value="{{ w.get('n','') }}" placeholder="Hindi / DevLys Name">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Relation (Hindi)</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.r" {% if 'ws.' ~ loop.index0 ~ '.r' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_r" value="{{ w.get('r','') }}" placeholder="e.g. iqr Jh">
+                                                </div>
+
+                                                <div class="col-8">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Relative Name (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.rn" {% if 'ws.' ~ loop.index0 ~ '.rn' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ws_{{ loop.index0 }}_rn" value="{{ w.get('rn','') }}" placeholder="Hindi / DevLys Relative Name">
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Aadhaar/ID</label><input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.id" {% if 'ws.' ~ loop.index0 ~ '.id' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ws_{{ loop.index0 }}_id" value="{{ w.get('id','') }}" placeholder="e.g. 4493 8314 4916">
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Address (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="ws.{{ loop.index0 }}.adr" {% if 'ws.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_ws_{{ loop.index0 }}_adr" placeholder="Hindi / DevLys Address">{{ w.get('adr','') }}</textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+
+                            <!-- ==================== TAB 2: PROPERTY (RM & SD) ==================== -->
+                            <div class="tab-pane fade" id="pane-property" role="tabpanel" aria-labelledby="property-tab">
+                                {% if doc_type == 'RM' %}
+                                    <!-- Properties (RM) -->
+                                    <h6 class="section-title">Property Schedules</h6>
+                                    {% for p in data.get('ps', []) %}
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <h6 class="text-muted">Property {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">Address</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.adr" {% if 'ps.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_ps_{{ loop.index0 }}_adr">{{ p.get('adr','') }}</textarea>
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">North</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.n" {% if 'ps.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_n" value="{{ p.get('n','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">South</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.s" {% if 'ps.' ~ loop.index0 ~ '.s' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_s" value="{{ p.get('s','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">East</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.e" {% if 'ps.' ~ loop.index0 ~ '.e' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_e" value="{{ p.get('e','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small">West</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.w" {% if 'ps.' ~ loop.index0 ~ '.w' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_w" value="{{ p.get('w','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Latitude</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.lat" {% if 'ps.' ~ loop.index0 ~ '.lat' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_lat" value="{{ p.get('lat','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Longitude</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.lng" {% if 'ps.' ~ loop.index0 ~ '.lng' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_lng" value="{{ p.get('lng','') }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <!-- Property details (SD) -->
+                                    <h6 class="section-title">Property Schedule & Boundaries (Hindi)</h6>
+                                    {% for p in data.get('ps', []) %}
+                                    <div class="card mb-3 shadow-sm border-0 property-card">
+                                        <div class="card-body">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_adr_en" value="{{ p.get('adr_en','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_n_en" value="{{ p.get('n_en','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_s_en" value="{{ p.get('s_en','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_e_en" value="{{ p.get('e_en','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_w_en" value="{{ p.get('w_en','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_lat" value="{{ p.get('lat','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_lng" value="{{ p.get('lng','') }}">
+                                            <input type="hidden" id="field_ps_{{ loop.index0 }}_road_width" value="{{ p.get('road_width','') }}">
+                                            <h6 class="text-primary fw-bold">Property Details</h6>
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between">
+                                                        <label class="small fw-bold">Detailed Description / Address (Hindi/DevLys)</label>
+                                                        <input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.adr" {% if 'ps.' ~ loop.index0 ~ '.adr' in verified_fields %}checked{% endif %}>
+                                                    </div>
+                                                    <textarea class="form-control form-control-sm hindi-legacy-input" rows="2" id="field_ps_{{ loop.index0 }}_adr" placeholder="Hindi Property Description">{{ p.get('adr','') }}</textarea>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Total Area (Numeric)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.area" {% if 'ps.' ~ loop.index0 ~ '.area' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ps_{{ loop.index0 }}_area" value="{{ p.get('area','') }}" placeholder="e.g. 150">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">Area Unit (Hindi)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.area_unit" {% if 'ps.' ~ loop.index0 ~ '.area_unit' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ps_{{ loop.index0 }}_area_unit" value="{{ p.get('area_unit','') }}" placeholder="e.g. ox (Sq. Yards)">
+                                                </div>
+                                            </div>
+
+                                            <div class="row g-2">
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">East (purab)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.e" {% if 'ps.' ~ loop.index0 ~ '.e' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ps_{{ loop.index0 }}_e" value="{{ p.get('e','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">West (paschim)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.w" {% if 'ps.' ~ loop.index0 ~ '.w' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ps_{{ loop.index0 }}_w" value="{{ p.get('w','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">North (uttar)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.n" {% if 'ps.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ps_{{ loop.index0 }}_n" value="{{ p.get('n','') }}">
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="d-flex justify-content-between"><label class="small fw-bold">South (dakshin)</label><input class="verify-check" type="checkbox" data-path="ps.{{ loop.index0 }}.s" {% if 'ps.' ~ loop.index0 ~ '.s' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm hindi-legacy-input" id="field_ps_{{ loop.index0 }}_s" value="{{ p.get('s','') }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+
+                            <!-- ==================== TAB 3: LOAN DETAILS (RM ONLY) / PAYMENTS (SD ONLY) ==================== -->
+                            {% if doc_type == 'RM' %}
+                                <div class="tab-pane fade" id="pane-loan" role="tabpanel" aria-labelledby="loan-tab">
+                                    <!-- Loans (RM) -->
+                                    <h6 class="section-title">Loan Accounts</h6>
+                                    {% for l in data.get('ls', []) %}
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <h6 class="text-muted">Loan {{ loop.index }}</h6>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">LAN</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.n" {% if 'ls.' ~ loop.index0 ~ '.n' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_n" value="{{ l.get('n','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Amount</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.a" {% if 'ls.' ~ loop.index0 ~ '.a' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_a" value="{{ l.get('a','') }}">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">Words</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.w" {% if 'ls.' ~ loop.index0 ~ '.w' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_ls_{{ loop.index0 }}_w">{{ l.get('w','') }}</textarea>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Tenure</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.t" {% if 'ls.' ~ loop.index0 ~ '.t' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_t" value="{{ l.get('t','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">EMI Amount</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.emi" {% if 'ls.' ~ loop.index0 ~ '.emi' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_emi" value="{{ l.get('emi','') }}">
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="d-flex justify-content-between"><label class="small">Interest Rate</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.r_rate" {% if 'ls.' ~ loop.index0 ~ '.r_rate' in verified_fields %}checked{% endif %}></div>
+                                                    <input class="form-control form-control-sm" id="field_ls_{{ loop.index0 }}_r_rate" value="{{ l.get('r_rate','') }}">
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="d-flex justify-content-between"><label class="small">EMI Words</label><input class="verify-check" type="checkbox" data-path="ls.{{ loop.index0 }}.emi_w" {% if 'ls.' ~ loop.index0 ~ '.emi_w' in verified_fields %}checked{% endif %}></div>
+                                                    <textarea class="form-control form-control-sm" rows="2" id="field_ls_{{ loop.index0 }}_emi_w">{{ l.get('emi_w','') }}</textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="tab-pane fade" id="pane-payments" role="tabpanel" aria-labelledby="payments-tab">
+                                    <!-- Execution Dates (SD) -->
+                                    <div class="card mb-3 shadow-sm border-0">
+                                        <div class="card-body">
+                                            <h6 class="section-title">Execution Dates</h6>
+                                            <div class="mb-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <label class="form-label small fw-bold">Sale Deed Execution Date</label>
+                                                    <div class="form-check form-check-inline">
+                                                        <input class="form-check-input verify-check" type="checkbox" data-path="rd" {% if 'rd' in verified_fields %}checked{% endif %}>
+                                                        <label class="form-check-label small text-muted">Verify</label>
+                                                    </div>
+                                                </div>
+                                                <input class="form-control" id="field_rd" value="{{ data.get('rd','') }}" placeholder="e.g. 25-05-2026">
+                                             </div>
+                                             <div class="mb-2 mt-3">
+                                                 <div class="d-flex justify-content-between align-items-center">
+                                                     <label class="form-label small fw-bold">Consideration Amount (from ATS)</label>
+                                                     <div class="form-check form-check-inline">
+                                                         <input class="form-check-input verify-check" type="checkbox" data-path="amount" {% if 'amount' in verified_fields %}checked{% endif %}>
+                                                         <label class="form-check-label small text-muted">Verify</label>
+                                                     </div>
+                                                 </div>
+                                                 <input class="form-control" id="field_amount" value="{{ data.get('amount','') }}" placeholder="e.g. 2000000">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Dynamic Manual Payment Grid (SD) -->
+                                    <div class="card mb-3 shadow-sm border-0">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="m-0 fw-bold text-success">Cheque / DD / NEFT Payment Schedule Grid</h6>
+                                                <button class="btn btn-sm btn-outline-success" onclick="addPaymentRow()">+ Add Payment Schedule</button>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table class="grid-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Amount (Figures)</th>
+                                                            <th>Date</th>
+                                                            <th>Mode / Instrument UTR</th>
+                                                            <th>Issuing Bank</th>
+                                                            <th style="width: 50px;"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="paymentsTableBody">
+                                                        {% for p in data.get('payments', []) %}
+                                                        <tr id="payment-row-{{ loop.index0 }}">
+                                                            <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_a" value="{{ p.get('a','') }}" placeholder="e.g. 5,00,000/-"></td>
+                                                            <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_d" value="{{ p.get('d','') }}" placeholder="e.g. 20.05.2026"></td>
+                                                            <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_n" value="{{ p.get('n','') }}" placeholder="Cheque / IMPS / UTR No."></td>
+                                                            <td><input class="form-control form-control-sm" id="field_payments_{{ loop.index0 }}_b" value="{{ p.get('b','') }}" placeholder="Issuing Bank"></td>
+                                                            <td class="text-center"><button type="button" class="btn-icon-danger" data-index="{{ loop.index0 }}" onclick="removePaymentRow(this.getAttribute('data-index'))" aria-label="Remove payment row" title="Remove payment row">✖</button></td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- ==================== TAB 4: SCHEDULES (RM ONLY) ==================== -->
+                            {% if doc_type == 'RM' %}
+                                <div class="tab-pane fade" id="pane-schedules" role="tabpanel" aria-labelledby="schedules-tab">
+                                    <!-- First Schedule (Title Chain) -->
+                                    <h6 class="section-title">First Schedule (Title Chain)</h6>
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <label class="small fw-bold text-muted">Title Documents</label>
+                                                <div class="form-check">
+                                                    <input class="form-check-input verify-check" type="checkbox" data-path="ds_text" {% if 'ds_text' in verified_fields %}checked{% endif %}>
+                                                    <label class="form-check-label small">Verify</label>
+                                                </div>
+                                            </div>
+                                            {% set ds_txt = data.get('ds_text', '') or '' %}
+                                            <textarea class="form-control form-control-sm" rows="5" id="field_ds_text">{{ ds_txt }}</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Second Schedule (Documents to be collected) -->
+                                    <h6 class="section-title mt-3">Second Schedule (Documents to be collected)</h6>
+                                    <div class="card mb-2">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <label class="small fw-bold text-muted">Original Documents Block</label>
+                                                <div class="form-check">
+                                                    <input class="form-check-input verify-check" type="checkbox" data-path="second_schedule" {% if 'second_schedule' in verified_fields %}checked{% endif %}>
+                                                    <label class="form-check-label small">Verify</label>
+                                                </div>
+                                            </div>
+                                            <textarea class="form-control form-control-sm" rows="5" id="field_second_schedule">{{ data.get('second_schedule','') }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                        </div> <!-- End of tab-content -->
+                        
+                        <!-- Verification Trigger Button (always visible below tabs) -->
+                        <button class="btn btn-success btn-lg w-100 mt-4 fw-bold shadow-sm" onclick="generateRM()">
+                            ✅ Verified: Generate Final {% if doc_type == 'SD' %}Hindi Sale Deed{% else %}RM{% endif %} Document
+                        </button>
+                        {% else %}
+                        <div class="text-center text-muted py-5 shadow-sm rounded bg-white">
+                            <span class="fs-1 d-block mb-3">🤖</span>
+                            <h5>No Extracted Case Data Found</h5>
+                            <p class="small">Upload Aadhaar/PAN documents in the left panel and click "Start AI Automation" to begin.</p>
+                        </div>
+                        {% endif %}
+                    </div> <!-- End of verificationContent -->
+                </div>
+            </div> <!-- End of MAIN TAB PANE 1 (pane-editor-main) -->
+
+            <!-- MAIN TAB PANE 2: GENERATED DRAFT -->
+            <div class="tab-pane fade" id="pane-draft-main" role="tabpanel" aria-labelledby="draft-main-tab" style="height: calc(100vh - 105px); padding: 8px 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 4px 4px 0 0; padding: 8px 12px; flex-shrink: 0;">
+                    <span class="small fw-bold text-secondary">📄 Live Compiled Word Preview</span>
+                    <button class="btn btn-xs btn-primary py-0 px-2.5 fw-bold" onclick="refreshDraftPreview()">🔄 Update Preview</button>
+                </div>
+                <div id="draftPreviewContent" style="height: calc(100vh - 150px); overflow-y: auto; overflow-x: hidden; padding: 20px 10px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 0 0 4px 4px; font-family: 'Segoe UI', 'Mangal';">
+                    <div style="text-align: center; color: #999; padding: 40px 0;">
+                        <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📑</span>
+                        <span style="font-size: 0.85rem;">Click "Update Preview" above to generate a live HTML view of the draft template.</span>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- End of mainRightTabsContent -->
+    </div> <!-- End of editor-pane -->
+</div>

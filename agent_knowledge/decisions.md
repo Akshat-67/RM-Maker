@@ -42,3 +42,9 @@ This log documents core architectural decisions, design choices, and engineering
 ## 6. Real Legal Workflow Preservation
 *   **Decision**: Historical code may look unusual because it fixes real legal workflow edge cases. Do not simplify or refactor it away without fully understanding why it exists.
 *   **Rationale**: Legal documents and government forms have rigid and sometimes counter-intuitive validation requirements. Code that looks redundant or sub-optimal is often a highly targeted patch that solves a specific platform or registry edge case.
+
+---
+
+## 7. AI Client Infrastructure Separation (Option B)
+*   **Decision**: Place API keys failover, Gemini client initialization, network timeout configuration, and retry loops in a centralized pure infrastructure client `services/ai_client.py`. Keep domain extraction orchestration, prompts, and schema structure in `modules/rm/` and `modules/sd/`.
+*   **Rationale**: Centralizing infrastructure logic solves code duplication and allows configuring model features globally (e.g. rate limits, retry policies, model listings). Restricting prompts and extraction logic to modules ensures domain separation, conforming to Single Responsibility and Open/Closed Principles.

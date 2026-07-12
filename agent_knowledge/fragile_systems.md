@@ -13,12 +13,16 @@ This catalog details areas of the codebase that are sensitive, highly dependent 
 
 ---
 
-## 2. e-Panjiyan DOM Selectors & Timings
-*   **Location**: [content.js](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/extensions/epanjiyan_autofill/content.js) and [content.js](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/extensions/epanjiyan_sd_autofill/content.js).
+## 2. e-Panjiyan DOM Selectors, Timings & Extension Payloads
+*   **Location**: [content.js](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/extensions/epanjiyan_autofill/content.js), [content.js](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/extensions/epanjiyan_sd_autofill/content.js), and e-Panjiyan backend routes/services.
 *   **Risks**:
     - The government registration website can change its DOM IDs, CSS selectors, or page paths, which will immediately break extension selectors.
     - Slow page loads and dynamic Ajax dropdowns (Select2) can cause race conditions if the script executes before elements are ready.
     - SweetAlert confirmations and OTP authentication fields require fine-tuned wait times.
+    - **Extension Payload Shape & Schema**: The Chrome extensions depend strictly on the payload schema returned by the backend at `/api/case/<case_id>/epanjiyan_data`. Modifying the JSON key structure or payload shape will immediately break autofilling on the portal.
+    - **Gender Inference Precedence**: Gender classification must check specific indicators (Hindi terms like `"पुत्री"`, `"पत्नी"` and titles like `"SMT"`, `"MRS"`) in a precise order.
+    - **SRO/Tehsil Fallback Priority**: SRO mapping resolution must follow the exact priority chain: matched public DLC SRO -> reversed title chain registrations -> property details tehsil/district.
+    - **Hindi Relationship Parsing**: Hindi relation string resolution must be preserved to map correctly to English fields (`FATHER`, `HUSBAND`, etc.).
 
 ---
 

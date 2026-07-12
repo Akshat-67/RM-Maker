@@ -1,0 +1,75 @@
+<h2>Smart KYC Verification Layouts</h2>
+<p class="subtitle">Select the design that fits your workflow best. Click an option below to vote.</p>
+
+<div class="options" data-multiselect="false">
+  <div class="option" data-choice="side-by-side" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Option A: Side-by-Side Dual Preview (Recommended)</h3>
+      <p>Automatically shows front & back of Aadhaar images side-by-side in the preview pane. Renames headers to match roles.</p>
+      <div style="margin-top: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8fafc;">
+        <div style="display: flex; gap: 10px; height: 100px;">
+          <div style="flex: 1; border: 1px dashed #bbb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; color: #666;">
+            <strong>Aadhaar Front</strong><br>(Name, DOB, ID)
+          </div>
+          <div style="flex: 1; border: 1px dashed #bbb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; color: #666;">
+            <strong>Aadhaar Back</strong><br>(Address, S/o, W/o)
+          </div>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.7rem; color: #1e3a8a; font-weight: bold;">
+          Renamed Tab: 📄 Borrower 1 (Kiran Devi) - Aadhaar
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="stacked" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Option B: Stacked Split Preview</h3>
+      <p>Shows front & back stacked vertically in the preview pane. Good for vertical documents (e.g. portrait photos, PAN cards).</p>
+      <div style="margin-top: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8fafc;">
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+          <div style="height: 45px; border: 1px dashed #bbb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; color: #666;">
+            <strong>Aadhaar Front</strong>
+          </div>
+          <div style="height: 45px; border: 1px dashed #bbb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; color: #666;">
+            <strong>Aadhaar Back</strong>
+          </div>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.7rem; color: #1e3a8a; font-weight: bold;">
+          Renamed Tab: 📄 Borrower 1 (Kiran Devi) - Aadhaar
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="tabbed-toggle" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Option C: Tabbed Quick-Toggle Buttons</h3>
+      <p>Keep single image view but add quick-toggle floating buttons ([Front] / [Back]) inside the preview frame to toggle instantly without using the main sidebar tabs.</p>
+      <div style="margin-top: 10px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8fafc; position: relative;">
+        <div style="height: 100px; border: 1px dashed #bbb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; border-radius: 4px; color: #666;">
+          <strong>Active: Aadhaar Front</strong>
+        </div>
+        <div style="position: absolute; top: 15px; right: 15px; display: flex; gap: 4px;">
+          <button style="font-size: 0.6rem; padding: 2px 5px; background: #2563eb; color: white; border: none; border-radius: 3px; cursor: default;">[Front]</button>
+          <button style="font-size: 0.6rem; padding: 2px 5px; background: #e2e8f0; color: black; border: 1px solid #cbd5e1; border-radius: 3px; cursor: default;">Back</button>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.7rem; color: #1e3a8a; font-weight: bold;">
+          Renamed Tab: 📄 Borrower 1 (Kiran Devi) - Aadhaar [Front]
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>How Auto-Renaming & Pairing Will Work:</h3>
+  <ol style="font-size: 0.85rem; line-height: 1.5; color: #4b5563;">
+    <li><strong>Auto-Pairing</strong>: Uploading <code>name_front.jpg</code> and <code>name_back.jpg</code> will link them as a pair automatically based on matching prefix + front/back keywords.</li>
+    <li><strong>Role Mapping Name</strong>: On clicking <strong>Apply Assignments</strong>, the app matches the extracted Aadhaar ID/name fuzzy-style against filenames. The tab changes from <code>1234_front.jpg</code> to <code>Borrower 1 (Name) - Aadhaar [Front]</code>.</li>
+    <li><strong>Persistence</strong>: These labels will refresh dynamically when loading the case step 2 page from session data, maintaining clean tabs.</li>
+  </ol>
+</div>
