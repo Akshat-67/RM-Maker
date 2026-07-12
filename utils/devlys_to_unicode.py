@@ -245,6 +245,14 @@ MAPPING_PAIRS.sort(key=lambda x: len(x[0]), reverse=True)
 class DevLysToUnicodeConverter:
     _devanagari_regex = re.compile(r'[ऀ-ॿ]')
 
+    # Pre-compiled regex and sets for O(1) lookups to avoid redundant compilation/allocation
+    _common_english_regex = re.compile(
+        r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
+        re.IGNORECASE
+    )
+    _devlys_specifics_tuple = ("Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k")
+    _common_short_english_set = {"and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"}
+
     @staticmethod
     def is_likely_english(text):
         if not text or not text.strip():
@@ -261,11 +269,7 @@ class DevLysToUnicodeConverter:
             return False
             
         # Common English terms in legal docs (case-insensitive)
-        common_english = re.compile(
-            r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
-            re.IGNORECASE
-        )
-        if common_english.search(stripped):
+        if DevLysToUnicodeConverter._common_english_regex.search(stripped):
             return True
 
         # Check word-by-word
@@ -274,8 +278,7 @@ class DevLysToUnicodeConverter:
             return True
 
         # If there are specific DevLys substrings, it's not English
-        devlys_specifics = ["Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k"]
-        if any(x in stripped for x in devlys_specifics):
+        if any(x in stripped for x in DevLysToUnicodeConverter._devlys_specifics_tuple):
             return False
 
         is_english_words = []
@@ -297,7 +300,7 @@ class DevLysToUnicodeConverter:
                 continue
             # Common short lowercase English words
             if w_clean.islower() and len(w_clean) >= 3:
-                if w_clean in ["and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"]:
+                if w_clean in DevLysToUnicodeConverter._common_short_english_set:
                     is_english_words.append(True)
                     continue
             
