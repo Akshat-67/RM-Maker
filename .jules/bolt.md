@@ -1,3 +1,3 @@
-## 2025-06-19 - Regex Optimization for Devanagari detection
-**Learning:** Checking for Devanagari characters in Python using `any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text)` is much slower than using a compiled regex `re.compile(r'[ऀ-ॿ]').search(text)`.
-**Action:** When performing character range checks in strings, prefer compiled regex searches over python iteration logic to improve performance, especially on large texts.
+## 2025-02-18 - Optimized String Matching & Translation Loops
+**Learning:** For performance optimization in tight string manipulation loops, repeatedly calling `re.compile()` inside a function or defining static lists/dictionaries is inefficient. Furthermore, for simple character mapping (like Hindi digits to English digits), Python's built-in `str.translate` using a translation table created with `str.maketrans` is much faster than iterating over a dictionary and performing `.replace()`.
+**Action:** Always hoist `re.compile()` calls and static data structures (like lookup arrays or lists, converting lists to `set`s where membership checks occur) to the module or class level. For 1-to-1 character replacements, use `str.translate`.

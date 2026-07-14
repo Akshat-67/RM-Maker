@@ -1,11 +1,41 @@
 import re
 
+_DATE_HYPHEN_RE = re.compile(r'(\d{1,2})-(\d{1,2})-(\d{4})')
+_MATRA_FIX_RE = re.compile(r'([\u0900-\u097F])्िा')
+_DOT_HYPHEN_RE = re.compile(r'(\d)\.(\d)')
+_ABB_DOT_RE = re.compile(r'([\u0900-\u097Fa-zA-Z])\.')
+_MATRA_POS_RE = re.compile(r'((?:[\u0900-\u0939]\u094d)?[\u0900-\u0939])ि')
+_REP_1_RE = re.compile(r'[izç]+frfuf/k')
+_REP_2_RE = re.compile(r'(\d{2})&(\d{2})&(\d{4})')
+
+_MATRAS = set("khqwsSa¡%z‚")
+_PUNCTUATION = set(" ,.?!()[]{}<>+-*/=;:\"'\n\r\tÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿœ")
+
+_KRUTI_MAPPING = tuple([
+    ("‘", "^"), ("’", "*"), ("“", "Þ"), ("”", "ß"), ("(", "¼"), (")", "½"), ("{", "¿"), ("}", "À"), ("=", "¾"), ("।", "A"), ("?", "\\"), ("µ", "&"), ("॰", "Œ"), (",", "]"),
+    ("०", "å"), ("१", "ƒ"), ("२", "„"), ("३", "…"), ("४", "†"), ("५", "‡"), ("६", "ˆ"), ("७", "‰"), ("८", "Š"), ("९", "‹"), ("x", "Û"),
+    ("फ़्", "¶"), ("क़", "d"), ("ख़", "[k"), ("ग़", "x"), ("ज़्", "T"), ("ज़", "t"), ("ड़", "M+"), ("ढ़", "<+"), ("फ़", "Q"), ("य़", ";"), ("ऱ", "j"), ("ऩ", "u"),
+    ("त्त्", "Ù"), ("त्त", "Ùk"), ("क्त", "Dr"), ("दृ", "–"), ("कृ", "—"), ("ह्न", "à"), ("ह्य", "á"), ("हृ", "â"), ("ह्म", "ã"), ("ह्र", "ºz"), ("ह्", "º"), ("द्द", "í"),
+    ("क्ष्", "{"), ("क्ष", "{k"), ("त्र्", "«"), ("त्र", "="), ("ज्ञ", "K"),
+    ("छ्य", "Nî"), ("ट्य", "Vî"), ("ठ्य", "Bî"), ("ड्य", "Mî"), ("ढ्य", "<î"), ("द्य", "|"), ("द्व", "}"), ("श्र", "J"),
+    ("ट्र", "Vª"), ("ड्र", "Mª"), ("ढ्र", "<ªª"), ("छ्र", "Nª"), ("क्र", "Ø"), ("फ्र", "Ý"), ("द्र", "æ"), ("प्र", "ç"), ("ग्र", "xz"),
+    ("रु", "#"), ("रू", ":"), ("्र", "z"),
+    ("ओ", "vks"), ("औ", "vkS"), ("आ", "vk"), ("अ", "v"), ("ई", "bZ"), ("इ", "b"), ("उ", "m"), ("ऊ", "Å"), ("ऐ", ",s"), ("ए", ","), ("ऋ", "_"),
+    ("क्", "D"), ("क", "d"), ("क्क", "ô"), ("ख्", "["), ("ख", "[k"), ("ग्", "X"), ("ग", "x"), ("घ्", "?"), ("घ", "?k"), ("ङ", "³"),
+    ("चै", "pkS"), ("च्", "P"), ("च", "p"), ("छ", "N"), ("ज्", "T"), ("ज", "t"), ("झ्", "÷"), ("झ", ">"), ("ञ", "¥"),
+    ("ट्ट", "ê"), ("ट्ठ", "ë"), ("ट", "V"), ("ठ", "B"), ("ड्ड", "ì"), ("ड्ढ", "ï"), ("ड", "M"), ("ढ", "<"), ("ण्", "."), ("ण", ".k"),
+    ("त्", "R"), ("त", "r"), ("थ्", "F"), ("थ", "Fk"), ("द्ध", ")"), ("द", "n"), ("ध्", "/"), ("ध", "/k"), ("न्", "U"), ("न", "u"),
+    ("प्", "I"), ("प", "i"), ("फ्", "¶"), ("फ", "Q"), ("ब्", "C"), ("ब", "c"), ("भ्", "H"), ("भ", "Hk"), ("म्", "E"), ("म", "e"),
+    ("य्", "¸"), ("य", ";"), ("र", "j"), ("ल्", "Y"), ("ल", "y"), ("ळ", "G"), ("व्", "O"), ("व", "o"), ("श्", "'"), ("श", "'k"), ("ष्", "\""), ("ष", "\"k"), ("स्", "L"), ("स", "l"), ("ह", "g"),
+    ("ऑ", "v‚"), ("ॉ", "‚"), ("ो", "ks"), ("ौ", "kS"), ("ा", "k"), ("ी", "h"), ("ु", "q"), ("ू", "w"), ("ृ", "`"), ("े", "s"), ("ै", "S"), ("ं", "a"), ("ँ", "¡"), ("ः", "%"), ("ॅ", "W"), ("ऽ", "·"), ("ि", "f"), ("् ", "~ "), ("्", "~")
+])
+
 def Unicode_to_KrutiDev(unicode_str):
     if not unicode_str: return ""
     s = str(unicode_str)
     
     # 1. Protect Date Hyphens (DD-MM-YYYY)
-    s = re.sub(r'(\d{1,2})-(\d{1,2})-(\d{4})', r'\1@@@DASH@@@\2@@@DASH@@@\3', s)
+    s = _DATE_HYPHEN_RE.sub(r'\1@@@DASH@@@\2@@@DASH@@@\3', s)
     
     # 2. Pre-mapping
 
@@ -14,9 +44,9 @@ def Unicode_to_KrutiDev(unicode_str):
     s = s.replace("*", "’")
     s = s.replace("@@TEMP_DBL_AST@@", "**")
 
-    s = re.sub(r'([\u0900-\u097F])्िा', r'\1ि', s)
+    s = _MATRA_FIX_RE.sub(r'\1ि', s)
     s = s.replace("निमर्ित", "निर्मित")
-    s = re.sub(r'(\d)\.(\d)', r'\1-\2', s)
+    s = _DOT_HYPHEN_RE.sub(r'\1-\2', s)
     s = s.replace("/-", "@&")
     s = s.replace("एवज में", "एवज में")
     if "एवज" in s: s = s.replace("एवज", "एवज्")
@@ -25,7 +55,7 @@ def Unicode_to_KrutiDev(unicode_str):
     s = s.replace("पत्नि", "पत्नी")
     
     # Convert abbreviation dots to hyphens in Unicode (e.g. जे.बी. -> जे-बी-, नं. -> नं-)
-    s = re.sub(r'([\u0900-\u097Fa-zA-Z])\.', r'\1-', s)
+    s = _ABB_DOT_RE.sub(r'\1-', s)
     
     # Quotes Identity
     s = s.replace("“", "Þ").replace("”", "ß")
@@ -42,42 +72,20 @@ def Unicode_to_KrutiDev(unicode_str):
     s = s.replace("प्रFke", "izFke").replace("प्रdkj", "izdkj")
     s = s.replace("प्रek.k", "izek.k")
 
-    # Standard KrutiDev mapping pairs
-    mapping = [
-        ("‘", "^"), ("’", "*"), ("“", "Þ"), ("”", "ß"), ("(", "¼"), (")", "½"), ("{", "¿"), ("}", "À"), ("=", "¾"), ("।", "A"), ("?", "\\"), ("µ", "&"), ("॰", "Œ"), (",", "]"), 
-        ("०", "å"), ("१", "ƒ"), ("२", "„"), ("३", "…"), ("४", "†"), ("५", "‡"), ("६", "ˆ"), ("७", "‰"), ("८", "Š"), ("९", "‹"), ("x", "Û"),
-        ("फ़्", "¶"), ("क़", "d"), ("ख़", "[k"), ("ग़", "x"), ("ज़्", "T"), ("ज़", "t"), ("ड़", "M+"), ("ढ़", "<+"), ("फ़", "Q"), ("य़", ";"), ("ऱ", "j"), ("ऩ", "u"),
-        ("त्त्", "Ù"), ("त्त", "Ùk"), ("क्त", "Dr"), ("दृ", "–"), ("कृ", "—"), ("ह्न", "à"), ("ह्य", "á"), ("हृ", "â"), ("ह्म", "ã"), ("ह्र", "ºz"), ("ह्", "º"), ("द्द", "í"), 
-        ("क्ष्", "{"), ("क्ष", "{k"), ("त्र्", "«"), ("त्र", "="), ("ज्ञ", "K"), 
-        ("छ्य", "Nî"), ("ट्य", "Vî"), ("ठ्य", "Bî"), ("ड्य", "Mî"), ("ढ्य", "<î"), ("द्य", "|"), ("द्व", "}"), ("श्र", "J"), 
-        ("ट्र", "Vª"), ("ड्र", "Mª"), ("ढ्र", "<ªª"), ("छ्र", "Nª"), ("क्र", "Ø"), ("फ्र", "Ý"), ("द्र", "æ"), ("प्र", "ç"), ("ग्र", "xz"), 
-        ("रु", "#"), ("रू", ":"), ("्र", "z"), 
-        ("ओ", "vks"), ("औ", "vkS"), ("आ", "vk"), ("अ", "v"), ("ई", "bZ"), ("इ", "b"), ("उ", "m"), ("ऊ", "Å"), ("ऐ", ",s"), ("ए", ","), ("ऋ", "_"), 
-        ("क्", "D"), ("क", "d"), ("क्क", "ô"), ("ख्", "["), ("ख", "[k"), ("ग्", "X"), ("ग", "x"), ("घ्", "?"), ("घ", "?k"), ("ङ", "³"), 
-        ("चै", "pkS"), ("च्", "P"), ("च", "p"), ("छ", "N"), ("ज्", "T"), ("ज", "t"), ("झ्", "÷"), ("झ", ">"), ("ञ", "¥"), 
-        ("ट्ट", "ê"), ("ट्ठ", "ë"), ("ट", "V"), ("ठ", "B"), ("ड्ड", "ì"), ("ड्ढ", "ï"), ("ड", "M"), ("ढ", "<"), ("ण्", "."), ("ण", ".k"), 
-        ("त्", "R"), ("त", "r"), ("थ्", "F"), ("थ", "Fk"), ("द्ध", ")"), ("द", "n"), ("ध्", "/"), ("ध", "/k"), ("न्", "U"), ("न", "u"), 
-        ("प्", "I"), ("प", "i"), ("फ्", "¶"), ("फ", "Q"), ("ब्", "C"), ("ब", "c"), ("भ्", "H"), ("भ", "Hk"), ("म्", "E"), ("म", "e"), 
-        ("य्", "¸"), ("य", ";"), ("र", "j"), ("ल्", "Y"), ("ल", "y"), ("ळ", "G"), ("व्", "O"), ("व", "o"), ("श्", "'"), ("श", "'k"), ("ष्", "\""), ("ष", "\"k"), ("स्", "L"), ("स", "l"), ("ह", "g"), 
-        ("ऑ", "v‚"), ("ॉ", "‚"), ("ो", "ks"), ("ौ", "kS"), ("ा", "k"), ("ी", "h"), ("ु", "q"), ("ू", "w"), ("ृ", "`"), ("े", "s"), ("ै", "S"), ("ं", "a"), ("ँ", "¡"), ("ः", "%"), ("ॅ", "W"), ("ऽ", "·"), ("ि", "f"), ("् ", "~ "), ("्", "~")
-    ]
-    
     # 3. Handle 'ि' Matra position in UNICODE before mapping
     # Consonant + ि -> ि + Consonant
     # regex matches any consonant (including half conjuncts) followed by ि
-    s = re.sub(r'((?:[\u0900-\u0939]\u094d)?[\u0900-\u0939])ि', r'ि\1', s)
+    s = _MATRA_POS_RE.sub(r'ि\1', s)
 
     # 4. Apply mapping
     res = s
-    for uni, kru in mapping:
+    for uni, kru in _KRUTI_MAPPING:
         res = res.replace(uni, kru)
 
     # 5. Reph (Z) logic - generic cluster-aware swapping
     res = res.replace("j~", "Z")
     chars = list(res)
     i = 0
-    matras = set("khqwsSa¡%z‚")
-    punctuation = set(" ,.?!()[]{}<>+-*/=;:\"'\n\r\tÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿœ")
     while i < len(chars):
         if chars[i] == 'Z':
             idx = i + 1
@@ -86,8 +94,8 @@ def Unicode_to_KrutiDev(unicode_str):
             
             consonant_consumed = False
             while (idx < len(chars) and 
-                   chars[idx] not in matras and 
-                   chars[idx] not in punctuation and 
+                   chars[idx] not in _MATRAS and
+                   chars[idx] not in _PUNCTUATION and
                    not chars[idx].isdigit() and 
                    chars[idx] != 'f' and 
                    not consonant_consumed):
@@ -96,7 +104,7 @@ def Unicode_to_KrutiDev(unicode_str):
                 if idx < len(chars) and chars[idx-1] == '~':
                     consonant_consumed = False
             
-            while idx < len(chars) and chars[idx] in matras:
+            while idx < len(chars) and chars[idx] in _MATRAS:
                 idx += 1
             
             if idx > i + 1:
@@ -123,9 +131,9 @@ def Unicode_to_KrutiDev(unicode_str):
     res = res.replace("Iy‚V", "IykV")  # Normalize Plot
     res = res.replace("fç", "fiz")     # Normalize 'pri' like in Priyanka
     res = res.replace("ç", "iz")       # Normalize general 'pra'
-    res = re.sub(r'[izç]+frfuf/k', 'izfrfuf/k', res)
+    res = _REP_1_RE.sub('izfrfuf/k', res)
     res = res.replace("çFke", "izFke").replace("çdkj", "izdkj").replace("çek.k", "izek.k")
-    res = re.sub(r'(\d{2})&(\d{2})&(\d{4})', r'\1-\2-\3', res) # Protect global date hyphens mapped into & back to -
+    res = _REP_2_RE.sub(r'\1-\2-\3', res) # Protect global date hyphens mapped into & back to -
     
     return res
 
@@ -312,27 +320,17 @@ def clean_aadhar_address(address_str):
     s = re.sub(r'^(?:S/o|D/o|W/o|H/o|C/o|Son of|Daughter of|Wife of|Husband of|Care of)[^,]*,?\s*', '', s, flags=re.IGNORECASE).strip()
     return s
 
+_HINDI_TO_ENG_TRANS = str.maketrans('०१२३४५६७८९', '0123456789')
 def convert_hindi_digits_to_english(data):
     if data is None:
         return data
-    hindi_to_eng = {
-        '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
-        '५': '5', '६': '6', '७': '7', '८': '8', '९': '9'
-    }
-    
-    def convert_str(s):
-        if not isinstance(s, str):
-            return s
-        for h, e in hindi_to_eng.items():
-            s = s.replace(h, e)
-        return s
         
     if isinstance(data, dict):
         return {k: convert_hindi_digits_to_english(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [convert_hindi_digits_to_english(item) for item in data]
     elif isinstance(data, str):
-        return convert_str(data)
+        return data.translate(_HINDI_TO_ENG_TRANS)
     return data
 
 def parse_and_format_chain(raw_text):
