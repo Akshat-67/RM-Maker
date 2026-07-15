@@ -801,6 +801,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    const tabEl = document.getElementById('checklist-main-tab');
+    if (tabEl) {
+        tabEl.addEventListener('shown.bs.tab', (e) => {
+            const pane = document.getElementById('pane-checklist-main');
+            console.log('Checklist tab shown event fired!');
+            console.log('Pane classes:', pane ? pane.className : 'null');
+            console.log('Pane display:', pane ? window.getComputedStyle(pane).display : 'null');
+            console.log('Pane offsetHeight:', pane ? pane.offsetHeight : 'null');
+            console.log('Pane opacity:', pane ? window.getComputedStyle(pane).opacity : 'null');
+        });
+    }
 });
 
 
