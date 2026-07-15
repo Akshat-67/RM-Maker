@@ -802,6 +802,38 @@ def bulk_delete_cases():
             deleted += 1
     return jsonify({"success": True, "deleted": deleted})
 
+def extract_legal_reports_text(case_id: str, session: dict) -> str:
+    import pypdf
+    import os
+    from services.session_manager import CASES_DIR
+    
+    legal_report_files = list(session.get("legal_report_files", []))
+    # Also scan the cases/<case_id>/legal_reports folder directly
+    legal_dir = os.path.join(CASES_DIR, case_id, "legal_reports")
+    if os.path.exists(legal_dir):
+        for f in os.listdir(legal_dir):
+            full_path = os.path.join(legal_dir, f)
+            if os.path.isfile(full_path) and full_path not in legal_report_files:
+                legal_report_files.append(full_path)
+                
+    extracted_texts = []
+    for filepath in legal_report_files:
+        if not os.path.exists(filepath):
+            continue
+        try:
+            reader = pypdf.PdfReader(filepath)
+            text_list = []
+            for page in reader.pages:
+                text_list.append(page.extract_text() or "")
+            pdf_text = "\n".join(text_list).strip()
+            if pdf_text:
+                extracted_texts.append(f"=== Legal Report File: {os.path.basename(filepath)} ===\n{pdf_text}")
+        except Exception as e:
+            pass
+            
+    return "\n\n".join(extracted_texts)
+
+
 @cases_bp.route("/api/case/<case_id>/validation", methods=["GET"])
 def get_case_validation(case_id):
     session = load_case_session(case_id)
@@ -874,7 +906,10 @@ def get_case_validation(case_id):
                 if corpus_parts:
                     ocr_corpus = "\n\n".join(corpus_parts)
             
-            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus)
+            # Get legal search report text
+            legal_text = extract_legal_reports_text(case_id, session)
+            
+            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus, legal_text)
             for f in proofreader_findings:
                 res_dict["discrepancies"].append(f.to_dict())
                 
