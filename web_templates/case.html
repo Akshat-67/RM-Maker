@@ -1246,29 +1246,7 @@
     }
 
 </script>
-    <!-- Live Validation sliding drawer -->
-    <div class="validation-drawer" id="validationDrawer">
-        <div class="d-flex align-items-center justify-content-between p-3 border-bottom bg-light">
-            <h6 class="m-0 fw-bold text-dark">📋 Live Checklist</h6>
-            <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-xs btn-primary font-monospace py-1 px-2.5 shadow-sm fw-bold" style="font-size: 0.7rem; border-radius: 4px;" onclick="triggerAIProofreader()" id="btnRunProofreader">🤖 AI Proofread</button>
-                <button class="btn-close" onclick="toggleValidationDrawer(false)"></button>
-            </div>
-        </div>
-        <div class="flex-grow-1 p-3 overflow-y-auto" id="validationDrawerBody">
-            <div class="alert alert-secondary p-2 mb-3 d-flex align-items-center justify-content-between" style="font-size: 0.72rem; border-radius: 4px;">
-                <span id="validationStatusText">Checking case details...</span>
-                <span class="spinner-border spinner-border-sm text-secondary d-none" id="validationSpinner" role="status"></span>
-            </div>
-            <div id="validationChecklistContent">
-                <!-- Dynamic errors / warnings list -->
-            </div>
-        </div>
-    </div>
-    <!-- Sliding toggle tab -->
-    <div class="validation-drawer-toggle" id="validationDrawerToggle" onclick="toggleValidationDrawer()">
-        📋 CHECKLIST
-    </div>
+
 
     <script src="{{ url_for('static', filename='js/workspace_core.js') }}?v=2.1"></script>
     <script src="{{ url_for('static', filename='js/workspace_preview.js') }}?v=2.1"></script>

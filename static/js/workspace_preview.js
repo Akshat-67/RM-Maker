@@ -630,30 +630,24 @@ function fetchAndUpdateCaseHealth() {
         .catch(err => console.error("Error fetching validation:", err));
 }
 
-// Live Validation sliding drawer JS controller
-function toggleValidationDrawer(isOpen) {
-    const drawer = document.getElementById('validationDrawer');
-    const toggle = document.getElementById('validationDrawerToggle');
-    if (!drawer) return;
-    
-    if (isOpen === undefined) {
-        drawer.classList.toggle('open');
-        if (toggle) toggle.classList.toggle('open');
-    } else if (isOpen) {
-        drawer.classList.add('open');
-        if (toggle) toggle.classList.add('open');
-    } else {
-        drawer.classList.remove('open');
-        if (toggle) toggle.classList.remove('open');
-    }
-}
-
 function renderLiveValidation(data) {
     const listContainer = document.getElementById('validationChecklistContent');
     if (!listContainer) return;
     
     listContainer.innerHTML = '';
     const discrepancies = data.discrepancies || [];
+    
+    // Update the tab badge count
+    const badge = document.getElementById('checklist-count-badge');
+    if (badge) {
+        const count = discrepancies.length;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
     
     if (discrepancies.length === 0) {
         listContainer.innerHTML = `
@@ -756,7 +750,13 @@ function triggerAIProofreader() {
         .then(res => res.json())
         .then(data => {
             renderLiveValidation(data);
-            toggleValidationDrawer(true);
+            
+            // Activate the checklist tab automatically
+            const tabEl = document.getElementById('checklist-main-tab');
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
         })
         .catch(err => {
             console.error("Error during AI proofreader run:", err);
