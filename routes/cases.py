@@ -974,6 +974,35 @@ def get_case_validation(case_id):
             # Classify and extract text from Legal and Technical Reports by content
             legal_text, technical_text = get_classified_report_texts(case_id, session)
             
+            # Find and extract text from other PDFs (such as Sanction Letters or KYC PDFs) to add to ocr_corpus
+            legal_files, technical_files = classify_case_pdfs(case_id, session)
+            other_pdf_texts = []
+            
+            pdf_paths = set()
+            for filepath in session.get("files", []):
+                if filepath.lower().endswith(".pdf"):
+                    pdf_paths.add(filepath)
+            
+            files_dir = os.path.join(case_dir, "files")
+            if os.path.exists(files_dir):
+                for f in os.listdir(files_dir):
+                    if f.lower().endswith(".pdf"):
+                        pdf_paths.add(os.path.join(files_dir, f))
+                        
+            for filepath in pdf_paths:
+                if filepath not in legal_files and filepath not in technical_files:
+                    try:
+                        import pypdf
+                        reader = pypdf.PdfReader(filepath)
+                        pdf_text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
+                        if pdf_text:
+                            other_pdf_texts.append(f"=== Sanction/KYC PDF: {os.path.basename(filepath)} ===\n{pdf_text}")
+                    except Exception:
+                        pass
+            
+            if other_pdf_texts:
+                ocr_corpus = ocr_corpus + "\n\n" + "\n\n".join(other_pdf_texts)
+            
             proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus, legal_text, technical_text)
             for f in proofreader_findings:
                 res_dict["discrepancies"].append(f.to_dict())
