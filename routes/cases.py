@@ -840,6 +840,59 @@ def extract_legal_reports_text(case_id: str, session: dict) -> str:
     return "\n\n".join(extracted_texts)
 
 
+def extract_technical_report_text(case_id: str, session: dict) -> str:
+    import pypdf
+    import os
+    from services.session_manager import CASES_DIR
+    from utils.helpers import extract_pdf_pages_text
+    
+    files = list(session.get("files", []))
+    # Search for files with 'technical' or 'valuation' in their name
+    tech_files = []
+    for f in files:
+        base = os.path.basename(f).lower()
+        if "technical" in base or "valuation" in base or "tech" in base:
+            tech_files.append(f)
+            
+    # Fallback: scan cases/<case_id>/files directory directly
+    files_dir = os.path.join(CASES_DIR, case_id, "files")
+    if os.path.exists(files_dir):
+        for f in os.listdir(files_dir):
+            full_path = os.path.join(files_dir, f)
+            base = f.lower()
+            if os.path.isfile(full_path) and ("technical" in base or "valuation" in base or "tech" in base) and full_path not in tech_files:
+                tech_files.append(full_path)
+                
+    extracted_texts = []
+    keywords = ["visit details", "3. visit details", "address of property", "address as per legal document"]
+    
+    for filepath in tech_files:
+        if not os.path.exists(filepath):
+            continue
+        try:
+            reader = pypdf.PdfReader(filepath)
+            total_pages = len(reader.pages)
+            selected_pages = []
+            
+            # Look for pages containing the keywords
+            for idx in range(total_pages):
+                txt_lower = (reader.pages[idx].extract_text() or "").lower()
+                if any(kw in txt_lower for kw in keywords):
+                    selected_pages.append(idx)
+            
+            # Fallback to page 0 and 1 if nothing matched
+            if not selected_pages:
+                selected_pages = [idx for idx in [0, 1] if idx < total_pages]
+                
+            pdf_text = extract_pdf_pages_text(filepath, selected_pages)
+            if pdf_text.strip():
+                extracted_texts.append(f"=== Technical Report File: {os.path.basename(filepath)} (Visit/Address Details) ===\n{pdf_text}")
+        except Exception as e:
+            pass
+            
+    return "\n\n".join(extracted_texts)
+
+
 @cases_bp.route("/api/case/<case_id>/validation", methods=["GET"])
 def get_case_validation(case_id):
     session = load_case_session(case_id)
@@ -914,8 +967,10 @@ def get_case_validation(case_id):
             
             # Get legal search report text
             legal_text = extract_legal_reports_text(case_id, session)
+            # Get technical report text
+            technical_text = extract_technical_report_text(case_id, session)
             
-            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus, legal_text)
+            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus, legal_text, technical_text)
             for f in proofreader_findings:
                 res_dict["discrepancies"].append(f.to_dict())
                 

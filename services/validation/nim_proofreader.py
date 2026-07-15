@@ -8,7 +8,7 @@ logger = logging.getLogger("NIMProofreader")
 
 class NIMProofreader:
     @staticmethod
-    def proofread(docx_text: str, session_data: dict, ocr_text: str = "", legal_text: str = "") -> list[Discrepancy]:
+    def proofread(docx_text: str, session_data: dict, ocr_text: str = "", legal_text: str = "", tech_text: str = "") -> list[Discrepancy]:
         if not NVIDIA_NIM_API_KEY:
             logger.warning("NVIDIA NIM API key missing, skipping proofreading.")
             return []
@@ -20,27 +20,31 @@ class NIMProofreader:
             )
             
             prompt = (
-                "You are an expert legal proofreader. Compare the rendered Deed text against the official Ground Truth variables, the raw KYC document OCR text, and the Legal Search Report text.\n\n"
+                "You are an expert legal proofreader. Compare the rendered Deed text against the official Ground Truth variables, the raw KYC document OCR text, the Legal Search Report text, and the Technical Valuation Report text.\n\n"
                 "=== Ground Truth Variables (extracted/edited form data) ===\n"
                 f"{json.dumps(session_data, indent=2, ensure_ascii=False)}\n\n"
                 "=== Raw KYC Document OCR Text ===\n"
                 f"{ocr_text}\n\n"
                 "=== Legal Search Report Text ===\n"
                 f"{legal_text}\n\n"
+                "=== Technical Valuation Report Text ===\n"
+                f"{tech_text}\n\n"
                 "=== Rendered Deed Text ===\n"
                 f"{docx_text}\n\n"
-                "Identify any discrepancies between these four sources. Specifically, compare:\n"
+                "Identify any discrepancies between these five sources. Specifically, compare:\n"
                 "1. The Gemini extracted borrower, banker, and witness values (Ground Truth Variables).\n"
                 "2. The values filled in the actual Word draft (Rendered Deed Text).\n"
                 "3. The values extracted from raw documents (Raw KYC Document OCR Text).\n"
-                "4. The text of the Legal Scrutiny / Search Report (Legal Search Report Text).\n\n"
+                "4. The text of the Legal Scrutiny / Search Report (Legal Search Report Text).\n"
+                "5. The text of the Technical Valuation Report (Technical Valuation Report Text).\n\n"
                 "=== Core Rules to Keep in Mind ===\n"
                 "1. Compare the borrower, banker, and witness(s) details across all three sources. This includes name, salutation, relative name, relation indicator (such as S/o, W/o, D/o, C/o), age, date of birth, address, Aadhaar number, and PAN number. Flag any mismatch or omission between what is in the raw scans, what is in the form variables, and what is written in the deed text.\n"
                 "2. Compare the number of borrowers/owners mentioned in the Legal Search Report (under the Flow of Title / History of Title / Introduction sections) with the number of borrowers configured in the form variables (Ground Truth) and deed text (Rendered Deed Text). Flag a high severity error if they do not match.\n"
                 "3. Verify that none of the witnesses listed in the deed draft (Rendered Deed Text / Ground Truth) are also the seller/present owner of the property as listed in the Legal Search Report (the current/present owner described as selling the property to the proposed buyers/borrowers). Flag a high severity error if a witness name matches the seller's name.\n"
-                "4. Check for duplicate words or prefixes/suffixes (e.g., 'Mr. Mr.', 'Rupees Rupees', '/- /-', 'Only Only').\n"
-                "5. Verify that critical sections or relative associations are not missing.\n"
-                "6. Identify mismatched details (e.g., swapped details between borrowers).\n\n"
+                "4. Compare the property address across all available sources: the Legal Search Report (TSR/LSR), the Ground Truth variables, the deed draft text (Rendered Deed Text), the raw KYC scan documents, and the Technical Valuation Report (specifically under the Visit Details section, e.g. 'Address as per legal document' or 'Address of Property'). Flag a high severity error if there are mismatches or discrepancies in the property address (such as plot/house numbers, scheme name, or locality spellings).\n"
+                "5. Check for duplicate words or prefixes/suffixes (e.g., 'Mr. Mr.', 'Rupees Rupees', '/- /-', 'Only Only').\n"
+                "6. Verify that critical sections or relative associations are not missing.\n"
+                "7. Identify mismatched details (e.g., swapped details between borrowers).\n\n"
                 "Return the results ONLY as a valid JSON list. Each object must have these exact keys:\n"
                 "- 'category': 'proofreader'\n"
                 "- 'severity': 'high', 'medium', or 'low'\n"
