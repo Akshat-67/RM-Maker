@@ -555,3 +555,96 @@ body {
     background-color: #10b981;
 }
 
+/* Live Validation Panel sliding drawer styles */
+.validation-drawer {
+    position: fixed;
+    top: 56px;
+    right: -340px;
+    width: 340px;
+    height: calc(100vh - 56px);
+    background-color: #ffffff;
+    box-shadow: -2px 0 12px rgba(0,0,0,0.15);
+    z-index: 1050;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #dee2e6;
+}
+
+.validation-drawer.open {
+    right: 0;
+}
+
+.validation-drawer-toggle {
+    position: fixed;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 120px;
+    background-color: #0284c7;
+    color: #ffffff;
+    border: 1px solid #0284c7;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    box-shadow: -2px 0 6px rgba(0,0,0,0.15);
+    z-index: 1060;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.validation-drawer.open + .validation-drawer-toggle {
+    right: 340px;
+}
+
+.discrepancy-item {
+    padding: 0.65rem;
+    border-radius: 6px;
+    margin-bottom: 0.65rem;
+    border-left: 4px solid transparent;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.discrepancy-item-high {
+    background-color: #fef2f2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+.discrepancy-item-medium {
+    background-color: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.discrepancy-item-low {
+    background-color: #f0fdf4;
+    border-color: #10b981;
+    color: #166534;
+}
+
+.discrepancy-title {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.discrepancy-explanation {
+    margin-bottom: 0.4rem;
+}
+
+.discrepancy-fix-btn {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.4rem;
+    font-weight: bold;
+    border-radius: 4px;
+}

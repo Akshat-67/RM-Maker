@@ -3,7 +3,7 @@ import json
 import time
 import re
 import threading
-from utils.helpers import parse_relation_text, normalize_relation_prefix, convert_hindi_digits_to_english
+from utils.helpers import convert_hindi_digits_to_english
 
 CASES_DIR = "cases"
 
@@ -153,6 +153,96 @@ def prune_case_data(data, doc_type):
         from modules.rm.schema import prune_rm_data
         return prune_rm_data(data)
 
+def _clean_case_data(data: dict, doc_type: str) -> dict:
+    if not isinstance(data, dict):
+        return data
+
+    data = convert_hindi_digits_to_english(data)
+    
+    # Clean up duplicate and embedded salutations for RM mode
+    if doc_type == "RM":
+        from modules.rm.processor import robust_extract_salutation_and_name
+        
+        def clean_duplicate_salutation(s, n):
+            if not s or not n: return n
+            s_clean = s.strip().lower().rstrip('.')
+            n_clean = n.strip()
+            pattern = rf'^{re.escape(s_clean)}\.?\s*'
+            match_prefix = re.match(pattern, n_clean, re.IGNORECASE)
+            if match_prefix:
+                return n_clean[match_prefix.end():].strip()
+            return n_clean
+
+        # Clean Borrowers
+        for b in data.get("bs", []):
+            if isinstance(b, dict):
+                raw_n = b.get("n", "").strip()
+                raw_s = b.get("s", "").strip()
+                if raw_s and raw_n:
+                    cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
+                    b["n"] = cleaned_n
+                    raw_n = cleaned_n
+                if raw_n:
+                    ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
+                    if ext_sal:
+                        b["n"] = ext_name
+                        if not b.get("s"):
+                            b["s"] = ext_sal
+
+        # Clean Bank Signatory
+        bsign = data.get("bsign")
+        if isinstance(bsign, dict):
+            raw_n = bsign.get("n", "").strip()
+            raw_s = bsign.get("s", "").strip()
+            if raw_s and raw_n:
+                cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
+                bsign["n"] = cleaned_n
+                raw_n = cleaned_n
+            if raw_n:
+                ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
+                if ext_sal:
+                    bsign["n"] = ext_name
+                    if not bsign.get("s"):
+                        bsign["s"] = ext_sal
+        
+        # Clean Addresses to Title Case
+        for b in data.get("bs", []):
+            if isinstance(b, dict) and b.get("adr"):
+                b["adr"] = title_case_address(b["adr"])
+        for w in data.get("ws", []):
+            if isinstance(w, dict) and w.get("adr"):
+                w["adr"] = title_case_address(w["adr"])
+        bsign = data.get("bsign")
+        if isinstance(bsign, dict) and bsign.get("adr"):
+            bsign["adr"] = title_case_address(bsign["adr"])
+        for p in data.get("ps", []):
+            if isinstance(p, dict):
+                if p.get("adr"):
+                    p["adr"] = title_case_address(p["adr"])
+                if p.get("full_address"):
+                    p["full_address"] = title_case_address(p["full_address"])
+
+        # Normalize RM loan amount in words
+        for l in data.get("ls", []):
+            if isinstance(l, dict) and l.get("w"):
+                l["w"] = normalize_amount_in_words(l["w"])
+    
+    # Property details key synchronization
+    for p in data.get("ps", []):
+        if isinstance(p, dict):
+            if "land_area" in p and not p.get("area"):
+                p["area"] = p["land_area"]
+            if "unit" in p and not p.get("area_unit"):
+                p["area_unit"] = p["unit"]
+                
+            # Reverse sync
+            if p.get("area") and not p.get("land_area"):
+                p["land_area"] = p["area"]
+            if p.get("area_unit") and not p.get("unit"):
+                p["unit"] = p["area_unit"]
+
+    return data
+
 def load_case_session(case_id):
     path = os.path.join(CASES_DIR, case_id, "session.json")
     if not os.path.exists(path): return None
@@ -182,95 +272,11 @@ def load_case_session(case_id):
             doc_type = "SD"
             
     if "data" in sess:
-        sess["data"] = convert_hindi_digits_to_english(sess["data"])
+        property_type = sess.get("property_type", "Plot")
+        sess["data"] = _clean_case_data(sess["data"], doc_type)
         if isinstance(sess["data"], dict):
-            property_type = sess.get("property_type", "Plot")
             sess["data"]["property_type"] = property_type
-            
-            # Clean up duplicate and embedded salutations for RM mode
-            if doc_type == "RM":
-                from modules.rm.processor import robust_extract_salutation_and_name
-                
-                def clean_duplicate_salutation(s, n):
-                    if not s or not n: return n
-                    s_clean = s.strip().lower().rstrip('.')
-                    n_clean = n.strip()
-                    pattern = rf'^{re.escape(s_clean)}\.?\s*'
-                    match_prefix = re.match(pattern, n_clean, re.IGNORECASE)
-                    if match_prefix:
-                        return n_clean[match_prefix.end():].strip()
-                    return n_clean
 
-                # Clean Borrowers
-                for b in sess["data"].get("bs", []):
-                    if isinstance(b, dict):
-                        raw_n = b.get("n", "").strip()
-                        raw_s = b.get("s", "").strip()
-                        if raw_s and raw_n:
-                            cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
-                            b["n"] = cleaned_n
-                            raw_n = cleaned_n
-                        if raw_n:
-                            ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
-                            if ext_sal:
-                                b["n"] = ext_name
-                                if not b.get("s"):
-                                    b["s"] = ext_sal
-
-                # Clean Bank Signatory
-                bsign = sess["data"].get("bsign")
-                if isinstance(bsign, dict):
-                    raw_n = bsign.get("n", "").strip()
-                    raw_s = bsign.get("s", "").strip()
-                    if raw_s and raw_n:
-                        cleaned_n = clean_duplicate_salutation(raw_s, raw_n)
-                        bsign["n"] = cleaned_n
-                        raw_n = cleaned_n
-                    if raw_n:
-                        ext_sal, ext_name = robust_extract_salutation_and_name(raw_n)
-                        if ext_sal:
-                            bsign["n"] = ext_name
-                            if not bsign.get("s"):
-                                bsign["s"] = ext_sal
-                
-                # Clean Addresses to Title Case
-                for b in sess["data"].get("bs", []):
-                    if isinstance(b, dict) and b.get("adr"):
-                        b["adr"] = title_case_address(b["adr"])
-                for w in sess["data"].get("ws", []):
-                    if isinstance(w, dict) and w.get("adr"):
-                        w["adr"] = title_case_address(w["adr"])
-                bsign = sess["data"].get("bsign")
-                if isinstance(bsign, dict) and bsign.get("adr"):
-                    bsign["adr"] = title_case_address(bsign["adr"])
-                for p in sess["data"].get("ps", []):
-                    if isinstance(p, dict):
-                        if p.get("adr"):
-                            p["adr"] = title_case_address(p["adr"])
-                        if p.get("full_address"):
-                            p["full_address"] = title_case_address(p["full_address"])
-
-                # Normalize RM loan amount in words
-                for l in sess["data"].get("ls", []):
-                    if isinstance(l, dict) and l.get("w"):
-                        l["w"] = normalize_amount_in_words(l["w"])
-            
-            # Universal bidirectional synchronization between long and short keys for title chain
-
-            
-            # Property details key synchronization
-            for p in sess["data"].get("ps", []):
-                if isinstance(p, dict):
-                    if "land_area" in p and not p.get("area"):
-                        p["area"] = p["land_area"]
-                    if "unit" in p and not p.get("area_unit"):
-                        p["area_unit"] = p["unit"]
-                        
-                    # Reverse sync
-                    if p.get("area") and not p.get("land_area"):
-                        p["land_area"] = p["area"]
-                    if p.get("area_unit") and not p.get("unit"):
-                        p["unit"] = p["area_unit"]
     return sess
 
 def save_case_session(case_id, data, files, verified_fields, bank, borrower_count, loan_count, properties_count="1", processed_files=None, doc_type=None, sellers_count=None, buyers_count=None, chain_scenario=None, selected_template=None, property_type=None, legal_report_files=None, buckets=None, expected_revision=None, **kwargs):

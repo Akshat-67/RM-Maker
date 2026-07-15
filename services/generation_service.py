@@ -1,10 +1,8 @@
 import os
 import re
 import html
-import datetime
 from collections import defaultdict
 
-import docx
 from docxtpl import DocxTemplate
 from docx.text.paragraph import Paragraph
 from docx.table import Table
@@ -19,9 +17,8 @@ from modules.sd.processor import SDTemplateProcessor
 from modules.sd.extractor import SDDataExtractor
 from modules.sd.narrative import generate_chain_narrative
 
-def compile_and_render_document(
+def _resolve_template_path(
     case_id,
-    session,
     doc_type="RM",
     bank=None,
     borrowers=None,
@@ -30,284 +27,8 @@ def compile_and_render_document(
     sellers_count="1",
     buyers_count="1",
     chain_scenario="",
-    selected_template="",
-    property_type="Plot",
-    verified_fields=None
+    selected_template=""
 ):
-    if verified_fields is None:
-        verified_fields = set()
-
-    data = session.get("data", {})
-    template_map, sd_template_map, _ = discover_templates()
-
-    if selected_template:
-        # Check custom templates first
-        custom_path = os.path.join(CASES_DIR, case_id, "custom_templates", selected_template)
-        if os.path.exists(custom_path):
-            template_path = custom_path
-        elif doc_type == "SD":
-            template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", selected_template)
-        else:
-            template_path = os.path.join(TEMPLATES_DIR, bank, selected_template) if bank else ""
-    else:
-        if doc_type == "SD":
-            # Resolve Sale Deed template
-            template_path = sd_template_map.get(str(sellers_count), {}).get(str(buyers_count))
-            if not template_path or not os.path.exists(template_path):
-                san_scenario = re.sub(r'[^\w\-]', '_', chain_scenario or "JDA_2SD_Flat")
-                template_filename = f"SD_{san_scenario}_{sellers_count}S_{buyers_count}B.docx"
-                template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", template_filename)
-                
-                # Fallbacks
-                if not os.path.exists(template_path):
-                    template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", f"SD_JDA_2SD_Flat_{sellers_count}S_{buyers_count}B.docx")
-                if not os.path.exists(template_path):
-                    template_path = os.path.join(TEMPLATES_DIR, "SALE_DEED", "SD-Vivek Saxena,  Sunita Saxena - Vijay Laxmi - JDA+2SD+Flat_unicode (1)_devlys.docx")
-        else:
-            # Resolve RM template
-            sub_map = template_map.get(bank, {}).get(str(borrowers), {}).get(str(loans))
-            if isinstance(sub_map, dict):
-                template_path = sub_map.get(str(properties)) or sub_map.get("1")
-            else:
-                template_path = sub_map
-
-    if doc_type == "SD" and (not template_path or not os.path.exists(template_path)):
-        sd_dir = os.path.join(TEMPLATES_DIR, "SALE_DEED")
-        if os.path.exists(sd_dir):
-            docx_files = [os.path.join(sd_dir, f) for f in os.listdir(sd_dir) if f.lower().endswith(".docx")]
-            if docx_files:
-                template_path = docx_files[0]
-
-    if not template_path or not os.path.exists(template_path):
-        raise ValueError("No valid template found.")
-
-    # Map the second_schedule string into the ds list for the templates.
-    sec_sched_val = data.get("second_schedule", "")
-    sec_sched_val = re.sub(r'(?<=\S)\s+(Original\b|Certified Copy\b)', r'\n\1', sec_sched_val, flags=re.IGNORECASE)
-    sec_lines = [x.strip() for x in sec_sched_val.split("\n") if x.strip()]
-    ds_list = [{"t": line} for line in sec_lines]
-    
-    while len(ds_list) < 10:
-        ds_list.append({"t": ""})
-    data["ds"] = ds_list
-
-    # Ensure all required lists exist to prevent Jinja2 errors, and pad them to prevent out-of-bounds [MISSING]
-    for key in ["bs", "ls", "ps", "ws", "ss", "sellers", "buyers", "chain"]:
-        if key not in data or not isinstance(data[key], list):
-            data[key] = []
-        while len(data[key]) < 10:
-            data[key].append(defaultdict(str))
-
-    # Provide 'd' as an alias for the entire data object. 
-    context = data.copy()
-    context["w1"] = data["ws"][0]
-    context["w2"] = data["ws"][1]
-
-    # SD-specific field aliasing
-    if doc_type == "SD":
-        for list_key in ["ss", "bs", "ws"]:
-            for person in context.get(list_key, []):
-                if isinstance(person, dict):
-                    if "address" not in person or not person["address"]:
-                        person["address"] = person.get("adr", "")
-                    if "aadhaar" not in person or not person["aadhaar"]:
-                        person["aadhaar"] = person.get("id", "")
-                    if "age" not in person or not person["age"]:
-                        person["age"] = person.get("a", "")
-                    if "caste" not in person or not person["caste"]:
-                        person["caste"] = person.get("c", "")
-        # Also alias w1, w2
-        for w in [context.get("w1"), context.get("w2")]:
-            if isinstance(w, dict):
-                if "address" not in w or not w["address"]:
-                    w["address"] = w.get("adr", "")
-                if "aadhaar" not in w or not w["aadhaar"]:
-                    w["aadhaar"] = w.get("id", "")
-
-        # Format Consideration Amount
-        raw_amount = str(context.get("amount", "")).strip()
-        if raw_amount and raw_amount.isdigit():
-            try:
-                amt_int = int(raw_amount)
-                s = str(amt_int)
-                if len(s) > 3:
-                    last_three = s[-3:]
-                    other = s[:-3][::-1]
-                    parts = [other[i:i+2] for i in range(0, len(other), 2)]
-                    res = ",".join(parts)[::-1]
-                    context["amount"] = res + "," + last_three + "/-"
-                else:
-                    context["amount"] = s + "/-"
-            except:
-                pass
-        elif raw_amount and not raw_amount.endswith("/-"):
-            context["amount"] = raw_amount + "/-"
-
-        # Clean up amount_words
-        if context.get("amount_words"):
-            context["amount_words"] = context["amount_words"].replace("मात्र", "").strip()
-
-        # Build payment_details if not present
-        if "sale" not in context:
-            context["sale"] = {}
-
-        raw_amount = str(context.get("amount", "")).strip()
-        formatted_amount = ""
-        if raw_amount and raw_amount.isdigit():
-            try:
-                amt_int = int(raw_amount)
-                s = str(amt_int)
-                if len(s) > 3:
-                    last_three = s[-3:]
-                    other = s[:-3][::-1]
-                    parts = [other[i:i+2] for i in range(0, len(other), 2)]
-                    formatted_amount = ",".join(parts)[::-1] + "," + last_three + "/-"
-                else:
-                    formatted_amount = s + "/-"
-            except:
-                formatted_amount = raw_amount + "/-"
-        elif raw_amount:
-            formatted_amount = raw_amount if raw_amount.endswith("/-") else raw_amount + "/-"
-
-        context["sale"]["amount"] = formatted_amount
-        context["amount"] = formatted_amount
-
-        words = context.get("amount_words", "")
-        if words:
-            words = words.replace("मात्र", "").strip()
-            if "अक्षरे" not in words:
-                words = "अक्षरे " + words
-            context["sale"]["amount_words"] = words
-            context["amount_words"] = words
-
-        if not context.get("payments") and not context.get("sale", {}).get("payment_details"):
-            context["sale"]["payment_details"] = ""
-
-        # Heal missing entities from title_chain
-        ss_list = context.get("ss", [])
-        if len(ss_list) < 2:
-            while len(ss_list) < 2:
-                ss_list.append({})
-        s1 = ss_list[1]
-        if not s1.get("n") and "title_chain" in context:
-            for evt in reversed(context["title_chain"]):
-                executant = evt.get("executant_name", "")
-                if "एवं" in executant or "व" in executant or "," in executant:
-                    parts = re.split(r'\s+एवं\s+|\s+व\s+|,', executant)
-                    if len(parts) > 1:
-                        name2 = parts[1].strip()
-                        s1["n"] = name2
-                        break
-        context["ss"] = ss_list
-
-        # Recompute ps computed fields
-        _sd_extractor = SDDataExtractor()
-        ps0 = context.get("ps", [{}])[0]
-        is_flat_property = _sd_extractor.is_flat_property(ps0)
-        resolved_property_type = "Flat" if is_flat_property else "Plot"
-
-        if "ps" in context and context["ps"] and isinstance(context["ps"][0], dict):
-            p0 = context["ps"][0]
-            if not p0.get("flat_no") and "title_chain" in context:
-                for evt in context["title_chain"]:
-                    if evt.get("unit_number"):
-                        p0["flat_no"] = evt["unit_number"]
-                        break
-
-        for p in context.get("ps", []):
-            if isinstance(p, dict) and any(p.values()):
-                p["full_address"] = _sd_extractor.generate_full_property_address(p, "SD", resolved_property_type)
-                p["plot_address"] = _sd_extractor.generate_plot_address(p)
-                dim = _sd_extractor.generate_dimension_text(p)
-                if p.get("plot_address"):
-                    p["dimension_text"] = f"{p['plot_address']} में स्थित है, {dim}"
-                else:
-                    p["dimension_text"] = dim
-                if not p.get("boundary_text"):
-                    p["boundary_text"] = _sd_extractor.generate_boundary_text(p)
-
-    if "title_chain" in context and isinstance(context["title_chain"], list):
-        for evt in context["title_chain"]:
-            if evt.get("date"):
-                evt["date"] = str(evt["date"]).replace(".", "-")
-            if evt.get("reg_date"):
-                evt["reg_date"] = str(evt["reg_date"]).replace(".", "-")
-
-    # Normalize execution date for SD
-    if doc_type == "SD" and context.get("rd"):
-        normalized_rd = str(context["rd"]).replace(".", "-")
-        context["rd"] = normalized_rd
-        if "deed" not in context:
-            context["deed"] = {}
-        context["deed"]["execution_date"] = normalized_rd
-
-    # Chain paragraphs narrative
-    if doc_type == "SD":
-        if context.get("chain_is_manual") in ["true", True]:
-            if context.get("chain_text"):
-                context["chain_paragraphs"] = [p.strip() for p in context["chain_text"].split("\n\n") if p.strip()]
-            else:
-                context["chain_paragraphs"] = []
-        elif "title_chain" in context and isinstance(context["title_chain"], list) and len(context["title_chain"]) > 0:
-            ps0 = context.get("ps", [{}])[0]
-            chain_paras = generate_chain_narrative(context["title_chain"], property_details=ps0, context=context)
-            context["chain_paragraphs"] = chain_paras
-            context["chain_text"] = "\n\n\t".join(chain_paras)
-        elif context.get("chain_text"):
-            context["chain_paragraphs"] = [p.strip() for p in context["chain_text"].split("\n\n") if p.strip()]
-        else:
-            context["chain_paragraphs"] = []
-            context["chain_text"] = ""
-    else:
-        if "title_chain" in context and isinstance(context["title_chain"], list):
-            context["chain_text"] = generate_chain_narrative(context["title_chain"])
-        else:
-            context["chain_text"] = ""
-
-    # Formatting of execution date (rd)
-    if context.get("rd"):
-        if doc_type == "RM":
-            formatted_rd = format_date_to_ordinal_english(context["rd"])
-        else:
-            formatted_rd = str(context["rd"]).strip().replace("-", ".").replace("/", ".")
-        context["rd"] = formatted_rd
-        if "deed" not in context:
-            context["deed"] = {}
-        context["deed"]["execution_date"] = formatted_rd
-
-    context['d'] = context.copy()
-
-    output_filename = f"{doc_type}_{case_id}.docx"
-    output_filepath = os.path.join(CASES_DIR, case_id, output_filename)
-
-    if doc_type == "SD":
-        processor = SDTemplateProcessor(template_path)
-    else:
-        processor = RMTemplateProcessor(template_path)
-        
-    processor.generate(context, output_filepath, highlight_ai=True, highlight_missing=True, verified_fields=verified_fields)
-    return output_filepath, output_filename
-
-
-def generate_draft_preview(
-    case_id,
-    session,
-    doc_type="RM",
-    bank=None,
-    borrowers=None,
-    loans=None,
-    properties="1",
-    sellers_count="1",
-    buyers_count="1",
-    chain_scenario="",
-    selected_template="",
-    property_type="Plot",
-    verified_fields=None
-):
-    if verified_fields is None:
-        verified_fields = set()
-
-    data = session.get("data", {})
     template_map, sd_template_map, _ = discover_templates()
 
     template_path = ""
@@ -347,6 +68,19 @@ def generate_draft_preview(
     if not template_path or not os.path.exists(template_path):
         raise ValueError("No valid template found.")
 
+    return template_path
+
+
+def _prepare_context(
+    data,
+    doc_type="RM",
+    borrowers=None,
+    loans=None,
+    properties="1",
+    sellers_count="1",
+    buyers_count="1",
+    chain_scenario=""
+):
     sec_sched_val = data.get("second_schedule", "")
     sec_sched_val = re.sub(r'(?<=\S)\s+(Original\b|Certified Copy\b)', r'\n\1', sec_sched_val, flags=re.IGNORECASE)
     sec_lines = [x.strip() for x in sec_sched_val.split("\n") if x.strip()]
@@ -547,38 +281,10 @@ def generate_draft_preview(
             if isinstance(l, dict) and l.get("w"):
                 l["w"] = normalize_amount_in_words(l["w"])
 
-    # Renders template draft preview with highlight tags for substituted fields
-    import copy
+    return context
 
-    def wrap_highlights(val):
-        if isinstance(val, str) and val.strip():
-            if val in ["RM", "SD", "true", "false", "Plot", "Flat", "JDA_2SD_Flat"]:
-                return val
-            if val.startswith("[!!HL_START!!]") and val.endswith("[!!HL_END!!]"):
-                return val
-            return f"[!!HL_START!!]{val}[!!HL_END!!]"
-        return val
 
-    def apply_highlight_markers(ctx):
-        for key in ["bs", "ws", "ps", "ls", "ss", "sellers", "buyers", "chain", "ds"]:
-            if key in ctx and isinstance(ctx[key], list):
-                for item in ctx[key]:
-                    if isinstance(item, dict):
-                        for subkey in item:
-                            if subkey not in ["event_type", "template_key", "is_registered", "property_type"]:
-                                item[subkey] = wrap_highlights(item[subkey])
-        for key in ["bsign", "sale", "deed"]:
-            if key in ctx and isinstance(ctx[key], dict):
-                for subkey in ctx[key]:
-                    ctx[key][subkey] = wrap_highlights(ctx[key][subkey])
-        for key in ["amount", "amount_words", "rd", "chain_text", "second_schedule", "ds_text"]:
-            if key in ctx:
-                ctx[key] = wrap_highlights(ctx[key])
-
-    preview_context = copy.deepcopy(context)
-    apply_highlight_markers(preview_context)
-    preview_context['d'] = preview_context.copy()
-
+def _render_docx_to_html(template_path: str, preview_context: dict, doc_type: str) -> str:
     doc = DocxTemplate(template_path)
     doc.render(preview_context)
 
@@ -725,3 +431,135 @@ def generate_draft_preview(
         preview_html = "<p class='text-muted text-center py-4'>Template loaded but contained no readable text elements.</p>"
         
     return preview_html
+
+
+def compile_and_render_document(
+    case_id,
+    session,
+    doc_type="RM",
+    bank=None,
+    borrowers=None,
+    loans=None,
+    properties="1",
+    sellers_count="1",
+    buyers_count="1",
+    chain_scenario="",
+    selected_template="",
+    property_type="Plot",
+    verified_fields=None
+):
+    if verified_fields is None:
+        verified_fields = set()
+
+    template_path = _resolve_template_path(
+        case_id=case_id,
+        doc_type=doc_type,
+        bank=bank,
+        borrowers=borrowers,
+        loans=loans,
+        properties=properties,
+        sellers_count=sellers_count,
+        buyers_count=buyers_count,
+        chain_scenario=chain_scenario,
+        selected_template=selected_template
+    )
+
+    context = _prepare_context(
+        data=session.get("data", {}),
+        doc_type=doc_type,
+        borrowers=borrowers,
+        loans=loans,
+        properties=properties,
+        sellers_count=sellers_count,
+        buyers_count=buyers_count,
+        chain_scenario=chain_scenario
+    )
+
+    context['d'] = context.copy()
+
+    output_filename = f"{doc_type}_{case_id}.docx"
+    output_filepath = os.path.join(CASES_DIR, case_id, output_filename)
+
+    if doc_type == "SD":
+        processor = SDTemplateProcessor(template_path)
+    else:
+        processor = RMTemplateProcessor(template_path)
+        
+    processor.generate(context, output_filepath, highlight_ai=True, highlight_missing=True, verified_fields=verified_fields)
+    return output_filepath, output_filename
+
+
+def generate_draft_preview(
+    case_id,
+    session,
+    doc_type="RM",
+    bank=None,
+    borrowers=None,
+    loans=None,
+    properties="1",
+    sellers_count="1",
+    buyers_count="1",
+    chain_scenario="",
+    selected_template="",
+    property_type="Plot",
+    verified_fields=None
+):
+    if verified_fields is None:
+        verified_fields = set()
+
+    template_path = _resolve_template_path(
+        case_id=case_id,
+        doc_type=doc_type,
+        bank=bank,
+        borrowers=borrowers,
+        loans=loans,
+        properties=properties,
+        sellers_count=sellers_count,
+        buyers_count=buyers_count,
+        chain_scenario=chain_scenario,
+        selected_template=selected_template
+    )
+
+    context = _prepare_context(
+        data=session.get("data", {}),
+        doc_type=doc_type,
+        borrowers=borrowers,
+        loans=loans,
+        properties=properties,
+        sellers_count=sellers_count,
+        buyers_count=buyers_count,
+        chain_scenario=chain_scenario
+    )
+
+    import copy
+
+    def wrap_highlights(val):
+        if isinstance(val, str) and val.strip():
+            if val in ["RM", "SD", "true", "false", "Plot", "Flat", "JDA_2SD_Flat"]:
+                return val
+            if val.startswith("[!!HL_START!!]") and val.endswith("[!!HL_END!!]"):
+                return val
+            return f"[!!HL_START!!]{val}[!!HL_END!!]"
+        return val
+
+    def apply_highlight_markers(ctx):
+        for key in ["bs", "ws", "ps", "ls", "ss", "sellers", "buyers", "chain", "ds"]:
+            if key in ctx and isinstance(ctx[key], list):
+                for item in ctx[key]:
+                    if isinstance(item, dict):
+                        for subkey in item:
+                            if subkey not in ["event_type", "template_key", "is_registered", "property_type"]:
+                                item[subkey] = wrap_highlights(item[subkey])
+        for key in ["bsign", "sale", "deed"]:
+            if key in ctx and isinstance(ctx[key], dict):
+                for subkey in ctx[key]:
+                    ctx[key][subkey] = wrap_highlights(ctx[key][subkey])
+        for key in ["amount", "amount_words", "rd", "chain_text", "second_schedule", "ds_text"]:
+            if key in ctx:
+                ctx[key] = wrap_highlights(ctx[key])
+
+    preview_context = copy.deepcopy(context)
+    apply_highlight_markers(preview_context)
+    preview_context['d'] = preview_context.copy()
+
+    return _render_docx_to_html(template_path, preview_context, doc_type)

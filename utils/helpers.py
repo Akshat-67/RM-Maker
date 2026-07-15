@@ -480,3 +480,41 @@ def is_safe_path(base_dir, path):
     matchpath = os.path.realpath(path)
     return matchpath == base or matchpath.startswith(base + os.sep)
 
+
+def prepare_image_for_nim(image_bytes: bytes, max_b64_len: int = 175000) -> str:
+    import base64
+    import io
+    from PIL import Image
+    
+    img = Image.open(io.BytesIO(image_bytes))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+        
+    quality = 90
+    scale = 1.0
+    
+    while True:
+        w, h = int(img.width * scale), int(img.height * scale)
+        if scale < 1.0:
+            temp_img = img.resize((w, h), Image.Resampling.LANCZOS)
+        else:
+            temp_img = img
+            
+        out_arr = io.BytesIO()
+        temp_img.save(out_arr, format='JPEG', quality=quality)
+        b64_data = base64.b64encode(out_arr.getvalue()).decode('utf-8')
+        b64_str = f"data:image/jpeg;base64,{b64_data}"
+        
+        if len(b64_str) < max_b64_len:
+            return b64_str
+            
+        if quality > 30:
+            quality -= 10
+        else:
+            scale -= 0.1
+            quality = 80
+            
+        if scale <= 0.1:
+            return b64_str
+
+

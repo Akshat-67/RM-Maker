@@ -812,10 +812,65 @@ def get_case_validation(case_id):
     doc_type = session.get("doc_type", "RM")
     case_data = session.get("data", {})
     
-    # Merge doc_type and ss (sellers) counts for the validation engine check
+    # Merge doc_type, id, bank, borrowers count, loans count for validation checks
     case_data_copy = dict(case_data)
     case_data_copy["doc_type"] = doc_type
+    case_data_copy["id"] = case_id
+    case_data_copy["bank"] = session.get("bank", "")
+    case_data_copy["selected_template"] = session.get("selected_template", "")
     
     res = ValidationEngine.validate(doc_type, case_data_copy)
-    return jsonify(res.to_dict())
+    res_dict = res.to_dict()
+    
+    run_proofreader = request.args.get("run_proofreader", "false").lower() == "true"
+    if run_proofreader and doc_type == "RM":
+        try:
+            from services.generation_service import compile_and_render_document
+            from docx import Document
+            from services.validation.nim_proofreader import NIMProofreader
+            
+            # Render temporary docx for proofreading
+            output_filepath, _ = compile_and_render_document(
+                case_id=case_id,
+                session=session,
+                doc_type=doc_type,
+                bank=session.get("bank"),
+                borrowers=session.get("borrower_count"),
+                loans=session.get("loan_count"),
+                properties=session.get("properties_count"),
+                sellers_count=session.get("sellers_count"),
+                buyers_count=session.get("buyers_count"),
+                chain_scenario=session.get("chain_scenario"),
+                selected_template=session.get("selected_template"),
+                property_type=session.get("property_type"),
+                verified_fields=set(session.get("verified_fields", []))
+            )
+            
+            doc = Document(output_filepath)
+            docx_text_parts = []
+            for p in doc.paragraphs:
+                if p.text.strip():
+                    docx_text_parts.append(p.text)
+            for t in doc.tables:
+                for row in t.rows:
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            docx_text_parts.append(cell.text)
+            full_text = "\n".join(docx_text_parts)
+            
+            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy)
+            for f in proofreader_findings:
+                res_dict["discrepancies"].append(f.to_dict())
+                
+            res_dict["is_valid"] = not any(d["severity"] in ["high", "medium"] for d in res_dict["discrepancies"])
+        except Exception as e:
+            res_dict["discrepancies"].append({
+                "category": "proofreader",
+                "severity": "medium",
+                "explanation": f"Proofreader compilation failed: {str(e)}",
+                "suggested_fix": "Verify that all required fields are filled."
+            })
+            
+    return jsonify(res_dict)
+
 

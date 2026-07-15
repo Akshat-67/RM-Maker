@@ -61,14 +61,8 @@ def generate_rm(case_id):
     session = load_case_session(case_id)
 
     # --- Server-side compile safety gate (Bug 4 fix) ---
+    # Relaxed by user request: do not return 422/block compilation. Let it generate with warnings.
     missing = check_compile_prerequisites(session, doc_type)
-    if missing:
-        return jsonify({
-            "success": False,
-            "error": "compile_gate_failed",
-            "missing_fields": missing,
-            "detail": f"Cannot compile: {len(missing)} critical field(s) are empty: {', '.join(missing)}"
-        }), 422
 
     try:
         output_filepath, output_filename = compile_and_render_document(

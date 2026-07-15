@@ -260,83 +260,9 @@ function previewFileWithPage(filename, page) {
 }
 
 function snapPreviewToFieldSource(id) {
-    const role = getRoleForInputId(id);
-    if (!role) return;
-
-    const storageKey = 'case_file_roles_' + CASE_ID;
-    const manualRoles = JSON.parse(localStorage.getItem(storageKey) || '{}');
-
-    let targetFile = null;
-    let targetType = null;
-    for (const [filename, value] of Object.entries(manualRoles)) {
-        const roleVal = (typeof value === 'object' && value !== null) ? value.role : value;
-        const typeVal = (typeof value === 'object' && value !== null) ? value.type : null;
-        if (roleVal === role) {
-            targetFile = filename;
-            targetType = typeVal;
-            break;
-        }
-    }
-
-    let extInfo = null;
-    const cleanKey = id.replace('field_', '');
-    if (typeof CASE_EXTRACTIONS !== 'undefined') {
-        if (CASE_EXTRACTIONS[cleanKey]) {
-            extInfo = CASE_EXTRACTIONS[cleanKey];
-        } else {
-            const dotKey = cleanKey.replace(/_(\d+)_/g, '.$1.').replace(/_/g, '.');
-            if (CASE_EXTRACTIONS[dotKey]) {
-                extInfo = CASE_EXTRACTIONS[dotKey];
-            }
-        }
-    }
-
-    if (targetFile) {
-        const tabBtn = document.querySelector(`.file-preview-btn[data-filename="${targetFile}"]`);
-        if (tabBtn) {
-            tabBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-        }
-        
-        let pageNum = 1;
-        if (extInfo && extInfo.page_number) {
-            pageNum = extInfo.page_number;
-        }
-        
-        previewFileWithPage(targetFile, pageNum);
-        
-        if (targetType) {
-            showGroupedFile(targetType);
-        }
-    } else if (extInfo && extInfo.source_file) {
-        // Fallback: If not assigned in localStorage manual roles yet, use direct source file attribution from AI metadata
-        previewFileWithPage(extInfo.source_file, extInfo.page_number || 1);
-    } else {
-        let fallbackBucket = null;
-        if (id.includes('_prop_') || id.includes('_property_')) {
-            fallbackBucket = 'title';
-        } else if (id.includes('_loan_') || id.includes('_payment_')) {
-            fallbackBucket = 'legal';
-        }
-        if (fallbackBucket) {
-            const bucketBtn = document.querySelector(`.file-preview-btn[data-bucket="${fallbackBucket}"]`);
-            if (bucketBtn) {
-                const fn = bucketBtn.getAttribute('data-filename');
-                if (fn) previewFile(fn);
-            }
-        }
-    }
-
-    // Render the inline Source Attribution chip next to label, and update overlay coordinates
-    const input = document.getElementById(id);
-    if (input) {
-        renderSourceChip(input.parentElement, extInfo);
-    }
-    if (extInfo) {
-        drawHighlightOverlay(extInfo.bounding_box);
-    } else {
-        drawHighlightOverlay(null);
-    }
+    return; // Disabled to prevent left side document preview reload on field focus
 }
+
 
 function renderSourceChip(parent, extInfo) {
     const oldChip = document.querySelector('.source-attribution-chip');
@@ -387,12 +313,7 @@ function drawHighlightOverlay(boundingBox) {
 }
 
 function initWorkspaceFocusAttribution() {
-    const inputs = document.querySelectorAll('input[id^="field_"], textarea[id^="field_"]');
-    inputs.forEach(inp => {
-        inp.addEventListener('focus', () => {
-            snapPreviewToFieldSource(inp.id);
-        });
-    });
+    // Focus snapping event listeners on inputs disabled by user request to prevent left side preview reload
 
     // Register progress update change listeners
     const verifyCheckboxes = document.querySelectorAll('.verify-check');
@@ -501,7 +422,7 @@ function updateCompileSafetyGate(percent, checkedCount, totalCount) {
     const generateBtn = document.querySelector(isSD ? 'button[onclick="generateSD()"]' : 'button[onclick="generateRM()"]');
     if (!generateBtn) return;
 
-    // Always enabled by user request
+    // Always keep generate button active and green by user request
     generateBtn.disabled = false;
     generateBtn.title = 'Ready to compile final document';
     generateBtn.classList.remove('btn-secondary');
@@ -691,140 +612,200 @@ function fetchAndUpdateCaseHealth() {
         .then(res => res.json())
         .then(data => {
             const badge = document.getElementById('caseHealthBadge');
-            if (!badge) return;
-
-            badge.style.display = 'inline-block';
-            if (data.is_valid) {
-                badge.className = 'badge bg-success ms-2';
-                badge.innerHTML = 'Case Health: 🟢 Ready';
-                badge.title = 'No validation errors found';
-            } else {
-                badge.className = 'badge bg-warning text-dark ms-2';
-                badge.innerHTML = 'Case Health: ⚠️ Issues Found';
-                const count = data.discrepancies.length;
-                badge.title = `${count} validation discrepancy issue(s) detected.`;
+            if (badge) {
+                badge.style.display = 'inline-block';
+                if (data.is_valid) {
+                    badge.className = 'badge bg-success ms-2';
+                    badge.innerHTML = 'Case Health: 🟢 Ready';
+                    badge.title = 'No validation errors found';
+                } else {
+                    badge.className = 'badge bg-warning text-dark ms-2';
+                    badge.innerHTML = 'Case Health: ⚠️ Issues Found';
+                    const count = data.discrepancies.length;
+                    badge.title = `${count} validation discrepancy issue(s) detected.`;
+                }
             }
+            renderLiveValidation(data);
         })
         .catch(err => console.error("Error fetching validation:", err));
 }
 
-
-
-
-
-
-
-
-function triggerCaseAudit() {
-    const progress = document.getElementById('auditProgressWrapper');
-    const content = document.getElementById('auditResultsContent');
-    if (!progress || !content) return;
+// Live Validation sliding drawer JS controller
+function toggleValidationDrawer(isOpen) {
+    const drawer = document.getElementById('validationDrawer');
+    const toggle = document.getElementById('validationDrawerToggle');
+    if (!drawer) return;
     
-    progress.classList.remove('d-none');
-    content.innerHTML = '';
-    
-    const runAudit = () => {
-        fetch(`/api/case/${CASE_ID}/run_audit`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                progress.classList.add('d-none');
-                if (data.success && data.discrepancies.length > 0) {
-                    let html = '<div class="d-flex flex-column gap-3">';
-                    data.discrepancies.forEach((item, index) => {
-                        const icon = item.type === 'mismatch' ? '❌' : '⚠️';
-                        html += `
-                            <div class="p-3 border rounded shadow-sm bg-light-card" style="border-left: 4px solid ${item.type === 'mismatch' ? '#ef4444' : '#f59e0b'} !important;">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <span class="fw-bold text-secondary small">${icon} ${item.type.toUpperCase().replace('_', ' ')}</span>
-                                        <p class="mb-1 mt-1 small text-dark">${item.message}</p>
-                                        ${item.suggested_fix ? `<div class="small mt-1"><span class="text-muted">Suggested:</span> <strong class="text-success">${item.suggested_fix}</strong></div>` : ''}
-                                    </div>
-                                    ${item.autofixable ? `
-                                        <button class="btn btn-xs btn-success fw-bold px-2 py-0.5" onclick="applyAutofix('${item.field_path}', '${item.suggested_fix}', this)">Fix</button>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                    content.innerHTML = html;
-                } else if (data.success) {
-                    content.innerHTML = `
-                        <div class="alert alert-success text-center py-4 small fw-bold">
-                            🟢 No discrepancies detected! Your draft document text is consistent with original sources.
-                        </div>
-                    `;
-                } else {
-                    content.innerHTML = `<div class="alert alert-danger small p-2 m-2">Audit failed: ${data.error}</div>`;
-                }
-            })
-            .catch(e => {
-                progress.classList.add('d-none');
-                content.innerHTML = `<div class="alert alert-danger small p-2 m-2">Error: ${e}</div>`;
-            });
-    };
+    if (isOpen === undefined) {
+        drawer.classList.toggle('open');
+        if (toggle) toggle.classList.toggle('open');
+    } else if (isOpen) {
+        drawer.classList.add('open');
+        if (toggle) toggle.classList.add('open');
+    } else {
+        drawer.classList.remove('open');
+        if (toggle) toggle.classList.remove('open');
+    }
+}
 
-    if (typeof saveCase === 'function') {
-        saveCase((resp) => {
-            if (resp && resp.error) {
-                progress.classList.add('d-none');
-                content.innerHTML = `<div class="alert alert-danger small p-2 m-2">Could not run audit: Save failed.</div>`;
-            } else {
-                runAudit();
+function renderLiveValidation(data) {
+    const listContainer = document.getElementById('validationChecklistContent');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+    const discrepancies = data.discrepancies || [];
+    
+    if (discrepancies.length === 0) {
+        listContainer.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <span class="fs-1 d-block mb-2">🎉</span>
+                <span class="fw-bold">All checks passed!</span>
+                <p class="small mt-1 mb-0">No discrepancies or missing fields detected.</p>
+            </div>
+        `;
+        const statusText = document.getElementById('validationStatusText');
+        if (statusText) statusText.innerHTML = '🟢 <strong>Ready</strong>';
+        return;
+    }
+    
+    const severityOrder = { "high": 0, "medium": 1, "low": 2 };
+    discrepancies.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+    
+    let highCount = 0;
+    let mediumCount = 0;
+    let lowCount = 0;
+    
+    discrepancies.forEach(d => {
+        if (d.severity === 'high') highCount++;
+        else if (d.severity === 'medium') mediumCount++;
+        else lowCount++;
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = `discrepancy-item discrepancy-item-${d.severity}`;
+        
+        const categoryLabel = d.category ? d.category.toUpperCase() : 'CHECK';
+        
+        let fixButtonHtml = '';
+        if (d.auto_fix_available && d.auto_fix_payload) {
+            const p = d.auto_fix_payload;
+            fixButtonHtml = `
+                <div class="mt-2 text-end">
+                    <button class="btn btn-xs btn-outline-primary discrepancy-fix-btn bg-white" onclick="applyAutoFix('${p.action_type}', '${p.target_path}', '${p.value}')">
+                        ⚡ Auto-Fix
+                    </button>
+                </div>
+            `;
+        }
+        
+        itemDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="discrepancy-title">${categoryLabel}</strong>
+                <span class="badge rounded-pill bg-${d.severity === 'high' ? 'danger' : d.severity === 'medium' ? 'warning text-dark' : 'success'}">${d.severity}</span>
+            </div>
+            <div class="discrepancy-explanation">${d.explanation}</div>
+            <div class="text-muted small">💡 ${d.suggested_fix}</div>
+            ${fixButtonHtml}
+        `;
+        listContainer.appendChild(itemDiv);
+    });
+    
+    const statusText = document.getElementById('validationStatusText');
+    if (statusText) {
+        statusText.innerHTML = `⚠️ <strong>${highCount} Errors, ${mediumCount} Warnings</strong>`;
+    }
+}
+
+function applyAutoFix(actionType, targetPath, value) {
+    const parts = targetPath.split('.');
+    let fieldId = '';
+    if (parts[0] === 'bs' && parts.length === 3) {
+        fieldId = `field_bs_${parts[1]}_${parts[2]}`;
+    } else if (parts[0] === 'bsign' && parts.length === 2) {
+        fieldId = `field_bsign_${parts[1]}`;
+    } else if (parts[0] === 'ls' && parts.length === 3) {
+        fieldId = `field_ls_${parts[1]}_${parts[2]}`;
+    } else if (parts[0] === 'ps' && parts.length === 3) {
+        fieldId = `field_ps_${parts[1]}_${parts[2]}`;
+    }
+    
+    if (fieldId) {
+        const input = document.getElementById(fieldId);
+        if (input) {
+            input.value = value;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            if (typeof saveCase === 'function') {
+                saveCase();
+            }
+            return;
+        }
+    }
+    alert(`Could not automatically fix ${targetPath}. Please update the field manually.`);
+}
+
+function triggerAIProofreader() {
+    const btn = document.getElementById('btnRunProofreader');
+    const spinner = document.getElementById('validationSpinner');
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '🤖 Running...';
+    }
+    if (spinner) spinner.classList.remove('d-none');
+    
+    fetch(`/api/case/${CASE_ID}/validation?run_proofreader=true`)
+        .then(res => res.json())
+        .then(data => {
+            renderLiveValidation(data);
+            toggleValidationDrawer(true);
+        })
+        .catch(err => {
+            console.error("Error during AI proofreader run:", err);
+            alert("AI proofreader failed: " + err.message);
+        })
+        .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '🤖 AI Proofread';
+            }
+            if (spinner) spinner.classList.add('d-none');
+        });
+}
+
+// Debounce input updates for auto-validation
+let validationDebounceTimer = null;
+function debounceValidation() {
+    clearTimeout(validationDebounceTimer);
+    validationDebounceTimer = setTimeout(() => {
+        if (typeof saveCase === 'function') {
+            saveCase();
+        }
+    }, 600);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Initial fetch
+    setTimeout(fetchAndUpdateCaseHealth, 1000);
+    
+    const container = document.getElementById('verificationContent');
+    if (container) {
+        container.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                debounceValidation();
             }
         });
-    } else {
-        runAudit();
+        container.addEventListener('change', (e) => {
+            if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
+                debounceValidation();
+            }
+        });
     }
-}
+});
 
-function applyAutofix(fieldPath, suggestedFix, btnEl) {
-    if (btnEl) {
-        btnEl.disabled = true;
-        btnEl.textContent = 'Fixing...';
-    }
-    
-    fetch(`/api/case/${CASE_ID}/autofix`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            field_path: fieldPath,
-            suggested_fix: suggestedFix
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            if (btnEl) {
-                btnEl.textContent = '✅ Fixed';
-                btnEl.className = 'btn btn-xs btn-outline-success disabled px-2 py-0.5';
-            }
-            // Update UI input value if currently rendered on editor page
-            const inputEl = document.getElementById('field_' + fieldPath.replace(/\./g, '_'));
-            if (inputEl) {
-                inputEl.value = suggestedFix;
-                // Dispatch input/change events to trigger auto-saving
-                inputEl.dispatchEvent(new Event('input'));
-                inputEl.dispatchEvent(new Event('change'));
-            }
-            // Trigger background save and refresh draft preview
-            if (typeof refreshDraftPreview === 'function') {
-                refreshDraftPreview();
-            }
-        } else {
-            alert('Autofix failed: ' + data.error);
-            if (btnEl) {
-                btnEl.disabled = false;
-                btnEl.textContent = 'Fix';
-            }
-        }
-    })
-    .catch(e => {
-        alert('Error applying autofix: ' + e);
-        if (btnEl) {
-            btnEl.disabled = false;
-            btnEl.textContent = 'Fix';
-        }
-    });
-}
+
+
+
+
+
+
+
+

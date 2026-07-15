@@ -37,3 +37,7 @@ def get_gemini_api_keys():
 
 # Exported default key list
 DEFAULT_GEMINI_API_KEYS = get_gemini_api_keys()
+
+NVIDIA_NIM_API_KEY = os.getenv("NVIDIA_NIM_API_KEY", "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")
+NVIDIA_OCR_API_KEY = os.getenv("NVIDIA_OCR_API_KEY", "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")
+

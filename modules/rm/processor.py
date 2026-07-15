@@ -446,51 +446,45 @@ class RMTemplateProcessor:
         if HL_MARKER not in paragraph.text:
             return
 
-        base_font_name = "Cambria"
-        base_font_size = None
-        base_bold = False
-        base_italic = False
-        base_color = None
+        import copy
+        from docx.text.run import Run
 
-        for r in paragraph.runs:
-            if r.text:
-                if r.font.name:
-                    base_font_name = r.font.name
-                if r.font.size:
-                    base_font_size = r.font.size
-                if r.bold is not None:
-                    base_bold = r.bold
-                if r.italic is not None:
-                    base_italic = r.italic
-                if r.font.color and r.font.color.rgb:
-                    base_color = r.font.color.rgb
-                break
-
-        text = paragraph.text
-        paragraph.text = "" # Clears old runs
-
-        parts = text.split(HL_MARKER)
-        for idx, part in enumerate(parts):
-            if not part:
+        runs = list(paragraph.runs)
+        for run in runs:
+            run_text = run.text
+            if not run_text or HL_MARKER not in run_text:
                 continue
-            run = paragraph.add_run(part)
-            
-            run.font.name = base_font_name
-            if base_font_size:
-                run.font.size = base_font_size
-            run.bold = base_bold
-            run.italic = base_italic
-            if base_color:
-                run.font.color.rgb = base_color
 
-            if idx % 2 == 1:
-                if part.startswith("MISSING:"):
-                    if highlight_missing:
-                        run.font.highlight_color = red_highlight
-                        run.font.color.rgb = RGBColor(255, 255, 255)
+            parts = run_text.split(HL_MARKER)
+            parent = run._r.getparent()
+            if parent is None:
+                continue
+            siblings = list(parent)
+            try:
+                idx = siblings.index(run._r)
+            except ValueError:
+                continue
+
+            for part_idx, part in enumerate(parts):
+                if part_idx == 0:
+                    run.text = part
                 else:
-                    if highlight_ai:
-                        run.font.highlight_color = yellow_highlight
+                    new_r_xml = copy.deepcopy(run._r)
+                    new_run = Run(new_r_xml, run._parent)
+                    new_run.text = part
+
+                    if part_idx % 2 == 1:
+                        if part.startswith("MISSING:"):
+                            if highlight_missing:
+                                new_run.font.highlight_color = red_highlight
+                                new_run.font.color.rgb = RGBColor(255, 255, 255)
+                        else:
+                            if highlight_ai:
+                                new_run.font.highlight_color = yellow_highlight
+                    else:
+                        new_run.font.highlight_color = None
+
+                    parent.insert(idx + part_idx, new_run._r)
 
     def _postprocess_saved_doc(self, output_path):
         self.doc.save(output_path)

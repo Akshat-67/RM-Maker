@@ -88,58 +88,67 @@ class IdentityValidator(BaseValidator):
             # 1. Aadhaar ID Check
             id_val = str(p.get("id", "")).strip()
             if id_val:
-                # Remove spaces/dashes to get raw digits
-                clean_id = "".join(char for char in id_val if char.isdigit())
-                
                 path = f"{path_prefix}.{idx}.id" if idx is not None else f"{path_prefix}.id"
-                
-                # Check format
-                if len(clean_id) != 12:
-                    discrepancies.append(
-                        Discrepancy(
-                            category="identity",
-                            severity="high",
-                            explanation=f"{label} Aadhaar number must be exactly 12 digits. Found: '{id_val}'",
-                            suggested_fix="Correct the ID field to exactly 12 digits.",
-                            source_references=[{"path": path, "value": id_val}]
-                        )
-                    )
-                else:
-                    # Checksum check
-                    if not verhoeff_validate(clean_id):
-                        discrepancies.append(
-                            Discrepancy(
-                                category="identity",
-                                severity="high",
-                                explanation=f"{label} Aadhaar checksum validation failed for value: '{id_val}'",
-                                suggested_fix="Ensure the Aadhaar number is typed correctly.",
-                                source_references=[{"path": path, "value": id_val}]
-                            )
-                        )
-                
-                if clean_id:
-                    aadhaar_map.setdefault(clean_id, []).append((label, path, id_val))
+                self._validate_aadhaar(label, path, id_val, discrepancies, aadhaar_map)
 
             # 2. PAN Check
             pan_val = str(p.get("pan", "")).strip().upper()
             if pan_val:
                 path = f"{path_prefix}.{idx}.pan" if idx is not None else f"{path_prefix}.pan"
-                
-                # Regex format check
-                if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", pan_val):
-                    discrepancies.append(
-                        Discrepancy(
-                            category="identity",
-                            severity="high",
-                            explanation=f"{label} PAN number format invalid. Expected 10-char alphanumeric (e.g. ABCDE1234F). Found: '{pan_val}'",
-                            suggested_fix="Correct the PAN format (5 letters, 4 digits, 1 letter).",
-                            source_references=[{"path": path, "value": pan_val}]
-                        )
-                    )
-                
-                pan_map.setdefault(pan_val, []).append((label, path, pan_val))
+                self._validate_pan(label, path, pan_val, discrepancies, pan_map)
 
         # Check duplicates
+        self._check_duplicate_identifiers(aadhaar_map, pan_map, discrepancies)
+
+        return discrepancies
+
+    def _validate_aadhaar(self, label: str, path: str, id_val: str, discrepancies: List[Discrepancy], aadhaar_map: Dict[str, List[Any]]) -> None:
+        # Remove spaces/dashes to get raw digits
+        clean_id = "".join(char for char in id_val if char.isdigit())
+        
+        # Check format
+        if len(clean_id) != 12:
+            discrepancies.append(
+                Discrepancy(
+                    category="identity",
+                    severity="high",
+                    explanation=f"{label} Aadhaar number must be exactly 12 digits. Found: '{id_val}'",
+                    suggested_fix="Correct the ID field to exactly 12 digits.",
+                    source_references=[{"path": path, "value": id_val}]
+                )
+            )
+        else:
+            # Checksum check
+            if not verhoeff_validate(clean_id):
+                discrepancies.append(
+                    Discrepancy(
+                        category="identity",
+                        severity="high",
+                        explanation=f"{label} Aadhaar checksum validation failed for value: '{id_val}'",
+                        suggested_fix="Ensure the Aadhaar number is typed correctly.",
+                        source_references=[{"path": path, "value": id_val}]
+                    )
+                )
+        
+        if clean_id:
+            aadhaar_map.setdefault(clean_id, []).append((label, path, id_val))
+
+    def _validate_pan(self, label: str, path: str, pan_val: str, discrepancies: List[Discrepancy], pan_map: Dict[str, List[Any]]) -> None:
+        # Regex format check
+        if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]$", pan_val):
+            discrepancies.append(
+                Discrepancy(
+                    category="identity",
+                    severity="high",
+                    explanation=f"{label} PAN number format invalid. Expected 10-char alphanumeric (e.g. ABCDE1234F). Found: '{pan_val}'",
+                    suggested_fix="Correct the PAN format (5 letters, 4 digits, 1 letter).",
+                    source_references=[{"path": path, "value": pan_val}]
+                )
+            )
+        
+        pan_map.setdefault(pan_val, []).append((label, path, pan_val))
+
+    def _check_duplicate_identifiers(self, aadhaar_map: Dict[str, List[Any]], pan_map: Dict[str, List[Any]], discrepancies: List[Discrepancy]) -> None:
         for clean_id, list_of_parties in aadhaar_map.items():
             if len(list_of_parties) > 1:
                 labels = [item[0] for item in list_of_parties]
@@ -169,5 +178,3 @@ class IdentityValidator(BaseValidator):
                         source_references=[{"path": p, "value": raw_val} for p in paths]
                     )
                 )
-
-        return discrepancies

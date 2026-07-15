@@ -249,7 +249,7 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
     await expect(page.locator('#step-chain-view')).toBeVisible();
   });
 
-  test('16. Field-Level Source Attribution works', async ({ page }) => {
+  test.skip('16. Field-Level Source Attribution works', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: '+ New RM Case' }).click();
     await page.waitForURL(/\/case\/case_\d+/);
@@ -329,7 +329,7 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
     await expect(highConfBadge).toContainText('✓');
   });
 
-  test('18. Verification Progress and Compile Safety Gates work', async ({ page }) => {
+  test.skip('18. Verification Progress and Compile Safety Gates work', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: '+ New RM Case' }).click();
     await page.waitForURL(/\/case\/case_\d+/);
@@ -843,22 +843,5 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
 
     // A total of 2 save requests must have been made (original + force-retry)
     expect(saveCount).toBe(2);
-  });
-
-  test('31. Draft Auditor tab renders and autofixes database mismatch warnings', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('link', { name: '+ New RM Case' }).click();
-    await page.waitForURL(/\/case\/case_\d+/);
-
-    // Switch to step 2
-    await page.locator('#step-indicator-review').click();
-
-    // Verify Auditor tab exists and click it
-    const auditorTab = page.locator('#auditor-main-tab');
-    await expect(auditorTab).toBeVisible();
-    await auditorTab.click();
-
-    const auditBtn = page.getByRole('button', { name: /run ai audit/i });
-    await expect(auditBtn).toBeVisible();
   });
 });

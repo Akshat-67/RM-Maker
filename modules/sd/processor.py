@@ -579,105 +579,127 @@ class SDTemplateProcessor:
                         self._apply_mixed_fonts_to_paragraph(paragraph)
 
     def _highlight_paragraph_robust(self, paragraph, highlight_ai, highlight_missing):
+        import copy
         from docx.shared import Pt
+        from docx.text.run import Run
+
         text = paragraph.text
         if not text:
             return
 
-        if HL_MARKER not in text:
-            # Fix any Arial/default font issues on replaced legacy text runs
-            for run in paragraph.runs:
-                if is_text_devlys(run.text):
+        runs = list(paragraph.runs)
+        for run in runs:
+            run_text = run.text
+            if not run_text:
+                continue
+
+            if HL_MARKER not in run_text:
+                # Fix any Arial/default font issues on replaced legacy text runs
+                if is_text_devlys(run_text):
                     run.font.name = "DevLys 040"
                     run.font.size = Pt(16)
-            return
-
-        alignment = paragraph.alignment
-        style = paragraph.style
-
-        parts = text.split(HL_MARKER)
-        paragraph.text = "" # Clears old runs
-
-        for idx, part in enumerate(parts):
-            if not part:
                 continue
-            run = paragraph.add_run(part)
-            
-            # Odd indexes represent highlighted variables
-            if idx % 2 == 1:
-                if part.startswith("MISSING:"):
-                    if highlight_missing:
-                        run.font.highlight_color = WD_COLOR_INDEX.RED
-                        run.font.color.rgb = RGBColor(255, 255, 255)
-                else:
-                    if highlight_ai:
-                        run.font.highlight_color = WD_COLOR_INDEX.YELLOW
-            
-            # Apply the correct font run-by-run
-            if is_text_devlys(part):
-                run.font.name = "DevLys 040"
-                run.font.size = Pt(16)
-            else:
-                run.font.name = "Arial"
 
-        paragraph.alignment = alignment
-        paragraph.style = style
+            parts = run_text.split(HL_MARKER)
+            parent = run._r.getparent()
+            if parent is None:
+                continue
+            siblings = list(parent)
+            try:
+                idx = siblings.index(run._r)
+            except ValueError:
+                continue
+
+            for part_idx, part in enumerate(parts):
+                if part_idx == 0:
+                    run.text = part
+                    if is_text_devlys(part):
+                        run.font.name = "DevLys 040"
+                        run.font.size = Pt(16)
+                    else:
+                        run.font.name = "Arial"
+                else:
+                    new_r_xml = copy.deepcopy(run._r)
+                    new_run = Run(new_r_xml, run._parent)
+                    new_run.text = part
+
+                    if part_idx % 2 == 1:
+                        if part.startswith("MISSING:"):
+                            if highlight_missing:
+                                new_run.font.highlight_color = WD_COLOR_INDEX.RED
+                                new_run.font.color.rgb = RGBColor(255, 255, 255)
+                        else:
+                            if highlight_ai:
+                                new_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+                    else:
+                        new_run.font.highlight_color = None
+
+                    if is_text_devlys(part):
+                        new_run.font.name = "DevLys 040"
+                        new_run.font.size = Pt(16)
+                    else:
+                        new_run.font.name = "Arial"
+
+                    parent.insert(idx + part_idx, new_run._r)
 
     def _apply_mixed_fonts_to_paragraph(self, paragraph):
+        import copy
         from docx.shared import Pt
-        # Rebuild runs in the paragraph to separate DevLys and English parts
-        runs_data = []
-        for run in paragraph.runs:
+        from docx.text.run import Run
+
+        runs = list(paragraph.runs)
+        for run in runs:
             text = run.text
             if not text:
                 continue
-            
-            # Save formatting attributes
-            bold = run.bold
-            italic = run.italic
-            underline = run.underline
-            color = run.font.color.rgb if run.font.color else None
-            highlight = run.font.highlight_color
-            
-            # Split by English words/numbers/dates/PANs, including S/o, C/o, W/o, D/o (case-insensitive)
-            # Refined to exclude single-character uppercase letters (like O, V, B, _) which are legacy DevLys characters.
+
             parts = re.split(r'(\b[SsDdWwCc]/[Oo]\b|\b\d+(?:[\s,\-\/\.\(\)]+\d+)*\b|\b[A-Z_]{2,}(?:[\s,\-\/\.\(\)]+[A-Z0-9_]{2,})*\b|\b[A-Z_]+:[A-Z_]+\b)', text)
-            for idx, part in enumerate(parts):
-                if not part:
-                    continue
-                is_english = (idx % 2 == 1)
-                runs_data.append({
-                    "text": part,
-                    "is_english": is_english,
-                    "bold": bold,
-                    "italic": italic,
-                    "underline": underline,
-                    "color": color,
-                    "highlight": highlight
-                })
-        
-        # Rebuild paragraph runs
-        paragraph.text = ""
-        for rd in runs_data:
-            run = paragraph.add_run(rd["text"])
-            run.bold = rd["bold"]
-            run.italic = rd["italic"]
-            run.underline = rd["underline"]
-            if rd["color"]:
-                run.font.color.rgb = rd["color"]
-            if rd["highlight"]:
-                run.font.highlight_color = rd["highlight"]
-            
-            if rd["is_english"]:
-                run.font.name = "Arial"
-                run.font.size = Pt(11)
-            else:
-                # Force DevLys 040 only if the text is actually legacy DevLys encoding.
-                # If it's Unicode Devanagari (chain narrative, etc.), we don't override the font
-                # so that it inherits the template's style (Mangal/Segoe UI).
-                if is_text_devlys(rd["text"]):
+            if len(parts) <= 1:
+                if is_text_devlys(text):
                     run.font.name = "DevLys 040"
                     run.font.size = Pt(16)
+                else:
+                    run.font.name = "Arial"
+                    run.font.size = Pt(11)
+                continue
+
+            parent = run._r.getparent()
+            if parent is None:
+                continue
+            siblings = list(parent)
+            try:
+                idx = siblings.index(run._r)
+            except ValueError:
+                continue
+
+            for part_idx, part in enumerate(parts):
+                if not part:
+                    continue
+                is_english = (part_idx % 2 == 1)
+
+                if part_idx == 0:
+                    run.text = part
+                    if is_english:
+                        run.font.name = "Arial"
+                        run.font.size = Pt(11)
+                    else:
+                        if is_text_devlys(part):
+                            run.font.name = "DevLys 040"
+                            run.font.size = Pt(16)
+                else:
+                    new_r_xml = copy.deepcopy(run._r)
+                    new_run = Run(new_r_xml, run._parent)
+                    new_run.text = part
+
+                    if is_english:
+                        new_run.font.name = "Arial"
+                        new_run.font.size = Pt(11)
+                    else:
+                        if is_text_devlys(part):
+                            new_run.font.name = "DevLys 040"
+                            new_run.font.size = Pt(16)
+
+                    parent.insert(idx + part_idx, new_run._r)
 
     def _process_payment_tables_on_doc(self, doc, context):
         import docx
@@ -722,38 +744,35 @@ class SDTemplateProcessor:
                 tbl = table._tbl
                 tbl.remove(table.rows[1]._tr)
 
+            num_cols = len(table.rows[0].cells)
+
             # Populate rows
             if payments:
                 for idx, p in enumerate(payments):
                     row = table.add_row()
                     write_cell(row.cells[0], f"{idx + 1}.", force_devlys=True)
-                    write_cell(row.cells[1], p.get('a', ''))
-                    write_cell(row.cells[2], p.get('n', ''))
-                    write_cell(row.cells[3], p.get('d', ''))
-                    write_cell(row.cells[4], p.get('b', ''))
+                    if num_cols > 1: write_cell(row.cells[1], p.get('a', ''))
+                    if num_cols > 2: write_cell(row.cells[2], p.get('n', ''))
+                    if num_cols > 3: write_cell(row.cells[3], p.get('d', ''))
+                    if num_cols > 4: write_cell(row.cells[4], p.get('b', ''))
             else:
                 # Add 4 blank rows
                 for idx in range(4):
                     row = table.add_row()
                     write_cell(row.cells[0], f"{idx + 1}.", force_devlys=True)
-                    write_cell(row.cells[1], "")
-                    write_cell(row.cells[2], "")
-                    write_cell(row.cells[3], "")
-                    write_cell(row.cells[4], "")
+                    for col_idx in range(1, num_cols):
+                        write_cell(row.cells[col_idx], "")
 
             # Add the total row (कुल राशि)
             total_row = table.add_row()
             total_label = Unicode_to_KrutiDev("कुल राशि")
             set_cell_text(total_row.cells[0], total_label, is_devlys=True)
-            write_cell(total_row.cells[1], amount)
+            if num_cols > 1: write_cell(total_row.cells[1], amount)
             
             # The remaining cells can show the amount in words
             words_val = amount_words
-            if words_val:
-                write_cell(total_row.cells[2], words_val)
-                write_cell(total_row.cells[3], words_val)
-                write_cell(total_row.cells[4], words_val)
-            else:
-                write_cell(total_row.cells[2], "")
-                write_cell(total_row.cells[3], "")
-                write_cell(total_row.cells[4], "")
+            for col_idx in range(2, num_cols):
+                if words_val:
+                    write_cell(total_row.cells[col_idx], words_val)
+                else:
+                    write_cell(total_row.cells[col_idx], "")

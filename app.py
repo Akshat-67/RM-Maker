@@ -4,7 +4,6 @@ from routes.cases import cases_bp
 from routes.upload import upload_bp
 from routes.generation import generation_bp
 from routes.epanjiyan import epanjiyan_bp
-from routes.auditor import auditor_bp
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
 
@@ -41,10 +40,10 @@ app.register_blueprint(cases_bp)
 app.register_blueprint(upload_bp)
 app.register_blueprint(generation_bp)
 app.register_blueprint(epanjiyan_bp)
-app.register_blueprint(auditor_bp)
 
 import os
 
 if __name__ == "__main__":
-    debug_mode = os.environ.get("FLASK_DEBUG", "true").lower() in ("true", "1")
-    app.run(host='0.0.0.0', debug=debug_mode, port=5000)
+    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1")
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', debug=debug_mode, port=port)
