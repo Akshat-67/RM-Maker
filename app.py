@@ -6,6 +6,7 @@ from routes.generation import generation_bp
 from routes.epanjiyan import epanjiyan_bp
 
 app = Flask(__name__, template_folder="web_templates", static_folder="static")
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 @app.after_request
 def after_request(response):
