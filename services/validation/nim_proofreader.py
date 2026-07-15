@@ -35,7 +35,7 @@ class NIMProofreader:
                 "3. The values extracted from raw documents (Raw KYC Document OCR Text).\n"
                 "4. The text of the Legal Scrutiny / Search Report (Legal Search Report Text).\n\n"
                 "=== Core Rules to Keep in Mind ===\n"
-                "1. Compare the borrower, banker, and witness(s) names, addresses, and identifiers (like Aadhaar/PAN) across all three sources. Flag any mismatches between what is in the raw scans, what is in the form variables, and what is written in the deed text.\n"
+                "1. Compare the borrower, banker, and witness(s) details across all three sources. This includes name, salutation, relative name, relation indicator (such as S/o, W/o, D/o, C/o), age, date of birth, address, Aadhaar number, and PAN number. Flag any mismatch or omission between what is in the raw scans, what is in the form variables, and what is written in the deed text.\n"
                 "2. Compare the number of borrowers/owners mentioned in the Legal Search Report (under the Flow of Title / History of Title / Introduction sections) with the number of borrowers configured in the form variables (Ground Truth) and deed text (Rendered Deed Text). Flag a high severity error if they do not match.\n"
                 "3. Check for duplicate words or prefixes/suffixes (e.g., 'Mr. Mr.', 'Rupees Rupees', '/- /-', 'Only Only').\n"
                 "4. Verify that critical sections or relative associations are not missing.\n"
