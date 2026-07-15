@@ -982,6 +982,11 @@
                 }
             }
             
+            // Trigger checklist refresh after every successful save
+            if (typeof fetchAndUpdateCaseHealth === 'function') {
+                fetchAndUpdateCaseHealth();
+            }
+            
             // Execute the next queued save if any
             if (_pendingSave) {
                 const next = _pendingSave;
