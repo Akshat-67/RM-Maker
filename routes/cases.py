@@ -858,7 +858,23 @@ def get_case_validation(case_id):
                             docx_text_parts.append(cell.text)
             full_text = "\n".join(docx_text_parts)
             
-            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy)
+            # Get cached OCR corpus from raw documents (Aadhaar/PAN scans etc.)
+            ocr_corpus = ""
+            case_dir = os.path.join(CASES_DIR, case_id)
+            ocr_cache_dir = os.path.join(case_dir, "buckets", "ocr")
+            if os.path.exists(ocr_cache_dir):
+                corpus_parts = []
+                for f in os.listdir(ocr_cache_dir):
+                    if f.lower().endswith(".txt"):
+                        try:
+                            with open(os.path.join(ocr_cache_dir, f), "r", encoding="utf-8") as file:
+                                corpus_parts.append(file.read())
+                        except Exception:
+                            pass
+                if corpus_parts:
+                    ocr_corpus = "\n\n".join(corpus_parts)
+            
+            proofreader_findings = NIMProofreader.proofread(full_text, case_data_copy, ocr_corpus)
             for f in proofreader_findings:
                 res_dict["discrepancies"].append(f.to_dict())
                 
