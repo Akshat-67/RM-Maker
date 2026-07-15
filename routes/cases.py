@@ -803,9 +803,9 @@ def bulk_delete_cases():
     return jsonify({"success": True, "deleted": deleted})
 
 def extract_legal_reports_text(case_id: str, session: dict) -> str:
-    import pypdf
     import os
     from services.session_manager import CASES_DIR
+    from utils.helpers import select_relevant_pdf_pages, extract_pdf_pages_text
     
     legal_report_files = list(session.get("legal_report_files", []))
     # Also scan the cases/<case_id>/legal_reports folder directly
@@ -817,17 +817,23 @@ def extract_legal_reports_text(case_id: str, session: dict) -> str:
                 legal_report_files.append(full_path)
                 
     extracted_texts = []
+    keywords = [
+        "flow of title", "history of title", "scrutiny report", 
+        "owner", "proposed owner", "present owner", 
+        "purchased by", "belonging to", "mortgagor", 
+        "agreement to sale", "allotment letter", "sale deed"
+    ]
+    
     for filepath in legal_report_files:
         if not os.path.exists(filepath):
             continue
         try:
-            reader = pypdf.PdfReader(filepath)
-            text_list = []
-            for page in reader.pages:
-                text_list.append(page.extract_text() or "")
-            pdf_text = "\n".join(text_list).strip()
-            if pdf_text:
-                extracted_texts.append(f"=== Legal Report File: {os.path.basename(filepath)} ===\n{pdf_text}")
+            # Select first 2 pages, last page, and middle pages matching relevant keywords
+            page_indices = select_relevant_pdf_pages(filepath, keywords=keywords)
+            if page_indices:
+                pdf_text = extract_pdf_pages_text(filepath, page_indices)
+                if pdf_text.strip():
+                    extracted_texts.append(f"=== Legal Report File: {os.path.basename(filepath)} (Selected Pages) ===\n{pdf_text}")
         except Exception as e:
             pass
             
