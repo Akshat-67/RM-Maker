@@ -751,12 +751,7 @@ function triggerAIProofreader() {
         .then(data => {
             renderLiveValidation(data);
             
-            // Activate the checklist tab automatically
-            const tabEl = document.getElementById('checklist-main-tab');
-            if (tabEl) {
-                const tab = new bootstrap.Tab(tabEl);
-                tab.show();
-            }
+
         })
         .catch(err => {
             console.error("Error during AI proofreader run:", err);
@@ -802,23 +797,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const tabEl = document.getElementById('checklist-main-tab');
-    if (tabEl) {
-        tabEl.addEventListener('shown.bs.tab', (e) => {
-            const pane = document.getElementById('pane-checklist-main');
-            console.log('Checklist tab shown event fired!');
-            console.log('Pane classes:', pane ? pane.className : 'null');
-            console.log('Pane display:', pane ? window.getComputedStyle(pane).display : 'null');
-            console.log('Pane offsetHeight:', pane ? pane.offsetHeight : 'null');
-            console.log('Pane opacity:', pane ? window.getComputedStyle(pane).opacity : 'null');
-            console.log('Pane visibility:', pane ? window.getComputedStyle(pane).visibility : 'null');
-            console.log('Pane z-index:', pane ? window.getComputedStyle(pane).zIndex : 'null');
-            console.log('Pane position:', pane ? window.getComputedStyle(pane).position : 'null');
-            console.log('Pane boundingClientRect:', pane ? JSON.stringify(pane.getBoundingClientRect()) : 'null');
-            console.log('Pane children count:', pane ? pane.children.length : 'null');
-            console.log('Pane innerHTML:', pane ? pane.innerHTML : 'null');
-        });
-    }
 });
 
 

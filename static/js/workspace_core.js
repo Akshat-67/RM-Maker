@@ -7,35 +7,41 @@ function switchStep(stepNum) {
     }
     const uploadView = document.getElementById('step-upload-view');
     const reviewView = document.getElementById('step-review-view');
+    const checklistView = document.getElementById('step-checklist-view');
     const chainView = document.getElementById('step-chain-view');
     
     const indicatorUpload = document.getElementById('step-indicator-upload');
     const indicatorReview = document.getElementById('step-indicator-review');
+    const indicatorChecklist = document.getElementById('step-indicator-checklist');
     const indicatorChain = document.getElementById('step-indicator-chain');
     
     if (stepNum === 1) {
-        uploadView.classList.remove('d-none');
-        reviewView.classList.add('d-none');
-        chainView.classList.add('d-none');
+        if (uploadView) uploadView.classList.remove('d-none');
+        if (reviewView) reviewView.classList.add('d-none');
+        if (checklistView) checklistView.classList.add('d-none');
+        if (chainView) chainView.classList.add('d-none');
         
-        indicatorUpload.classList.add('active-step');
-        indicatorReview.classList.remove('active-step');
-        indicatorChain.classList.remove('active-step');
+        if (indicatorUpload) indicatorUpload.classList.add('active-step');
+        if (indicatorReview) indicatorReview.classList.remove('active-step');
+        if (indicatorChecklist) indicatorChecklist.classList.remove('active-step');
+        if (indicatorChain) indicatorChain.classList.remove('active-step');
         document.body.style.overflow = 'auto';
     } else if (stepNum === 2) {
-        uploadView.classList.add('d-none');
-        reviewView.classList.remove('d-none');
-        chainView.classList.add('d-none');
+        if (uploadView) uploadView.classList.add('d-none');
+        if (reviewView) reviewView.classList.remove('d-none');
+        if (checklistView) checklistView.classList.add('d-none');
+        if (chainView) chainView.classList.add('d-none');
         
-        indicatorUpload.classList.remove('active-step');
-        indicatorReview.classList.add('active-step');
-        indicatorChain.classList.remove('active-step');
+        if (indicatorUpload) indicatorUpload.classList.remove('active-step');
+        if (indicatorReview) indicatorReview.classList.add('active-step');
+        if (indicatorChecklist) indicatorChecklist.classList.remove('active-step');
+        if (indicatorChain) indicatorChain.classList.remove('active-step');
         document.body.style.overflow = 'hidden';
         
         // Automatically preview first file if iframe source is empty
         const iframe = document.getElementById('previewIframe');
         const img = document.getElementById('previewImg');
-        if (!iframe.src && !img.src) {
+        if (iframe && img && !iframe.src && !img.src) {
             const firstBtn = document.querySelector('.file-preview-btn');
             if (firstBtn) {
                 const filename = firstBtn.getAttribute('title');
@@ -43,18 +49,41 @@ function switchStep(stepNum) {
             }
         }
     } else if (stepNum === 3) {
-        uploadView.classList.add('d-none');
-        reviewView.classList.add('d-none');
-        chainView.classList.remove('d-none');
+        if (uploadView) uploadView.classList.add('d-none');
+        if (reviewView) reviewView.classList.add('d-none');
+        if (checklistView) checklistView.classList.remove('d-none');
+        if (chainView) chainView.classList.add('d-none');
         
-        indicatorUpload.classList.remove('active-step');
-        indicatorReview.classList.remove('active-step');
-        indicatorChain.classList.add('active-step');
+        if (indicatorUpload) indicatorUpload.classList.remove('active-step');
+        if (indicatorReview) indicatorReview.classList.remove('active-step');
+        if (indicatorChecklist) indicatorChecklist.classList.add('active-step');
+        if (indicatorChain) indicatorChain.classList.remove('active-step');
+        document.body.style.overflow = 'hidden';
+        
+        // Automatically refresh draft preview inside checklist view
+        if (typeof refreshDraftPreview === 'function') {
+            refreshDraftPreview();
+        }
+    } else if (stepNum === 4) {
+        if (uploadView) uploadView.classList.add('d-none');
+        if (reviewView) reviewView.classList.add('d-none');
+        if (checklistView) checklistView.classList.add('d-none');
+        if (chainView) chainView.classList.remove('d-none');
+        
+        if (indicatorUpload) indicatorUpload.classList.remove('active-step');
+        if (indicatorReview) indicatorReview.classList.remove('active-step');
+        if (indicatorChecklist) indicatorChecklist.classList.remove('active-step');
+        if (indicatorChain) indicatorChain.classList.add('active-step');
         document.body.style.overflow = 'auto';
         
         // Initialize timeline view on display
-        renderTimeline();
-        selectNode(parseInt(document.getElementById('activeNodeIndex').value) || 0);
+        if (typeof renderTimeline === 'function') {
+            renderTimeline();
+        }
+        const activeNodeInput = document.getElementById('activeNodeIndex');
+        if (activeNodeInput && typeof selectNode === 'function') {
+            selectNode(parseInt(activeNodeInput.value) || 0);
+        }
     }
 }
 

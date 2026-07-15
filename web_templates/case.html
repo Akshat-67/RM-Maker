@@ -18,7 +18,11 @@
         <div class="step-switcher-container">
             <button class="step-nav-btn active-step" id="step-indicator-upload" onclick="switchStep(1)">1. Configure & Upload</button>
             <button class="step-nav-btn" id="step-indicator-review" onclick="switchStep(2)">2. Verify & Review</button>
-            <button class="step-nav-btn" id="step-indicator-chain" onclick="switchStep(3)">3. Title Chain Timeline</button>
+            <button class="step-nav-btn position-relative" id="step-indicator-checklist" onclick="switchStep(3)">
+                3. Live Checklist
+                <span id="checklist-count-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.62rem; transform: translate(-30%, -20%);">0</span>
+            </button>
+            <button class="step-nav-btn" id="step-indicator-chain" onclick="switchStep(4)">4. Title Chain Timeline</button>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -34,8 +38,10 @@
     <!-- STEP 2: VERIFY AND REVIEW splitscreen WORKSPACE -->
     {% include 'components/review.html' %}
 
+    <!-- STEP 3: LIVE CHECKLIST & AI PROOFREADER WORKSPACE -->
+    {% include 'components/checklist.html' %}
 
-    <!-- STEP 3: TITLE CHAIN TIMELINE WORKSPACE -->
+    <!-- STEP 4: TITLE CHAIN TIMELINE WORKSPACE -->
     {% include 'components/timeline.html' %}
     <script>
     const CASE_ID = '{{ case_id }}';

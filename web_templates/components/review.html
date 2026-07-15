@@ -74,12 +74,6 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link fw-bold py-2 px-3" id="draft-main-tab" data-bs-toggle="tab" data-bs-target="#pane-draft-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">📄 Generated Draft</button>
             </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link fw-bold py-2 px-3 position-relative" id="checklist-main-tab" data-bs-toggle="tab" data-bs-target="#pane-checklist-main" type="button" role="tab" aria-selected="false" style="font-size: 0.82rem;">
-                    📋 Live Checklist
-                    <span id="checklist-count-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.62rem;">0</span>
-                </button>
-            </li>
         </ul>
 
         <div class="tab-content" id="mainRightTabsContent">
@@ -841,20 +835,7 @@
                 </div>
             </div>
 
-            <!-- MAIN TAB PANE 3: LIVE CHECKLIST -->
-            <div class="tab-pane" id="pane-checklist-main" role="tabpanel" aria-labelledby="checklist-main-tab" style="overflow-y: auto; height: calc(100vh - 105px); padding: 15px;">
-                <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
-                    <h6 class="m-0 fw-bold text-dark">📋 Document Checklist</h6>
-                    <button class="btn btn-xs btn-primary font-monospace py-1 px-2.5 shadow-sm fw-bold" style="font-size: 0.72rem; border-radius: 4px;" onclick="triggerAIProofreader()" id="btnRunProofreader">🤖 AI Proofread</button>
-                </div>
-                <div class="alert alert-secondary p-2 mb-3 d-flex align-items-center justify-content-between" style="font-size: 0.72rem; border-radius: 4px;">
-                    <span id="validationStatusText">Checking case details...</span>
-                    <span class="spinner-border spinner-border-sm text-secondary d-none" id="validationSpinner" role="status"></span>
-                </div>
-                <div id="validationChecklistContent">
-                    <!-- Dynamic errors / warnings list -->
-                </div>
-            </div>
+
         </div> <!-- End of mainRightTabsContent -->
     </div> <!-- End of editor-pane -->
 </div>
