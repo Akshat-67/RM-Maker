@@ -312,8 +312,7 @@ body {
 #verificationTabs {
     display: none !important;
 }
-.tab-content > .tab-pane.active,
-.tab-content > .tab-pane.show {
+.tab-content > .tab-pane.active {
     display: block !important;
 }
 
