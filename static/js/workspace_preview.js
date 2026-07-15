@@ -811,6 +811,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Pane display:', pane ? window.getComputedStyle(pane).display : 'null');
             console.log('Pane offsetHeight:', pane ? pane.offsetHeight : 'null');
             console.log('Pane opacity:', pane ? window.getComputedStyle(pane).opacity : 'null');
+            console.log('Pane visibility:', pane ? window.getComputedStyle(pane).visibility : 'null');
+            console.log('Pane z-index:', pane ? window.getComputedStyle(pane).zIndex : 'null');
+            console.log('Pane position:', pane ? window.getComputedStyle(pane).position : 'null');
+            console.log('Pane boundingClientRect:', pane ? JSON.stringify(pane.getBoundingClientRect()) : 'null');
+            console.log('Pane children count:', pane ? pane.children.length : 'null');
+            console.log('Pane innerHTML:', pane ? pane.innerHTML : 'null');
         });
     }
 });
