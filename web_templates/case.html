@@ -912,7 +912,17 @@
         }
     }
 
+    let _isSaving = false;
+    let _pendingSave = null;
+
     function saveCase(callback, _forceRevision) {
+        if (_isSaving) {
+            // Queue this save request as the pending one
+            _pendingSave = { callback: callback, forceRevision: _forceRevision };
+            return;
+        }
+        _isSaving = true;
+
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
@@ -942,7 +952,11 @@
         })
         .then(r => ({ status: r.status, json: r.json() }))
         .then(({ status, json }) => json.then(resp => {
+            _isSaving = false;
+            
             if (status === 409 || resp.error === 'revision_conflict') {
+                // Clear pending saves on conflict to prevent cascading popups
+                _pendingSave = null;
                 // Server has a newer revision – surface the conflict dialog
                 _showConflictDialog(callback);
                 return;
@@ -961,9 +975,23 @@
                     setTimeout(() => btn.textContent = oldText, 1500);
                 }
             }
+            
+            // Execute the next queued save if any
+            if (_pendingSave) {
+                const next = _pendingSave;
+                _pendingSave = null;
+                setTimeout(() => {
+                    saveCase(next.callback, next.forceRevision);
+                }, 50);
+            }
         }))
-        .catch(e => alert('Save failed: ' + e));
+        .catch(e => {
+            _isSaving = false;
+            _pendingSave = null;
+            alert('Save failed: ' + e);
+        });
     }
+
 
     /**
      * Show a non-destructive conflict resolution dialog.

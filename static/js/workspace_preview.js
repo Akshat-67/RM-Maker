@@ -789,11 +789,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('verificationContent');
     if (container) {
         container.addEventListener('input', (e) => {
+            if (e.target.classList.contains('ua-role-select')) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 debounceValidation();
             }
         });
         container.addEventListener('change', (e) => {
+            if (e.target.classList.contains('ua-role-select')) return;
             if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') {
                 debounceValidation();
             }
