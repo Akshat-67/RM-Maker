@@ -301,6 +301,16 @@ class RMTemplateProcessor:
         if d_ctx is None:
             d_ctx = context.copy()
             context['d'] = d_ctx
+
+        # Wood Capital specific mortgagee (bank) corporate and registered office
+        if 'm' not in context:
+            m_val = {
+                "reg_off": "1ST Floor, Padma Bhawan, Opp. Post Office, Jayendragunj, Lashkar, Gwalior, Madhya Pradesh - 474009",
+                "corp_off": "Ansal Plaza, Corporate Suites 3FCS#15, Sector-1, Vaishali, Ghaziabad - 201010"
+            }
+            context['m'] = m_val
+            if d_ctx is not context and 'm' not in d_ctx:
+                d_ctx['m'] = m_val
         
         self._normalize_context_salutations(context)
 
