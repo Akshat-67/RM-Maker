@@ -297,8 +297,10 @@ class RMTemplateProcessor:
     def generate(self, context, output_path, highlight_ai=False, highlight_missing=False, verified_fields=None):
         if verified_fields is None: verified_fields = set()
         
-        d_ctx = context.get('d', context)
-        context['d'] = d_ctx
+        d_ctx = context.get('d')
+        if d_ctx is None:
+            d_ctx = context.copy()
+            context['d'] = d_ctx
         
         self._normalize_context_salutations(context)
 
@@ -385,6 +387,8 @@ class RMTemplateProcessor:
                 verified_fields.add(f"d.ds.{idx}.t")
 
         self._pad_indexed_lists(d_ctx)
+        if d_ctx is not context:
+            self._pad_indexed_lists(context)
 
         if highlight_ai or highlight_missing:
             context = self._apply_highlight_markers(context, verified_fields, highlight_ai, highlight_missing)

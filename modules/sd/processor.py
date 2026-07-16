@@ -398,6 +398,8 @@ class SDTemplateProcessor:
 
         self._normalize_context_salutations(context)
         self._pad_indexed_lists(d_ctx)
+        if d_ctx is not context:
+            self._pad_indexed_lists(context)
 
         if highlight_ai or highlight_missing:
             context = self._apply_highlight_markers(context, verified_fields, highlight_ai, highlight_missing)
