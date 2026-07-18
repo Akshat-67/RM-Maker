@@ -10,133 +10,269 @@ from utils.config import DEFAULT_GEMINI_API_KEYS
 
 logger = logging.getLogger("Autocrop")
 
-def crop_via_opencv_intersection(img_path, padding_ratio=0.03):
+
+# ---------------------------------------------------------------------------
+# Method 1: Strict Contour Detection (fast, for clear-background images)
+# ---------------------------------------------------------------------------
+def _find_card_via_contour(img):
     """
-    Tries to detect document boundary using a hybrid of Light Region masking
-    and high edge-density projection.
-    Returns (xmin, ymin, xmax, ymax) if a sub-region card is detected, else None.
+    Finds the card via Canny edge detection + dilation + contour analysis.
+    Works best when the card is on a clearly different (dark) background.
+    Returns (xmin, ymin, xmax, ymax) or None.
+    """
+    h_img, w_img = img.shape[:2]
+    img_area = h_img * w_img
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+
+    candidates = []
+
+    v_median = np.median(blurred)
+    lower = int(max(0, 0.5 * v_median))
+    upper = int(min(255, 1.5 * v_median))
+    edges = cv2.Canny(blurred, lower, upper)
+
+    for dilation_iter in [3, 5, 8]:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+        dilated = cv2.dilate(edges, kernel, iterations=dilation_iter)
+        dilated = cv2.morphologyEx(
+            dilated, cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)),
+        )
+
+        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < 0.10 * img_area or area > 0.92 * img_area:
+                continue
+            x, y, w, h = cv2.boundingRect(c)
+            if w > 0.92 * w_img and h > 0.85 * h_img:
+                continue
+
+            bbox_area = w * h
+            solidity = area / bbox_area if bbox_area > 0 else 0
+            aspect = max(w, h) / max(min(w, h), 1)
+            if aspect < 1.2 or aspect > 2.5:
+                continue
+            if solidity < 0.7:
+                continue
+
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+            vertex_bonus = 1.4 if len(approx) == 4 else (1.15 if len(approx) <= 6 else 1.0)
+            score = area * (solidity ** 2) * vertex_bonus
+            candidates.append({"box": (x, y, x + w, y + h), "score": score})
+
+    # Also try OTSU threshold
+    _, otsu = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(otsu, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in contours:
+        area = cv2.contourArea(c)
+        if area < 0.10 * img_area or area > 0.92 * img_area:
+            continue
+        x, y, w, h = cv2.boundingRect(c)
+        if w > 0.92 * w_img and h > 0.85 * h_img:
+            continue
+        bbox_area = w * h
+        solidity = area / bbox_area if bbox_area > 0 else 0
+        aspect = max(w, h) / max(min(w, h), 1)
+        if aspect < 1.2 or aspect > 2.5:
+            continue
+        if solidity < 0.7:
+            continue
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        vertex_bonus = 1.4 if len(approx) == 4 else (1.15 if len(approx) <= 6 else 1.0)
+        score = area * (solidity ** 2) * vertex_bonus
+        candidates.append({"box": (x, y, x + w, y + h), "score": score})
+
+    if candidates:
+        candidates.sort(key=lambda c: c["score"], reverse=True)
+        return candidates[0]["box"]
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Method 2: GrabCut + Asymmetric Edge-Density Expansion
+# ---------------------------------------------------------------------------
+def _grabcut_with_expansion(img):
+    """
+    Uses GrabCut to segment the card from the background, then expands
+    the detected region using edge density to capture footer/header areas
+    that GrabCut may miss (red banner, Aadhaar number line, etc.).
+
+    Asymmetric expansion:
+      - Upward:   conservative (backgrounds tend to bleed above)
+      - Downward: aggressive   (capture Aadhaar number + footer banner)
+      - Left/Right: moderate
+
+    Returns (xmin, ymin, xmax, ymax) or None.
+    """
+    h_img, w_img = img.shape[:2]
+
+    # --- GrabCut ---
+    margin_x = int(w_img * 0.08)
+    margin_y = int(h_img * 0.08)
+    rect = (margin_x, margin_y, w_img - 2 * margin_x, h_img - 2 * margin_y)
+
+    bgd_model = np.zeros((1, 65), np.float64)
+    fgd_model = np.zeros((1, 65), np.float64)
+
+    # Downscale for speed (GrabCut is O(n^2))
+    scale = 1.0
+    if max(h_img, w_img) > 800:
+        scale = 800.0 / max(h_img, w_img)
+        small = cv2.resize(img, None, fx=scale, fy=scale)
+        small_mask = np.zeros(small.shape[:2], np.uint8)
+        small_rect = (
+            int(rect[0] * scale), int(rect[1] * scale),
+            int(rect[2] * scale), int(rect[3] * scale),
+        )
+        cv2.grabCut(small, small_mask, small_rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+        mask = cv2.resize(small_mask, (w_img, h_img), interpolation=cv2.INTER_NEAREST)
+    else:
+        mask = np.zeros((h_img, w_img), np.uint8)
+        cv2.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+
+    fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype(np.uint8)
+    k_close = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+    fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, k_close)
+
+    contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    largest = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(largest)
+    if area < 0.05 * (h_img * w_img):
+        return None
+
+    gx, gy, gw, gh = cv2.boundingRect(largest)
+    gc_x1, gc_y1, gc_x2, gc_y2 = gx, gy, gx + gw, gy + gh
+
+    # --- Edge-density expansion ---
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    v_median = np.median(blurred)
+    edges = cv2.Canny(blurred, int(max(0, 0.5 * v_median)), int(min(255, 1.5 * v_median)))
+
+    row_sums = np.sum(edges, axis=1).astype(np.float64)
+    col_sums = np.sum(edges, axis=0).astype(np.float64)
+
+    sw = max(3, int(min(h_img, w_img) * 0.015))
+    if sw % 2 == 0:
+        sw += 1
+    row_sums = np.convolve(row_sums, np.ones(sw) / sw, mode="same")
+    col_sums = np.convolve(col_sums, np.ones(sw) / sw, mode="same")
+
+    inner_row_avg = np.mean(row_sums[gc_y1:gc_y2]) if gc_y2 > gc_y1 else 0
+    inner_col_avg = np.mean(col_sums[gc_x1:gc_x2]) if gc_x2 > gc_x1 else 0
+
+    # Asymmetric thresholds
+    up_thresh = inner_row_avg * 0.25       # Conservative upward
+    down_thresh = inner_row_avg * 0.10     # Aggressive downward
+    left_thresh = inner_col_avg * 0.15     # Moderate
+    right_thresh = inner_col_avg * 0.15    # Moderate
+
+    # Expansion caps (% of GrabCut box size)
+    max_up = int(gh * 0.15)
+    max_down = int(gh * 0.40)
+    max_left = int(gw * 0.15)
+    max_right = int(gw * 0.15)
+
+    # Expand upward
+    new_y1 = gc_y1
+    for y in range(gc_y1 - 1, max(0, gc_y1 - max_up) - 1, -1):
+        if row_sums[y] > up_thresh:
+            new_y1 = y
+        else:
+            break
+
+    # Expand downward
+    new_y2 = gc_y2
+    for y in range(gc_y2, min(h_img, gc_y2 + max_down)):
+        if row_sums[y] > down_thresh:
+            new_y2 = y
+        else:
+            break
+
+    # Expand left
+    new_x1 = gc_x1
+    for x in range(gc_x1 - 1, max(0, gc_x1 - max_left) - 1, -1):
+        if col_sums[x] > left_thresh:
+            new_x1 = x
+        else:
+            break
+
+    # Expand right
+    new_x2 = gc_x2
+    for x in range(gc_x2, min(w_img, gc_x2 + max_right)):
+        if col_sums[x] > right_thresh:
+            new_x2 = x
+        else:
+            break
+
+    # Reject if expansion covers the entire image
+    if (new_x2 - new_x1) > 0.95 * w_img and (new_y2 - new_y1) > 0.95 * h_img:
+        return (gc_x1, gc_y1, gc_x2, gc_y2)
+
+    return (new_x1, new_y1, new_x2, new_y2)
+
+
+# ---------------------------------------------------------------------------
+# Public API  —  unified card detection pipeline
+# ---------------------------------------------------------------------------
+def crop_via_opencv(img_path, padding_ratio=0.02):
+    """
+    Detects document boundary using a two-stage pipeline:
+      1. Strict contour detection (fast, works on clear backgrounds)
+      2. GrabCut + asymmetric edge-density expansion (for cards on
+         similar-colour surfaces like white tablecloths)
+
+    Returns (xmin, ymin, xmax, ymax) if a sub-region card is detected,
+    else None (caller should fall back to VLM).
     """
     img = cv2.imread(img_path)
     if img is None:
         return None
-        
+
     h_img, w_img = img.shape[:2]
-    img_area = h_img * w_img
-    
-    # 1. Method A: Light Region Detection (low saturation, high lightness)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    h, s, v = cv2.split(hsv)
-    
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l_channel, _, _ = cv2.split(lab)
-    
-    white_mask = cv2.inRange(hsv, np.array([0, 0, 150]), np.array([180, 75, 255]))
-    _, thresh_l = cv2.threshold(l_channel, 170, 255, cv2.THRESH_BINARY)
-    combined = cv2.bitwise_or(white_mask, thresh_l)
-    
-    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-    processed_light = cv2.morphologyEx(combined, cv2.MORPH_OPEN, kernel_open)
-    processed_light = cv2.morphologyEx(processed_light, cv2.MORPH_CLOSE, kernel_close)
-    
-    contours, _ = cv2.findContours(processed_light, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    best_light_box = None
-    max_area = 0
-    
-    for c in contours:
-        area = cv2.contourArea(c)
-        x, y, w, h = cv2.boundingRect(c)
-        aspect_ratio = max(w, h) / min(w, h)
-        if aspect_ratio < 1.1 or aspect_ratio > 2.2:
-            continue
-        if area > max_area and area > 0.08 * img_area:
-            max_area = area
-            best_light_box = (x, y, x + w, y + h)
-            
-    if best_light_box is None:
-        if contours:
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)
-            for c in contours:
-                area = cv2.contourArea(c)
-                if area > 0.08 * img_area:
-                    x, y, w, h = cv2.boundingRect(c)
-                    best_light_box = (x, y, x + w, y + h)
-                    break
-                    
-    if best_light_box is None:
-        best_light_box = (0, 0, w_img, h_img)
 
-    # 2. Method B: Edge Density Region Detection
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    
-    v_median = np.median(blurred)
-    lower = int(max(0, 0.66 * v_median))
-    upper = int(min(255, 1.33 * v_median))
-    edged = cv2.Canny(blurred, lower, upper)
-    
-    # Clear outer 4% edges
-    margin_y = int(h_img * 0.04)
-    margin_x = int(w_img * 0.04)
-    edged[0:margin_y, :] = 0
-    edged[h_img-margin_y:, :] = 0
-    edged[:, 0:margin_x] = 0
-    edged[:, w_img-margin_x:] = 0
-    
-    row_sums = np.sum(edged, axis=1)
-    col_sums = np.sum(edged, axis=0)
-    
-    smooth_window = int(min(h_img, w_img) * 0.02)
-    if smooth_window % 2 == 0:
-        smooth_window += 1
-    
-    row_sums = np.convolve(row_sums, np.ones(smooth_window)/smooth_window, mode='same')
-    col_sums = np.convolve(col_sums, np.ones(smooth_window)/smooth_window, mode='same')
-    
-    row_thresh = np.max(row_sums) * 0.08
-    col_thresh = np.max(col_sums) * 0.08
-    
-    active_rows = np.where(row_sums > row_thresh)[0]
-    active_cols = np.where(col_sums > col_thresh)[0]
-    
-    if len(active_rows) > 0 and len(active_cols) > 0:
-        best_edge_box = (active_cols[0], active_rows[0], active_cols[-1], active_rows[-1])
+    # Stage 1: Fast contour approach
+    box = _find_card_via_contour(img)
+    if box is not None:
+        logger.debug("Card detected via contour method")
     else:
-        best_edge_box = (0, 0, w_img, h_img)
+        # Stage 2: GrabCut + expansion
+        box = _grabcut_with_expansion(img)
+        if box is not None:
+            logger.debug("Card detected via GrabCut + expansion")
 
-    # 3. Intersect bounds
-    lx1, ly1, lx2, ly2 = best_light_box
-    ex1, ey1, ex2, ey2 = best_edge_box
-    
-    ix1 = max(lx1, ex1)
-    iy1 = max(ly1, ey1)
-    ix2 = min(lx2, ex2)
-    iy2 = min(ly2, ey2)
-    
-    if ix2 - ix1 < 100 or iy2 - iy1 < 100:
-        ix1, iy1, ix2, iy2 = ex1, ey1, ex2, ey2
-        
-    if ix2 - ix1 < 100 or iy2 - iy1 < 100:
+    if box is None:
         return None
-        
-    # Apply padding
-    w_box = ix2 - ix1
-    h_box = iy2 - iy1
-    pad_w = int(padding_ratio * w_box)
-    pad_h = int(padding_ratio * h_box)
-    
-    xmin = max(0, ix1 - pad_w)
-    ymin = max(0, iy1 - pad_h)
-    xmax = min(w_img, ix2 + pad_w)
-    ymax = min(h_img, iy2 + pad_h)
-    
-    # Check if the detected crop represents a true sub-region (not the entire image)
-    if (xmax - xmin) < 0.98 * w_img or (ymax - ymin) < 0.98 * h_img:
-        return (xmin, ymin, xmax, ymax)
-        
-    return None
 
+    x1, y1, x2, y2 = box
+
+    # Apply small padding
+    bw = x2 - x1
+    bh = y2 - y1
+    pw = int(padding_ratio * bw)
+    ph = int(padding_ratio * bh)
+    x1 = max(0, x1 - pw)
+    y1 = max(0, y1 - ph)
+    x2 = min(w_img, x2 + pw)
+    y2 = min(h_img, y2 + ph)
+
+    # Validate: must represent a true sub-region
+    if (x2 - x1) >= 0.96 * w_img and (y2 - y1) >= 0.96 * h_img:
+        return None
+
+    return (x1, y1, x2, y2)
+
+
+# ---------------------------------------------------------------------------
+# Main entry point called from the ingestion pipeline
+# ---------------------------------------------------------------------------
 def autocrop_image_if_aadhar(filepath: str) -> None:
     # Ensure file exists and is an image
     _, ext = os.path.splitext(filepath.lower())
@@ -154,7 +290,7 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
             return
 
         # 1. Try local OpenCV cropper first
-        crop_box = crop_via_opencv_intersection(filepath, padding_ratio=0.03)
+        crop_box = crop_via_opencv(filepath, padding_ratio=0.02)
         if crop_box is not None:
             xmin, ymin, xmax, ymax = crop_box
             logger.info(f"Local OpenCV cropper successfully localized card for {os.path.basename(filepath)}")
