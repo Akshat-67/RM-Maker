@@ -46,8 +46,10 @@
     <script>
     const CASE_ID = '{{ case_id }}';
     const DOC_TYPE = '{{ doc_type }}';
+    const CASE_STATUS = '{{ status }}';
     const CASE_EXTRACTIONS = {{ extractions | tojson | safe if extractions else '{}' }};
     const CONFIDENCE_SCORES = {{ confidence_scores | tojson | safe if confidence_scores else '{}' }};
+
 
     // Optimistic concurrency – tracks the revision number the server last gave us.
     // Updated after every successful save; sent on every subsequent save request.
@@ -533,6 +535,64 @@
         updateTemplateDisplay();
         setupDropZone();
 
+        // Handle processing status (NIM Background Ingestion)
+        if (typeof CASE_STATUS !== 'undefined') {
+            if (CASE_STATUS === 'processing') {
+                const statusMsg = document.getElementById('statusMsg');
+                const startAiBtn = document.getElementById('startAiBtn');
+                if (statusMsg) {
+                    statusMsg.className = "small text-warning text-center mt-2 fw-semibold";
+                    statusMsg.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" style="width: 0.85rem; height: 0.85rem;"></span> Processing...';
+                }
+                if (startAiBtn) {
+                    startAiBtn.disabled = true;
+                    startAiBtn.innerHTML = '⚙️ Ingesting...';
+                }
+                
+                // Poll for completion
+                const pollInterval = setInterval(() => {
+                    fetch(`/api/case/${CASE_ID}/status`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                if (data.status === 'ready') {
+                                    clearInterval(pollInterval);
+                                    if (statusMsg) {
+                                        statusMsg.className = "small text-success text-center mt-2 fw-semibold";
+                                        statusMsg.textContent = "Ingestion Complete! Reloading...";
+                                    }
+                                    setTimeout(() => window.location.reload(), 1000);
+                                } else if (data.status === 'failed') {
+                                    clearInterval(pollInterval);
+                                    if (statusMsg) {
+                                        statusMsg.className = "small text-danger text-center mt-2 fw-semibold";
+                                        statusMsg.textContent = `Ingestion Failed: ${data.error || 'Unknown error'}`;
+                                    }
+                                    if (startAiBtn) {
+                                        startAiBtn.disabled = false;
+                                        startAiBtn.innerHTML = '🤖 Start AI Automation';
+                                    }
+                                }
+                            }
+                        })
+                        .catch(err => console.error("Error polling case status:", err));
+                }, 3000);
+            } else if (CASE_STATUS === 'failed') {
+                const statusMsg = document.getElementById('statusMsg');
+                if (statusMsg) {
+                    statusMsg.className = "small text-danger text-center mt-2 fw-semibold";
+                    statusMsg.textContent = "Ingestion failed. Please verify files or run AI manually.";
+                }
+            } else if (CASE_STATUS === 'ready') {
+                const statusMsg = document.getElementById('statusMsg');
+                if (statusMsg) {
+                    statusMsg.className = "small text-success text-center mt-2 fw-semibold";
+                    statusMsg.textContent = "🟢 Ingestion & Auto-Crop Ready";
+                }
+            }
+        }
+
+
         // Autofocus search inputs when dropdowns open
         document.addEventListener('shown.bs.dropdown', function (e) {
             const dropdownMenu = e.target.nextElementSibling;
@@ -922,9 +982,15 @@
     let _pendingSave = null;
 
     function saveCase(callback, _forceRevision) {
+        if (typeof validationDebounceTimer !== 'undefined') {
+            clearTimeout(validationDebounceTimer);
+        }
+
         if (_isSaving) {
-            // Queue this save request as the pending one
-            _pendingSave = { callback: callback, forceRevision: _forceRevision };
+            // Queue this save request, prioritizing ones with callbacks (workflow actions) over autosaves
+            if (!_pendingSave || callback) {
+                _pendingSave = { callback: callback, forceRevision: _forceRevision };
+            }
             return;
         }
         _isSaving = true;

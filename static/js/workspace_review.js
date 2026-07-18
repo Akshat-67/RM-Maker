@@ -306,6 +306,9 @@ function assignSelectedAadhars() {
             .then(r => r.json())
             .then(removeResp => {
                 if (removeResp.success) {
+                    if (removeResp.revision && typeof _caseRevision !== 'undefined') {
+                        _caseRevision = removeResp.revision;
+                    }
                     location.reload();
                 } else {
                     alert('Failed to remove assignments: ' + removeResp.error);

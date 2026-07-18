@@ -229,7 +229,19 @@ def view_case(case_id):
                            verified_fields=list(verified_fields),
                            extractions=extractions,
                            confidence_scores=confidence_scores,
-                           initial_revision=session.get("revision", 0))
+                           initial_revision=session.get("revision", 0),
+                           status=session.get("status", "new"))
+
+@cases_bp.route("/api/case/<case_id>/status")
+def get_case_status(case_id):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+    return jsonify({
+        "success": True,
+        "status": session.get("status", "new"),
+        "error": session.get("error", "")
+    })
 
 @cases_bp.route("/get_models")
 def get_models():
@@ -529,8 +541,8 @@ def run_ai(case_id):
             borrower_hints = ", ".join([b.get("n", "") for b in current_data.get("bs", []) if b.get("n")])
             witness_hints = ", ".join([w.get("n", "") for w in current_data.get("ws", []) if w.get("n")])
             
-            extracted_data = extractor.extract_with_ai(
-                files_to_process, model, bank_name=bank,
+            extracted_data = extractor.extract_buckets_with_ai(
+                buckets, model, bank_name=bank,
                 expected_borrowers=borrowers, expected_loans=loans,
                 borrower_hints=borrower_hints, witness_hints=witness_hints,
                 current_data=current_data
@@ -588,7 +600,9 @@ def run_ai(case_id):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @cases_bp.route("/case/<case_id>/remove_unassigned_aadhar", methods=["POST"])
+
 def remove_unassigned_aadhar(case_id):
     session = load_case_session(case_id)
     if not session:
@@ -603,7 +617,7 @@ def remove_unassigned_aadhar(case_id):
             unassigned.pop(index)
             data["unassigned_aadhars"] = unassigned
             
-            save_case_session(case_id, 
+            saved = save_case_session(case_id, 
                               data, 
                               session["files"], 
                               set(session["verified_fields"]), 
@@ -619,7 +633,7 @@ def remove_unassigned_aadhar(case_id):
                               selected_template=session.get("selected_template"),
                               property_type=session.get("property_type"),
                               legal_report_files=session.get("legal_report_files", []))
-            return jsonify({"success": True})
+            return jsonify({"success": True, "revision": saved.get("revision", 1)})
         return jsonify({"success": False, "error": "Invalid index"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -647,7 +661,7 @@ def remove_unassigned_aadhars(case_id):
                 
         data["unassigned_aadhars"] = unassigned
         
-        save_case_session(case_id, 
+        saved = save_case_session(case_id, 
                           data, 
                           session["files"], 
                           set(session["verified_fields"]), 
@@ -663,7 +677,7 @@ def remove_unassigned_aadhars(case_id):
                           selected_template=session.get("selected_template"),
                           property_type=session.get("property_type"),
                           legal_report_files=session.get("legal_report_files", []))
-        return jsonify({"success": True, "removed": removed_count})
+        return jsonify({"success": True, "removed": removed_count, "revision": saved.get("revision", 1)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -915,8 +929,11 @@ def get_case_validation(case_id):
     case_data_copy["id"] = case_id
     case_data_copy["bank"] = session.get("bank", "")
     case_data_copy["selected_template"] = session.get("selected_template", "")
+    case_data_copy["nvidia_data"] = session.get("nvidia_data", {})
+    case_data_copy["gemini_data"] = session.get("gemini_data", {})
     
     res = ValidationEngine.validate(doc_type, case_data_copy)
+
     res_dict = res.to_dict()
     
     run_proofreader = request.args.get("run_proofreader", "false").lower() == "true"
@@ -991,10 +1008,25 @@ def get_case_validation(case_id):
                         
             for filepath in pdf_paths:
                 if filepath not in legal_files and filepath not in technical_files:
+                    filename = os.path.basename(filepath).lower()
+                    
+                    # Skip large property chain/registry files to avoid token bloat
+                    is_property = "property" in filename or "registry" in filename or "deed" in filename or "chain" in filename or "map" in filename
+                    is_relevant = any(k in filename for k in ["sanction", "loan", "aadhar", "pan", "kyc", "owner", "witness", "co-borrower", "signer", "officer", "bank"])
+                    
+                    if is_property and not is_relevant:
+                        continue
+                        
                     try:
                         import pypdf
                         reader = pypdf.PdfReader(filepath)
-                        pdf_text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
+                        max_pages = len(reader.pages)
+                        if "sanction" in filename or "loan" in filename:
+                            max_pages = min(5, max_pages)
+                        else:
+                            max_pages = min(3, max_pages)
+                            
+                        pdf_text = "\n".join([reader.pages[idx].extract_text() or "" for idx in range(max_pages)]).strip()
                         if pdf_text:
                             other_pdf_texts.append(f"=== Sanction/KYC PDF: {os.path.basename(filepath)} ===\n{pdf_text}")
                     except Exception:
@@ -1017,5 +1049,65 @@ def get_case_validation(case_id):
             })
             
     return jsonify(res_dict)
+
+@cases_bp.route("/api/inbox/unimported", methods=["GET"])
+def get_unimported_inbox():
+    from services.session_manager import list_unimported_inbox_folders
+    folders = list_unimported_inbox_folders()
+    return jsonify({"success": True, "folders": folders})
+
+@cases_bp.route("/api/inbox/import", methods=["POST"])
+def import_inbox_folder():
+    req = request.json or {}
+    folder_name = req.get("folder_name")
+    case_id = req.get("case_id")
+    path = req.get("path")
+    if not folder_name or not case_id or not path:
+        return jsonify({"success": False, "error": "Missing import parameters."}), 400
+        
+    from services.session_manager import CASES_DIR
+    import json
+    import time
+    
+    case_dir = os.path.join(CASES_DIR, case_id)
+    session_path = os.path.join(case_dir, "session.json")
+    if os.path.exists(session_path):
+        return jsonify({"success": False, "error": "Case already imported."}), 400
+
+    try:
+        os.makedirs(case_dir, exist_ok=True)
+        import datetime
+        today_str = datetime.date.today().strftime("%d.%m.%Y")
+        
+        init_session = {
+            "id": case_id,
+            "case_id": case_id,
+            "borrower_name": folder_name,
+            "case_name": folder_name,
+            "case_inbox_path": path,
+            "doc_type": "RM",
+            "data": {
+                "rd": today_str,
+                "bs": [{}],
+                "ls": [{}],
+                "ws": [{}, {}],
+                "ps": [{}]
+            },
+            "files": [],
+            "verified_fields": [],
+            "last_updated": time.time(),
+            "auto_extracted": False,
+            "status": "processing"
+        }
+        with open(session_path, "w", encoding="utf-8") as f:
+            json.dump(init_session, f, indent=4)
+            
+        from services.ingestion_pipeline import start_inbox_ingestion_thread
+        start_inbox_ingestion_thread(case_id)
+        
+        return jsonify({"success": True, "case_id": case_id})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 
