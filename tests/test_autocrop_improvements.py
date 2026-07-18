@@ -152,6 +152,36 @@ def test_grabcut_with_expansion():
     assert box is not None
     assert box[2] - box[0] > 100
 
+def test_debug_mode_and_reporting(tmp_path):
+    from services.autocrop import save_candidate_scores_png, log_candidate_report, DocumentConfig, DocumentCandidate
+    import os
+    
+    cfg = DocumentConfig()
+    cand = DocumentCandidate(
+        contour=np.array([[0,0], [15,0], [15,10], [0,10]]),
+        bounding_box=(0, 0, 15, 10),
+        approx_polygon=np.array([[0,0], [15,0], [15,10], [0,10]]),
+        is_quadrilateral=True,
+        aspect_ratio=1.5,
+        solidity=0.9,
+        convexity=0.9,
+        rectangularity=0.9,
+        edge_support=0.8,
+        hierarchy_status="independent",
+        score=0.85,
+        is_valid=True
+    )
+    
+    # 1. Test log report
+    log_candidate_report([cand], cfg)
+    
+    # 2. Test scores PNG rendering
+    png_path = os.path.join(tmp_path, "08_candidate_scores.png")
+    save_candidate_scores_png([cand], png_path)
+    assert os.path.exists(png_path)
+    assert os.path.getsize(png_path) > 0
+
+
 
 
 

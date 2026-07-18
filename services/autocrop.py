@@ -202,6 +202,57 @@ def score_candidates(
     return candidates
 
 
+def log_candidate_report(candidates: List[DocumentCandidate], cfg: DocumentConfig):
+    """Logs a cleanly formatted ASCII table report showing candidates sorted by score."""
+    report_lines = [
+        "",
+        "=====================================================================",
+        "                      CANDIDATE CONTOUR REPORT                       ",
+        "=====================================================================",
+        f"Target Aspect Ratio: {cfg.target_aspect_ratio} | Total Candidates: {len(candidates)}",
+        "---------------------------------------------------------------------",
+    ]
+    for idx, c in enumerate(candidates):
+        x, y, w, h = c.bounding_box
+        status_symbol = "✓ ACCEPTED" if c.is_valid else f"✗ REJECTED: {c.rejection_reason}"
+        report_lines.append(
+            f"Contour #{idx+1:02d}: Score={c.score:.4f} | {status_symbol}\n"
+            f"  - Geometry: Area={cv2.contourArea(c.contour):.0f} | BBox=(x={x}, y={y}, w={w}, h={h}) | Aspect={c.aspect_ratio:.2f}\n"
+            f"  - Metrics: Solidity={c.solidity:.2f} | Convexity={c.convexity:.2f} | Rectangularity={c.rectangularity:.2f}\n"
+            f"  - Edge Support: {c.edge_support:.4f} | Hierarchy: {c.hierarchy_status} | Vertices={len(c.approx_polygon)}"
+        )
+    report_lines.append("=====================================================================")
+    logger.info("\n".join(report_lines))
+
+
+def save_candidate_scores_png(candidates: List[DocumentCandidate], path: str):
+    """Renders a text table of candidate scores onto a black canvas and saves it as PNG."""
+    canvas_h = 40 + len(candidates) * 50
+    canvas = np.zeros((max(200, canvas_h), 800, 3), dtype=np.uint8)
+
+    cv2.putText(canvas, "RANK  SCORE   ASPECT  SOLIDITY  RECT  EDGES  VERTICES  STATUS", (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+    for idx, c in enumerate(candidates):
+        y_offset = 65 + idx * 50
+        status = "VALID" if c.is_valid else "INVALID"
+        status_color = (0, 255, 0) if c.is_valid else (0, 0, 255)
+
+        info_str = f"#{idx+1:<3d}  {c.score:.3f}   {c.aspect_ratio:.2f}    {c.solidity:.2f}      {c.rectangularity:.2f}  {c.edge_support:.2f}   {len(c.approx_polygon):<8d}"
+
+        cv2.putText(canvas, info_str, (10, y_offset),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1, cv2.LINE_AA)
+        cv2.putText(canvas, status, (680, y_offset),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, status_color, 1, cv2.LINE_AA)
+
+        if not c.is_valid:
+            cv2.putText(canvas, f"  Reason: {c.rejection_reason[:75]}", (10, y_offset + 18),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (100, 100, 250), 1, cv2.LINE_AA)
+
+    cv2.imwrite(path, canvas)
+
+
+
 def _order_points(pts: np.ndarray) -> np.ndarray:
     pts = pts.reshape(4, 2)
     rect = np.zeros((4, 2), dtype="float32")
