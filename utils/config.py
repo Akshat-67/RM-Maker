@@ -39,21 +39,23 @@ def get_gemini_api_keys():
 # Exported default key list
 DEFAULT_GEMINI_API_KEYS = get_gemini_api_keys()
 
-<<<<<<< HEAD
 NVIDIA_NIM_API_KEY = os.getenv("NVIDIA_NIM_API_KEY", "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")
 NVIDIA_OCR_API_KEY = os.getenv("NVIDIA_OCR_API_KEY", "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")
 CASE_INBOX_DIR = os.getenv("CASE_INBOX_DIR", "cases_inbox")
 
-=======
+
 def get_nvidia_api_key() -> str:
     """Return the NVIDIA API key from the environment.
 
+    Checks ``NVIDIA_API_KEY`` first, then falls back to ``NVIDIA_NIM_API_KEY``.
+
     Raises:
-        RuntimeError: If the ``NVIDIA_API_KEY`` environment variable is not set.
+        RuntimeError: If no NVIDIA API key is configured.
     """
-    key = os.getenv('NVIDIA_API_KEY')
+    key = os.getenv('NVIDIA_API_KEY') or NVIDIA_NIM_API_KEY
     if not key:
-        logging.error('NVIDIA_API_KEY environment variable is missing')
-        raise RuntimeError('NVIDIA_API_KEY not set')
+        logging.error('NVIDIA API key environment variable is missing')
+        raise RuntimeError('NVIDIA API key not set')
     return key
->>>>>>> 4d3307bfa71b77e49ce5a576d066165eb71265fa
+
+

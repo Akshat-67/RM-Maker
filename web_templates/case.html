@@ -43,31 +43,45 @@
 
     <!-- STEP 4: TITLE CHAIN TIMELINE WORKSPACE -->
     {% include 'components/timeline.html' %}
-    <script>
-    const CASE_ID = '{{ case_id }}';
-    const DOC_TYPE = '{{ doc_type }}';
-    const CASE_STATUS = '{{ status }}';
-    const CASE_EXTRACTIONS = {{ extractions | tojson | safe if extractions else '{}' }};
-    const CONFIDENCE_SCORES = {{ confidence_scores | tojson | safe if confidence_scores else '{}' }};
 
+    <!-- Server-injected data: parsed by JS, not executed. IDEs skip linting this block. -->
+    <script id="server-data" type="application/json">
+    {
+        "case_id": {{ case_id | tojson }},
+        "doc_type": {{ doc_type | tojson }},
+        "status": {{ (status or '') | tojson }},
+        "extractions": {{ (extractions or {}) | tojson }},
+        "confidence_scores": {{ (confidence_scores or {}) | tojson }},
+        "initial_revision": {{ (initial_revision | default(0)) | tojson }},
+        "has_data": {% if data %}true{% else %}false{% endif %},
+        "title_chain": {{ (data.get('title_chain', []) if doc_type == 'SD' else []) | tojson }},
+        "selected_template": {{ (selected_template or '') | tojson }},
+        "all_case_files": [
+            {% for f in files %}{{ (f | basename) | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% if files and buckets %}, {% endif %}
+            {% for b_name, b_files in buckets.items() %}{% for f in b_files %}{{ (f | basename) | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %}, {% endif %}{% endfor %}
+        ]
+    }
+    </script>
+
+    <script>
+    // Parse all server-injected data from the JSON data island
+    const _SERVER = JSON.parse(document.getElementById('server-data').textContent);
+    const CASE_ID = _SERVER.case_id;
+    const DOC_TYPE = _SERVER.doc_type;
+    const CASE_STATUS = _SERVER.status;
+    const CASE_EXTRACTIONS = _SERVER.extractions;
+    const CONFIDENCE_SCORES = _SERVER.confidence_scores;
 
     // Optimistic concurrency – tracks the revision number the server last gave us.
     // Updated after every successful save; sent on every subsequent save request.
-    let _caseRevision = {{ initial_revision | default(0) }};
-
-
-
-
+    let _caseRevision = _SERVER.initial_revision;
 
     // Timeline variables
     let titleChainEvents = [];
 
     function loadTimelineEvents() {
-        {% if doc_type == 'SD' %}
-            titleChainEvents = {{ data.get('title_chain', []) | tojson }} || [];
-        {% else %}
-            titleChainEvents = [];
-        {% endif %}
+        titleChainEvents = _SERVER.title_chain || [];
         
         if (titleChainEvents.length === 0) {
             titleChainEvents.push({
@@ -295,7 +309,7 @@
 
 
     // Default step routing based on data existence with localStorage fallback
-    const DEFAULT_STEP = {% if data %}2{% else %}1{% endif %};
+    const DEFAULT_STEP = _SERVER.has_data ? 2 : 1;
     window.addEventListener('DOMContentLoaded', () => {
         const savedStep = localStorage.getItem('activeCaseStep_' + CASE_ID);
         if (savedStep) {
@@ -304,12 +318,9 @@
             switchStep(DEFAULT_STEP);
         }
     });
-    const ALL_CASE_FILES = [
-        {% for f in files %}"{{ f | basename }}",{% endfor %}
-        {% for b_name, b_files in buckets.items() %}{% for f in b_files %}"{{ f | basename }}",{% endfor %}{% endfor %}
-    ].filter((v, i, a) => a.indexOf(v) === i && v.trim() !== "");
+    const ALL_CASE_FILES = _SERVER.all_case_files.filter((v, i, a) => a.indexOf(v) === i && v.trim() !== "");
 
-    let customTemplateFilename = '{{ selected_template }}';
+    let customTemplateFilename = _SERVER.selected_template;
     let transliterationEnabled = false;
     let devlysEnabled = false;
     let devlysMapFrom = [];
