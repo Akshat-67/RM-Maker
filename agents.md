@@ -1,183 +1,71 @@
-# Instructions for Future AI Agents (AGENTS.md)
- 
+# Instructions for Coding Agents (AGENTS.md)
+
+This document is the primary entry point and navigation hub for AI coding assistants working on the RM-Maker repository. 
+
 > [!IMPORTANT]
-> The guidelines below must be followed by all AI coding assistants or agents working on this codebase. This is a production legal document automation system. **Understand before editing. Avoid blind rewrites.**
+> RM-Maker is a production legal document automation system. Understand the architecture, design patterns, and constraints before editing. Avoid blind rewrites.
 
-## 1. Project Purpose & Architecture
-RM-Maker is a production legal document automation system designed to extract entity data from KYC files, manage template schedules, and compile Registered Mortgage (RM) and Sale Deed (SD) documents.
+---
 
-The core pipeline follows this sequence:
+## 1. Repository Philosophy
+When modifying this codebase, follow these core principles:
+- **Long-lived Production App**: RM-Maker is a stable, production-hardened system. Prioritize backward compatibility and stability.
+- **Extend, Don't Rewrite**: Extend existing systems and architectures rather than rewriting modules from scratch.
+- **Incremental & Surgical Changes**: Write clean, surgical replacement blocks. Prefer minimal, focused changes over full-file rewrites.
+- **Maintainability Over Cleverness**: Code must be clear and readable. Avoid unnecessary complexity or introducing unrequested frameworks.
+- **Data Integrity**: Runtime data structures (such as session schemas) are contracts. Never silently drop or modify data fields.
+
+---
+
+## 2. Permanent Engineering Constraints
+
+- **Unicode-First Processing**: All internal data processing, storage, and UI states use Unicode Devanagari. Legacy font encoding is applied *only* at the document rendering boundary.
+- **Standardized Digits**: Devanagari numerals (`०-९`) must be converted to standard English digits (`0-9`) globally (during extraction, load, and save).
+- **Hindi Segment Parsing**: Salutations and relative prefixes must be normalized and split cleanly in session schemas.
+- **UI Typography**: Web interfaces must display Hindi in Unicode fonts (e.g. Segoe UI, Mangal). Legacy fonts (e.g. DevLys, Kruti Dev) are never used for browser layout or styling.
+
+---
+
+## 3. Documentation Map (Where to Read)
+Depending on your task, you MUST read the corresponding design document before modifying code:
+
+| If your task involves... | Read this document... |
+| :--- | :--- |
+| Core architecture, files, or high-level pipeline flow | [docs/ARCHITECTURE.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/ARCHITECTURE.md) |
+| Modifying Registered Mortgage (RM) templates, logic, or processor | [docs/RM_PIPELINE.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/RM_PIPELINE.md) |
+| Modifying Sale Deed (SD) templates, schemas, timeline, or narrative engine | [docs/SD_PIPELINE.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/SD_PIPELINE.md) |
+| Customizing the e-Panjiyan Chrome extension or autofill selectors | [docs/CHROME_EXTENSION.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/CHROME_EXTENSION.md) |
+| Tweaking AI fact extraction, pre-filtering pages, or auto-cropping | [docs/EXTRACTION.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/EXTRACTION.md) |
+| Running backend/E2E test suites or updating tests | [docs/TESTING.md](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/TESTING.md) |
+
+---
+
+## 4. Development Workflow
+For any task, follow this sequential workflow:
+
 ```
-Upload → Extraction → Schema Validation → Processing → Template Context Generation → docxtpl Rendering
+Read AGENTS.md (Root navigation hub)
+       ↓
+Read relevant documentation under /docs
+       ↓
+Inspect affected files and their dependencies
+       ↓
+Implement changes (surgical & modular)
+       ↓
+Run relevant Pytest / Playwright tests
+       ↓
+Update documentation if architecture changed
+       ↓
+Update Serena memories if long-term architecture changed
 ```
 
-*   **Fact Extraction**: AI models extract structured factual data only.
-*   **Deed Generation**: Templates (`.docx`) own the legal wording; code only passes variable contexts.
-*   **Hindi Font Paradigm**: 
-    - Unicode internally.
-    - Legacy DevLys conversion only at docx rendering boundary.
-    - Do not force legacy fonts globally.
-
 ---
 
-## 2. Code Protection and Core Constraints
-
-### High Impact Files (Extra Care Required)
-High impact files require extra care:
-*   [modules/rm/](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/modules/rm/) (all scripts under RM module)
-*   [modules/sd/](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/modules/sd/) (all scripts under SD module)
-*   [utils/helpers.py](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/utils/helpers.py)
-*   [app.py](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/app.py) (specifically session routes)
-*   [web_templates/case.html](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/web_templates/case.html)
-
-Before modifying:
-*   inspect dependencies
-*   preserve schema compatibility
-*   understand historical reasons
-
-### Registered Mortgage (RM) Stability
-*   **Stability**: The RM pipeline is highly stable and production-hardened.
-*   **Compatibility**: Preserve backward compatibility. Avoid making changes to RM schema, processors, or extractors unless explicitly requested.
-
-### Sale Deed (SD) Canonical Shorthands
-Preserve the shorthand list names for SD cases in session databases:
-*   `ss` = sellers
-*   `bs` = buyers
-*   `ws` = witnesses
-*   `ps` = property
-
-### Universal Digit conversion
-*   Devanagari numerals (`०-९`) must always be converted to standard English digits (`0-9`) globally (applied at session loading, session saving, and AI extraction).
-
-### Typographic UI Rules
-*   The web interface must display Hindi in clean Unicode Devanagari fonts (e.g. `Segoe UI` or `Mangal`). Legacy non-Unicode fonts (e.g. `DevLys 010`, `Kruti Dev`) must **never** be used for browser styling/textareas.
-
-### Real-Time Transliteration
-*   Do not modify the automatic English-to-Hindi transliteration flow on Enter/Tab/blur fields calling `/transliterate` or the local `Sanscript` fallback.
-
----
-
-## 3. Editing and Refactoring Rules
-*   **Historical Code Preservation**: Historical code may look unusual because it fixes real legal workflow edge cases. Do not simplify without understanding why it exists.
-*   **Serena Integration**: Use Serena symbol search or get file/symbol overviews before executing edits.
-*   **Check Callers**: Inspect caller references before changing function signatures. Explain design impacts.
-*   **Smallest Safe Changes**: Prefer incremental modifications and write surgical replacement blocks rather than full-file rewrites.
-*   **Session Integrity**: Never silently drop data fields. Saved field structures are contracts; schema changes must include backward-compatible migrations.
-*   **Templates as Contracts**: Pre-defined placeholders inside `.docx` master files are API contracts. Never remove context keys without verifying all templates and files first.
-
----
-
-## 4. Graphify Usage
-Graphify is available as a generated repository analysis, not as an MCP.
-
-Before major changes inspect `graphify-out`.
-
-Use Graphify data for:
-*   dependency analysis
-*   identifying high impact files
-*   finding connected modules
-*   understanding architecture clusters
-*   refactor planning
-
-Required before:
-*   moving functions/classes
-*   changing schemas
-*   changing processors
-*   modifying `app.py`
-*   modifying shared utilities
-
-Workflow:
-1.  Use Serena MCP for live code symbols.
-2.  Use `graphify-out` for dependency impact.
-3.  Make changes only after understanding both.
-
-Do not assume Graphify is automatically available. Read the generated files.
-
----
-
-## 5. Permanent Engineering Policy & Definition of Done
-
-This section outlines the strict requirements for regression testing, documentation updates, and the Definition of Done (DoD) for all tasks.
-
-### Regression Test Policy
-
-Automated tests are first-class project assets.
-
-Whenever production code changes:
-- determine whether existing pytest tests still cover the modified behavior
-- determine whether existing Playwright tests still cover the modified behavior
-- update affected tests when intended behavior changes
-- add regression tests for:
-    - new features
-    - bug fixes
-    - new services
-    - new routes
-    - schema changes
-    - document generation changes
-
-Never leave production changes without corresponding test updates.
-
-Every production bug fix must include a regression test reproducing the original issue.
-
-A task is not complete until relevant tests pass.
-
-### Documentation Policy
-
-Whenever architecture changes:
-- update AGENTS.md if workflow rules changed
-- update agent_knowledge if architecture changed
-- update architecture documentation if needed
-- recommend regenerating Graphify whenever dependency relationships change significantly
-
-### Definition of Done
-
+## 5. Definition of Done (DoD)
 A task is complete only when:
-
-✓ implementation complete
-
-✓ architecture preserved
-
-✓ RM compatibility verified
-
-✓ SD compatibility verified
-
-✓ relevant pytest tests pass
-
-✓ relevant Playwright tests pass
-
-✓ regression tests updated
-
-✓ documentation updated if architecture changed
-
-✓ Serena memories updated if long-term project knowledge changed
-
-✓ Graphify update (only when requested manually by the user)
-
-### Future Development Engineering Workflow
-
-For any future task, the development lifecycle must follow this sequence:
-
-```
-    Request
-       ↓
-Serena memories (review existing rules & contexts)
-       ↓
-Graphify architecture review (for non-trivial changes, inspect graphify-out)
-       ↓
-Architecture analysis
-       ↓
-Implementation
-       ↓
-Pytest (verify Python logic and backend pipelines)
-       ↓
-Playwright (verify frontend and portal autofill behaviors)
-       ↓
-Documentation update (sync AGENTS.md / agent_knowledge if architecture changed)
-       ↓
-Serena memory update (store long-term rules/decisions)
-       ↓
-Graphify regeneration (only if requested manually by the user)
-       ↓
- Task complete
-```
-
+- [ ] Implementation is complete and code matches the requested specifications.
+- [ ] Existing application behavior is preserved and stable.
+- [ ] Relevant unit and integration tests pass successfully.
+- [ ] Regression tests are added for any new features or bug fixes.
+- [ ] Documentation is updated if architectural elements or rules changed.
+- [ ] Serena memories are updated if long-term architectural knowledge changed.

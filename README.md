@@ -99,9 +99,10 @@ Validates UI updates, verification badges, conflict resolution dialogs, and keyb
 ## 🔄 Development Engineering Workflow
 
 All future code contributions must follow the strict sequence outlined in `AGENTS.md`:
-1. Review Serena memories and Rules.
-2. Review Graphify knowledge representation.
-3. Implement minimal changes respecting domain isolation.
-4. Run Pytest suite & Playwright suite.
-5. Verify zero regressions on RM and SD pipelines.
-6. Regenerate Graphify database (`graphify update .`).
+1. Read `AGENTS.md` (root navigation hub).
+2. Read the relevant subsystem documentation in `/docs`.
+3. Inspect affected files and dependencies.
+4. Implement minimal, surgical changes.
+5. Run Pytest suite & Playwright suite to verify zero regressions.
+6. Update documentation if architecture changed.
+7. Update Serena memories if long-term architecture changed.
