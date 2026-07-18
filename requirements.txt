@@ -11,3 +11,6 @@ pytest
 python-dotenv
 pypdf
 
+pytesseract
+opencv-python-headless
+numpy

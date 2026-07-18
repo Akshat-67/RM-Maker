@@ -4,9 +4,9 @@ import cv2
 from services.autocrop import DocumentConfig, DocumentCandidate
 
 def test_document_config_and_candidate_types():
-    cfg = DocumentConfig(target_aspect_ratio=1.585)
-    assert cfg.target_aspect_ratio == 1.585
-    assert cfg.min_solidity == 0.70
+    cfg = DocumentConfig(target_aspect_ratios=[1.585])
+    assert cfg.target_aspect_ratios == [1.585]
+    assert cfg.min_solidity == 0.65
 
     cand = DocumentCandidate(
         contour=np.array([[0,0], [10,0], [10,10], [0,10]]),
@@ -56,7 +56,7 @@ def test_find_candidate_contours():
 def test_score_candidates():
     from services.autocrop import score_candidates, DocumentConfig, DocumentCandidate
     
-    cfg = DocumentConfig(target_aspect_ratio=1.585)
+    cfg = DocumentConfig(target_aspect_ratios=[1.585])
     edges = np.zeros((100, 100), dtype=np.uint8)
     
     # Candidate A: close to Aadhaar card

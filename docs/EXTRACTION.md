@@ -42,3 +42,14 @@ $$\text{Score} = w_{\text{aspect}} \cdot S_{\text{aspect}} + w_{\text{solidity}}
 ### E. Visual Debugging
 - When `AUTOCROP_DEBUG=true` is enabled, the cropper saves 12 debug stages (original image, edges, contours, candidate scores table, and crop states) inside an `autocrop_debug_<basename>/` directory.
 - Wrote `test_nested_subfolder_classification` to ensure subfolders (`kyc/`, `legal/`) in ingestion are supported recursively by matching relative paths.
+
+## Preprocessing Pipeline Architecture
+
+The document preprocessing pipeline (located primarily in `services/autocrop.py` and `services/orientation.py`) operates through a resilient, multi-layered approach to automatically crop, correct perspective, and orient document images before OCR:
+
+1. **Geometry/Contour Detection:** The pipeline first uses OpenCV (Canny edges, Morphological closing) to locate distinct quadrilaterals matching known document aspect ratios (Aadhaar/PAN, A4, US Letter).
+2. **Perspective Warping:** The highest-scoring valid contour is used to perspective-warp the image back into a clean, flat scan.
+3. **GrabCut Fallback:** If contour detection fails (e.g., due to background clutter or poor contrast), the pipeline falls back to an edge-directed `cv2.grabCut` mask to extract the document.
+4. **Validation:** Cropped results are passed through `services.crop_validation` which analyzes minimum resolution, retained area ratio, and aspect ratio. If the crop is bad, it gracefully falls back to the original image.
+5. **Orientation Correction:** Finally, `pytesseract` OSD detects the rotational orientation of the cropped document (0, 90, 180, 270 degrees) and correctly rotates it upright for maximum OCR reliability.
+6. **VLM Fallback:** If local OpenCV heuristics completely fail, a Gemini Vision language model is queried to estimate the document bounding box as a last resort.

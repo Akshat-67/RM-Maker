@@ -2,9 +2,11 @@ import os
 import json
 import logging
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Tuple
 import cv2
+from services.orientation import detect_orientation, correct_orientation
+from services.crop_validation import is_crop_valid
 import numpy as np
 from PIL import Image
 from services.ai_client import AIClient
@@ -15,14 +17,19 @@ logger = logging.getLogger("Autocrop")
 
 @dataclass
 class DocumentConfig:
-    target_aspect_ratio: float = 1.585
-    aspect_ratio_tolerance: float = 0.3
-    min_area_ratio: float = 0.15
-    max_area_ratio: float = 0.95
-    min_solidity: float = 0.70
-    min_convexity: float = 0.70
-    min_rectangularity: float = 0.70
-    edge_support_threshold: float = 0.30
+    target_aspect_ratios: List[float] = field(default_factory=lambda: [
+        1.585,  # Aadhaar / PAN / ID cards
+        1.414,  # A4 Document
+        1.294,  # US Letter
+    ])
+    aspect_ratio_tolerance: float = 0.35
+    min_area_ratio: float = 0.10
+    max_area_ratio: float = 0.98
+    min_solidity: float = 0.65
+    min_convexity: float = 0.65
+    min_rectangularity: float = 0.65
+    edge_support_threshold: float = 0.20
+    min_confidence: float = 0.50 # Overall confidence threshold before fallback
 
 
 @dataclass
@@ -53,6 +60,9 @@ def preprocess_image(img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     lower = int(max(0, 0.5 * v_median))
     upper = int(min(255, 1.5 * v_median))
     edges = cv2.Canny(blurred, lower, upper)
+    # Add morphological closing to connect broken edges
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
     return blurred, edges
 
 
@@ -157,8 +167,9 @@ def score_candidates(
             cand.edge_support = 0.0
 
         # 1. Aspect Ratio similarity score
-        aspect_diff = abs(cand.aspect_ratio - cfg.target_aspect_ratio)
-        s_aspect = float(np.exp(-aspect_diff / cfg.aspect_ratio_tolerance))
+        # Find best aspect ratio match
+        best_aspect_diff = min([abs(cand.aspect_ratio - t) for t in cfg.target_aspect_ratios])
+        s_aspect = float(np.exp(-best_aspect_diff / cfg.aspect_ratio_tolerance))
 
         # 2. Solidity score
         s_solidity = float(cand.solidity)
@@ -209,7 +220,7 @@ def log_candidate_report(candidates: List[DocumentCandidate], cfg: DocumentConfi
         "=====================================================================",
         "                      CANDIDATE CONTOUR REPORT                       ",
         "=====================================================================",
-        f"Target Aspect Ratio: {cfg.target_aspect_ratio} | Total Candidates: {len(candidates)}",
+        f"Target Aspect Ratios: {cfg.target_aspect_ratios} | Total Candidates: {len(candidates)}",
         "---------------------------------------------------------------------",
     ]
     for idx, c in enumerate(candidates):
@@ -295,34 +306,27 @@ def validate_candidates(
             continue
 
         # 5. Aspect Ratio bounds
-        if cand.aspect_ratio < 1.2 or cand.aspect_ratio > 2.5:
+        if cand.aspect_ratio < 1.1 or cand.aspect_ratio > 3.0:
             cand.is_valid = False
             cand.rejection_reason = f"Aspect ratio out of bounds ({cand.aspect_ratio:.2f})"
             continue
 
-        # 6. Edge Support
+        # 6. Overall Confidence check (use min_confidence threshold)
+        if cand.score < cfg.min_confidence:
+            cand.is_valid = False
+            cand.rejection_reason = f"Overall score too low ({cand.score:.2f} < {cfg.min_confidence})"
+            continue
+
+        # 7. Edge Support
         if cand.edge_support < cfg.edge_support_threshold:
             cand.is_valid = False
             cand.rejection_reason = f"Edge support too low ({cand.edge_support:.2f} < {cfg.edge_support_threshold})"
             continue
 
-        # 7. Discarded Edge Density (outer content check)
-        x1, y1, x2, y2 = x, y, x + w, y + h
-        box_mask = np.zeros_like(edges)
-        box_mask[y1:y2, x1:x2] = 255
-        inner_edges = np.sum((edges > 0) & (box_mask == 255))
-        outer_edges = np.sum(edges > 0) - inner_edges
-        outer_area = img_area - (w * h)
-        outer_density = outer_edges / outer_area if outer_area > 0 else 0
-        if outer_density > 0.012:
-            cand.is_valid = False
-            cand.rejection_reason = f"Outer density too high ({outer_density:.4f} > 0.012)"
-            continue
-
         # 8. Covers full image check
         w_ratio = w / w_img
         h_ratio = h / h_img
-        if w_ratio > 0.92 and h_ratio > 0.88:
+        if w_ratio > 0.95 and h_ratio > 0.95:
             cand.is_valid = False
             cand.rejection_reason = "Covers full image (already cropped)"
             continue
@@ -554,21 +558,41 @@ def _grabcut_with_expansion(img, top_candidate: Optional[DocumentCandidate] = No
     bgd_model = np.zeros((1, 65), np.float64)
     fgd_model = np.zeros((1, 65), np.float64)
 
-    # Downscale for speed (GrabCut is O(n^2))
-    scale = 1.0
-    if max(h_img, w_img) > 800:
-        scale = 800.0 / max(h_img, w_img)
-        small = cv2.resize(img, None, fx=scale, fy=scale)
-        small_mask = np.zeros(small.shape[:2], np.uint8)
-        small_rect = (
-            int(rect[0] * scale), int(rect[1] * scale),
-            int(rect[2] * scale), int(rect[3] * scale),
-        )
-        cv2.grabCut(small, small_mask, small_rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
-        mask = cv2.resize(small_mask, (w_img, h_img), interpolation=cv2.INTER_NEAREST)
-    else:
-        mask = np.zeros((h_img, w_img), np.uint8)
-        cv2.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+    # Validate rect before GrabCut to prevent initGMMs assertion failures
+    gx, gy, gw, gh = rect
+    if gw <= 5 or gh <= 5 or gx < 0 or gy < 0 or gx + gw > w_img or gy + gh > h_img:
+        logger.warning(f"GrabCut rect {rect} is invalid or too small for image {img.shape[:2]}. Aborting GrabCut.")
+        return None
+
+    # Check if the rect covers the entire image (which GrabCut doesn't like)
+    if gw >= w_img - 2 and gh >= h_img - 2:
+        logger.warning("GrabCut rect covers entire image. Aborting GrabCut.")
+        return None
+
+    try:
+        # Downscale for speed (GrabCut is O(n^2))
+        scale = 1.0
+        if max(h_img, w_img) > 800:
+            scale = 800.0 / max(h_img, w_img)
+            small = cv2.resize(img, None, fx=scale, fy=scale)
+            small_mask = np.zeros(small.shape[:2], np.uint8)
+            small_rect = (
+                int(rect[0] * scale), int(rect[1] * scale),
+                int(rect[2] * scale), int(rect[3] * scale),
+            )
+            # Re-validate scaled rect
+            sx, sy, sw, sh = small_rect
+            if sw <= 5 or sh <= 5 or sx < 0 or sy < 0 or sx + sw > small.shape[1] or sy + sh > small.shape[0] or (sw >= small.shape[1] - 2 and sh >= small.shape[0] - 2):
+                logger.warning(f"Scaled GrabCut rect {small_rect} is invalid or covers entire image. Aborting GrabCut.")
+                return None
+            cv2.grabCut(small, small_mask, small_rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+            mask = cv2.resize(small_mask, (w_img, h_img), interpolation=cv2.INTER_NEAREST)
+        else:
+            mask = np.zeros((h_img, w_img), np.uint8)
+            cv2.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+    except Exception as e:
+        logger.warning(f"GrabCut cv2 exception: {e}. Aborting GrabCut.")
+        return None
 
     fg_mask = np.where((mask == 1) | (mask == 3), 255, 0).astype(np.uint8)
     k_close = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
@@ -841,14 +865,24 @@ def crop_via_opencv(img_path, padding_ratio=0.02):
         x2 = min(w_img, x2 + pw)
         y2 = min(h_img, y2 + ph)
 
+        # Validate Grabcut crop
+        test_crop = img[y1:y2, x1:x2]
+        if not is_crop_valid(img, test_crop):
+            logger.warning("GrabCut crop failed validation, falling back to original image.")
+            return None
+
         if debug_mode:
             cv2.imwrite(os.path.join(debug_dir, "10_grabcut_mask.png"), edges)
             cv2.imwrite(os.path.join(debug_dir, "12_final.png"), img[y1:y2, x1:x2])
 
         return (x1, y1, x2, y2)
 
-    # If perspective warped, save directly and return sentinel (0, 0, 0, 0)
+    # If perspective warped, validate, save directly and return sentinel (0, 0, 0, 0)
     if final_cropped is not None and selected_candidate is not None:
+        if not is_crop_valid(img, final_cropped):
+            logger.warning("Perspective warped crop failed validation, falling back to original image.")
+            return None
+
         if debug_mode:
             sel_img = img.copy()
             cv2.drawContours(sel_img, [selected_candidate.contour], -1, (0, 255, 0), 3)
@@ -860,6 +894,11 @@ def crop_via_opencv(img_path, padding_ratio=0.02):
         backup_path = img_path + ".original"
         if not os.path.exists(backup_path):
             shutil.copy2(img_path, backup_path)
+
+        # Detect and correct orientation after cropping
+        rot = detect_orientation(final_cropped)
+        if rot != 0:
+            final_cropped = correct_orientation(final_cropped, rot)
 
         # Save warped crop directly to disk
         cv2.imwrite(img_path, final_cropped)
@@ -905,7 +944,20 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
                 shutil.copy2(filepath, backup_path)
                 
             cropped_img = img.crop((xmin, ymin, xmax, ymax))
-            cropped_img.save(filepath, "JPEG", quality=95)
+            cv_img = np.array(cropped_img)
+            # Convert PIL image to BGR for cv2, handling both RGB and RGBA formats
+            if len(cv_img.shape) == 3:
+                if cv_img.shape[2] == 4:
+                    cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGBA2BGR)
+                elif cv_img.shape[2] == 3:
+                    cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
+
+            rot = detect_orientation(cv_img)
+            if rot != 0:
+                cv_img = correct_orientation(cv_img, rot)
+                cv2.imwrite(filepath, cv_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            else:
+                cropped_img.save(filepath, "JPEG", quality=95)
             return
 
         # 2. Fallback to VLM if local cropper did not find a sub-region
@@ -959,7 +1011,19 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
                 shutil.copy2(filepath, backup_path)
 
             cropped_img = img.crop((xmin, ymin, xmax, ymax))
-            cropped_img.save(filepath, "JPEG", quality=95)
+            cv_img = np.array(cropped_img)
+            if len(cv_img.shape) == 3:
+                if cv_img.shape[2] == 4:
+                    cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGBA2BGR)
+                elif cv_img.shape[2] == 3:
+                    cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
+
+            rot = detect_orientation(cv_img)
+            if rot != 0:
+                cv_img = correct_orientation(cv_img, rot)
+                cv2.imwrite(filepath, cv_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            else:
+                cropped_img.save(filepath, "JPEG", quality=95)
             logger.info(f"Successfully auto-cropped Aadhaar card via VLM fallback for {os.path.basename(filepath)}")
 
     except Exception as e:
