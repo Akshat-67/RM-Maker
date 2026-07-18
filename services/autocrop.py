@@ -133,6 +133,75 @@ def find_candidate_contours(img: np.ndarray, edges: np.ndarray) -> List[Document
     unique_candidates.sort(key=lambda c: cv2.contourArea(c.contour), reverse=True)
     return unique_candidates
 
+
+def score_candidates(
+    candidates: List[DocumentCandidate],
+    cfg: DocumentConfig,
+    edges: np.ndarray
+) -> List[DocumentCandidate]:
+    """
+    Computes a normalized weighted confidence score for each document candidate.
+    Filters and sorts the candidates by score descending.
+    """
+    dilated_edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)))
+    h_img, w_img = edges.shape[:2]
+
+    for cand in candidates:
+        pts = cand.contour.reshape(-1, 2)
+        if len(pts) > 0:
+            xs = np.clip(pts[:, 0], 0, w_img - 1)
+            ys = np.clip(pts[:, 1], 0, h_img - 1)
+            edge_pixels = dilated_edges[ys, xs]
+            cand.edge_support = float(np.sum(edge_pixels > 0) / len(pts))
+        else:
+            cand.edge_support = 0.0
+
+        # 1. Aspect Ratio similarity score
+        aspect_diff = abs(cand.aspect_ratio - cfg.target_aspect_ratio)
+        s_aspect = float(np.exp(-aspect_diff / cfg.aspect_ratio_tolerance))
+
+        # 2. Solidity score
+        s_solidity = float(cand.solidity)
+
+        # 3. Convexity score
+        s_convexity = float(cand.convexity)
+
+        # 4. Rectangularity score
+        s_rect = float(cand.rectangularity)
+
+        # 5. Vertex count score (prefers quadrilaterals)
+        if cand.is_quadrilateral:
+            s_vertex = 1.0
+        elif len(cand.approx_polygon) <= 6:
+            s_vertex = 0.6
+        else:
+            s_vertex = 0.2
+
+        # 6. Edge support score
+        s_edge = float(cand.edge_support)
+
+        # 7. Hierarchy score (penalizes child contours inside larger parent cards)
+        if cand.hierarchy_status == "child":
+            s_hierarchy = 0.2
+        else:
+            s_hierarchy = 1.0
+
+        # Calculate final weighted sum (weights sum to 1.0)
+        cand.score = float(
+            0.25 * s_aspect +
+            0.15 * s_solidity +
+            0.15 * s_rect +
+            0.15 * s_vertex +
+            0.15 * s_edge +
+            0.10 * s_hierarchy +
+            0.05 * s_convexity
+        )
+
+    # Sort candidates by score descending
+    candidates.sort(key=lambda c: c.score, reverse=True)
+    return candidates
+
+
 def _find_card_via_contour(img):
     """
     Finds the card via Canny edge detection + dilation + contour analysis.

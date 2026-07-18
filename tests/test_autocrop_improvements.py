@@ -53,3 +53,43 @@ def test_find_candidate_contours():
             break
     assert found_close, f"No candidate close to expected box was found. Candidates: {[c.bounding_box for c in candidates]}"
 
+def test_score_candidates():
+    from services.autocrop import score_candidates, DocumentConfig, DocumentCandidate
+    
+    cfg = DocumentConfig(target_aspect_ratio=1.585)
+    edges = np.zeros((100, 100), dtype=np.uint8)
+    
+    # Candidate A: close to Aadhaar card
+    cand_a = DocumentCandidate(
+        contour=np.array([[0,0], [15,0], [15,10], [0,10]]),
+        bounding_box=(0, 0, 15, 10),
+        approx_polygon=np.array([[0,0], [15,0], [15,10], [0,10]]),
+        is_quadrilateral=True,
+        aspect_ratio=1.5,
+        solidity=0.95,
+        convexity=0.95,
+        rectangularity=0.95,
+        edge_support=0.8,
+        hierarchy_status="parent"
+    )
+    
+    # Candidate B: extreme aspect ratio
+    cand_b = DocumentCandidate(
+        contour=np.array([[0,0], [50,0], [50,5], [0,5]]),
+        bounding_box=(0, 0, 50, 5),
+        approx_polygon=np.array([[0,0], [50,0], [50,5], [0,5]]),
+        is_quadrilateral=True,
+        aspect_ratio=10.0,
+        solidity=0.95,
+        convexity=0.95,
+        rectangularity=0.95,
+        edge_support=0.8,
+        hierarchy_status="child"
+    )
+    
+    scored = score_candidates([cand_b, cand_a], cfg, edges)
+    # Cand A should have higher score and come first
+    assert scored[0] == cand_a
+    assert cand_a.score > cand_b.score
+
+
