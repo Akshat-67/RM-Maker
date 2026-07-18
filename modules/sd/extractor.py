@@ -1304,8 +1304,16 @@ class SDDataExtractor:
         if not isinstance(uadhars, list) or len(uadhars) <= 1:
             return data
         
-        fronts = [u for u in uadhars if any(f.get("type") == "aadhar_front" for f in u.get("files", []))]
-        backs = [u for u in uadhars if any(f.get("type") == "aadhar_back" for f in u.get("files", []))]
+        fronts = [
+            u for u in uadhars 
+            if any(f.get("type") == "aadhar_front" for f in u.get("files", []))
+            and not any(f.get("type") == "aadhar_back" for f in u.get("files", []))
+        ]
+        backs = [
+            u for u in uadhars 
+            if any(f.get("type") == "aadhar_back" for f in u.get("files", []))
+            and not any(f.get("type") == "aadhar_front" for f in u.get("files", []))
+        ]
         
         def get_surname(item, primary_key, fallback_key):
             name = item.get(primary_key, "") or item.get(fallback_key, "")
