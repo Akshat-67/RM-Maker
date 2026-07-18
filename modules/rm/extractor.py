@@ -3,6 +3,7 @@ import os
 import base64
 import mimetypes
 import json
+from utils.config import get_nvidia_api_key
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
@@ -254,7 +255,7 @@ class RMDataExtractor:
     def extract_with_ai(self, file_paths, selected_model, bank_name="", expected_borrowers=None,
                         expected_loans=None, expected_witnesses=2, borrower_hints="", witness_hints="",
                         current_data=None, **kwargs):
-        """Extract data from files using Google Gemini API."""
+        """Extract data from files using Google Gemini API with PDF page pre-filtering."""
         if not self.api_keys:
             return {"error": "Gemini API Keys Missing"}
 
@@ -691,7 +692,7 @@ class RMDataExtractor:
             print(f"[DIRECT] Routing request directly to NVIDIA NIM: {model_name}")
             try:
                 import requests
-                nvidia_key = "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"
+                nvidia_key = get_nvidia_api_key()
                 nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
                 headers = {
                     "Authorization": f"Bearer {nvidia_key}",
@@ -750,7 +751,7 @@ class RMDataExtractor:
         print("[FAILOVER] Gemini exhausted. Attempting fallback to NVIDIA NIM Llama 3.1 8B...")
         try:
             import requests
-            nvidia_key = "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"
+            nvidia_key = get_nvidia_api_key()
             nvidia_url = "https://integrate.api.nvidia.com/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {nvidia_key}",

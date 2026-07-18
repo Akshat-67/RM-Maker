@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     // Set up button event handlers
+<<<<<<< HEAD
     if (chrome && chrome.storage && chrome.storage.local) {
         chrome.storage.local.get(['oneClickRunning'], (res) => {
             const btn = document.getElementById('btnOneClickAutofill');
@@ -150,6 +151,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+=======
+    document.getElementById('btnAutoRun').addEventListener('click', () => {
+        if (!activeCaseData) {
+            showMsg('No case data loaded. Select a case first.', 'error');
+            return;
+        }
+        showMsg('Starting auto-run flow...', 'success');
+        sendTabMessage('auto_run_flow', activeCaseData);
+    });
+    
+>>>>>>> 4d3307bfa71b77e49ce5a576d066165eb71265fa
     document.getElementById('btnAutofillDistrict').addEventListener('click', () => {
         sendTabMessage('autofill_district', {});
     });

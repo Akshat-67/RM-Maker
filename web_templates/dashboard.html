@@ -7,21 +7,20 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
-    .kpi-card { border-left: 4px solid #1a73e8; }
-    .kpi-card .kpi-value { font-size: 1.75rem; font-weight: 600; color: #1E293B; }
-    .kpi-card .kpi-label { color: #64748B; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .kpi-card.kpi-success { border-left-color: #10B981; }
-    .kpi-card.kpi-info    { border-left-color: #0EA5E9; }
-    .filter-bar { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1rem 1.25rem; }
-    .case-table thead th { background: #F1F5F9; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.04em; border-bottom: 1px solid #E2E8F0; }
-    .case-table tbody tr:hover { background-color: #F8FAFC; }
-    .badge-type-rm { background-color: #DBEAFE; color: #1D4ED8; }
-    .badge-type-sd { background-color: #FEF3C7; color: #92400E; }
-    .empty-state { text-align: center; padding: 4rem 1rem; color: #64748B; }
-    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 0.5rem; opacity: 0.6; }
+    /* Table hover overrides for clean dark mode interaction */
+    .case-table tbody tr:hover td {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
   </style>
 </head>
 <body>
+<<<<<<< HEAD
   <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
       <span class="navbar-brand mb-0 h1">LegalDoc Automator Pro</span>
@@ -35,47 +34,199 @@
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="toolsDropdown">
             <li><a class="dropdown-item" href="{{ url_for('devlys_to_unicode_route') }}">🔠 Convert DevLys DOCX to Unicode</a></li>
           </ul>
+=======
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <a href="/" class="sidebar-logo">
+          <span>⚖️</span> LegalDoc Automator
+        </a>
+      </div>
+      <div class="sidebar-content">
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Navigation</div>
+          <a href="/" class="sidebar-nav-link active">
+            <span class="sidebar-nav-icon">📊</span> Case Dashboard
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Actions</div>
+          <a href="{{ url_for('new_case', doc_type='RM') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">➕</span> New RM Case
+          </a>
+          <a href="{{ url_for('new_case', doc_type='SD') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">➕</span> New SD Case
+          </a>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">Legal Tools</div>
+          <a href="{{ url_for('devlys_to_unicode_route') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">🔠</span> DevLys Converter
+          </a>
+          <a href="{{ url_for('template_builder') }}" class="sidebar-nav-link">
+            <span class="sidebar-nav-icon">🛠</span> Template Builder
+          </a>
+>>>>>>> 4d3307bfa71b77e49ce5a576d066165eb71265fa
         </div>
       </div>
-    </div>
-  </nav>
+      <div class="sidebar-footer">
+        LegalDoc Automator Pro v2.0
+      </div>
+    </aside>
 
-  <main class="container-fluid px-4">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h4 class="section-title mb-0">Case Dashboard</h4>
-      <small class="text-muted">{{ cases|length }} case{{ '' if cases|length == 1 else 's' }} on file</small>
-    </div>
+    <!-- Main Content Area -->
+    <div class="app-main">
+      <header class="app-header">
+        <button class="mobile-menu-trigger" onclick="toggleSidebar()">☰</button>
+        <div class="header-breadcrumbs">
+          <a href="/" class="breadcrumb-item-link">LegalDoc Automator</a>
+          <span class="breadcrumb-separator">/</span>
+          <span class="breadcrumb-active">Case Dashboard</span>
+        </div>
+        <div class="header-actions">
+          <a href="{{ url_for('new_case', doc_type='RM') }}" class="btn btn-success btn-sm">+ New RM Case</a>
+          <a href="{{ url_for('new_case', doc_type='SD') }}" class="btn btn-info btn-sm text-white">+ New SD Case</a>
+        </div>
+      </header>
 
-    <!-- KPI Strip -->
-    {% set rm_count = cases|selectattr('doc_type', 'equalto', 'RM')|list|length %}
-    {% set sd_count = cases|selectattr('doc_type', 'equalto', 'SD')|list|length %}
-    <div class="row g-3 mb-4">
-      <div class="col-12 col-md-4">
-        <div class="card shadow-sm border-0 kpi-card">
-          <div class="card-body">
-            <div class="kpi-label">Total Cases</div>
-            <div class="kpi-value">{{ cases|length }}</div>
+      <main class="app-content">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h4 class="section-title mb-0">Case Dashboard</h4>
+          <small class="text-zinc-500">{{ cases|length }} case{{ '' if cases|length == 1 else 's' }} on file</small>
+        </div>
+
+        <!-- KPI Strip -->
+        {% set rm_count = cases|selectattr('doc_type', 'equalto', 'RM')|list|length %}
+        {% set sd_count = cases|selectattr('doc_type', 'equalto', 'SD')|list|length %}
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-md-4">
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Total Cases</div>
+              <div class="text-3xl font-bold mt-1 text-zinc-50">{{ cases|length }}</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Registered Mortgage</div>
+              <div class="text-3xl font-bold mt-1 text-emerald-500">{{ rm_count }}</div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="border border-zinc-800 bg-zinc-900/50 p-4 rounded-lg shadow-sm">
+              <div class="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Sale Deeds</div>
+              <div class="text-3xl font-bold mt-1 text-blue-500">{{ sd_count }}</div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="card shadow-sm border-0 kpi-card kpi-success">
-          <div class="card-body">
-            <div class="kpi-label">Registered Mortgage</div>
-            <div class="kpi-value">{{ rm_count }}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="card shadow-sm border-0 kpi-card kpi-info">
-          <div class="card-body">
-            <div class="kpi-label">Sale Deeds</div>
-            <div class="kpi-value">{{ sd_count }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
+        <!-- Filter Bar -->
+        <div class="border border-zinc-800 bg-zinc-900/30 p-3 rounded-lg mb-3 shadow-sm">
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6">
+              <label class="form-label small text-zinc-400 mb-1">Search</label>
+              <input id="searchInput" type="search" class="form-control" placeholder="Search case id, borrower, bank..." autofocus />
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="bankFilter" class="form-label small text-zinc-400 mb-1">Bank</label>
+              <select id="bankFilter" class="form-select">
+                <option value="">All banks</option>
+                {% for bank in cases|selectattr('bank')|map(attribute='bank')|unique|sort %}
+                  <option value="{{ bank }}">{{ bank }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="form-label small text-zinc-400 mb-1">Sort by</label>
+              <select id="sortSelect" class="form-select">
+                <option value="updated_desc">Updated (newest)</option>
+                <option value="updated_asc">Updated (oldest)</option>
+                <option value="borrower_asc">Borrower (A–Z)</option>
+                <option value="borrower_desc">Borrower (Z–A)</option>
+                <option value="id_asc">Case ID (A–Z)</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-1 d-grid">
+              <button id="resetFilters" type="button" class="btn btn-outline-secondary btn-sm">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cases Table -->
+        <div class="border border-zinc-800 bg-zinc-900/20 rounded-lg overflow-hidden shadow-sm">
+          <div class="table-responsive border-0 mb-0 shadow-none">
+            <table class="table case-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col" class="ps-4">Case ID</th>
+                  <th scope="col">Borrower/First Party</th>
+                  <th scope="col">Bank</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Updated</th>
+                  <th scope="col" class="text-end pe-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="casesTbody">
+                {% for case in cases %}
+                  <tr
+                    data-case-id="{{ case.id }}"
+                    data-borrower="{{ case.borrower_name|default('', true)|e }}"
+                    data-bank="{{ case.bank|default('', true)|e }}"
+                    data-type="{{ case.doc_type|default('RM', true)|e }}"
+                    data-updated="{{ case.last_updated|default(0) }}"
+                  >
+                    <td class="ps-4"><code class="text-zinc-400 font-monospace">{{ case.id }}</code></td>
+                    <td class="fw-medium text-zinc-200">{{ case.borrower_name|default('—', true) }}</td>
+                    <td class="text-zinc-300">{{ case.bank|default('—', true) if case.doc_type != 'SD' else '—' }}</td>
+                    <td>
+                      <span class="badge {{ 'badge-type-rm' if case.doc_type == 'RM' else 'badge-type-sd' }}">
+                        {{ case.doc_type|default('RM') }}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="d-inline-flex align-items-center gap-2">
+                        <span class="status-dot bg-{{ case.status_color|default('secondary') }}"></span>
+                        <span class="text-zinc-300 small">{{ case.status_text|default('New') }}</span>
+                      </div>
+                    </td>
+                    <td><small class="text-zinc-500">{{ case.updated|default('—', true) }}</small></td>
+                    <td class="text-end pe-4">
+                      <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('view_case', case_id=case.id) }}" class="btn btn-sm btn-outline-primary">Open</a>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCase('{{ case.id }}')">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr id="emptyRow">
+                    <td colspan="7" class="text-center py-5">
+                      <div class="text-center py-4">
+                        <div class="fs-2 mb-2">📂</div>
+                        <h6 class="text-zinc-300 mb-1">No cases yet</h6>
+                        <p class="text-zinc-500 small mb-3">Create your first case to get started.</p>
+                        <div class="d-flex justify-content-center gap-2">
+                          <a href="{{ url_for('new_case', doc_type='RM') }}" class="btn btn-success btn-sm">+ New RM Case</a>
+                          <a href="{{ url_for('new_case', doc_type='SD') }}" class="btn btn-info btn-sm text-white">+ New SD Case</a>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div id="noResults" class="text-center py-5 d-none">
+            <div class="fs-2 mb-2">🔍</div>
+            <p class="text-zinc-400 mb-0">No cases match your filters.</p>
+            <button class="btn btn-outline-secondary btn-sm mt-3" onclick="document.getElementById('resetFilters').click()">Clear filters</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+<<<<<<< HEAD
     <!-- Monitored Inbox Importer Panel -->
     <div class="card shadow-sm border-0 mb-4" style="border-left: 4px solid #f59e0b; border-radius: 6px;">
       <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between border-bottom-0">
@@ -210,7 +361,17 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+=======
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+>>>>>>> 4d3307bfa71b77e49ce5a576d066165eb71265fa
   <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) {
+        sidebar.classList.toggle('show');
+      }
+    }
+
     (function () {
       const searchInput = document.getElementById('searchInput');
       const bankFilter  = document.getElementById('bankFilter');
@@ -359,6 +520,7 @@
         }
     }
 
+<<<<<<< HEAD
     function bulkDeleteSelected() {
         const checkboxes = Array.from(document.querySelectorAll('.case-select-checkbox:checked'));
         const caseIds = checkboxes.map(cb => cb.getAttribute('data-case-id'));
@@ -478,6 +640,51 @@
         pollProcessingCases();
     });
 
+=======
+    // GSAP Entrance animations on load
+    document.addEventListener("DOMContentLoaded", function() {
+      gsap.defaults({ overwrite: "auto" });
+      
+      // KPI metrics cards fade-in stagger
+      gsap.from(".rounded-lg", {
+        y: 20,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.08,
+        ease: "power2.out"
+      });
+
+      // Filter bar fade-in
+      gsap.from(".border-zinc-800", {
+        y: 15,
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.15,
+        ease: "power2.out"
+      });
+
+      // Cases table rows stagger
+      if (document.querySelectorAll("tr[data-case-id]").length > 0) {
+        gsap.from("tr[data-case-id]", {
+          y: 10,
+          opacity: 0,
+          duration: 0.45,
+          delay: 0.25,
+          stagger: 0.03,
+          ease: "power1.out"
+        });
+      }
+
+      // Sidebar sections transition
+      gsap.from(".sidebar-section", {
+        x: -10,
+        opacity: 0,
+        duration: 0.4,
+        stagger: 0.05,
+        ease: "power1.out"
+      });
+    });
+>>>>>>> 4d3307bfa71b77e49ce5a576d066165eb71265fa
   </script>
 </body>
 </html>

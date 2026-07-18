@@ -1,0 +1,132 @@
+/**
+ * LegalDoc Automator Pro - Design Tokens System
+ * Global theme custom properties representing the foundation of the design system.
+ */
+
+:root {
+    /* --- Brand Color Palette (Zinc & Custom Colors) --- */
+    --color-zinc-50: #fafafa;
+    --color-zinc-100: #f4f4f5;
+    --color-zinc-200: #e4e4e7;
+    --color-zinc-300: #d4d4d8;
+    --color-zinc-400: #a1a1aa;
+    --color-zinc-500: #71717a;
+    --color-zinc-700: #3f3f46;
+    --color-zinc-800: #27272a;
+    --color-zinc-900: #18181b;
+    --color-zinc-950: #09090b;
+
+    --color-blue-500: #3b82f6;
+    --color-blue-600: #2563eb;
+    --color-emerald-500: #10b981;
+    --color-emerald-600: #059669;
+    --color-amber-500: #f59e0b;
+    --color-amber-600: #d97706;
+    --color-rose-500: #ef4444;
+    --color-rose-600: #dc2626;
+
+    /* --- Backwards Compatibility Aliases (mapped to Zinc/Blue system) --- */
+    --color-slate-50: var(--color-zinc-950);
+    --color-slate-100: var(--color-zinc-900);
+    --color-slate-200: var(--color-zinc-800);
+    --color-slate-300: var(--color-zinc-700);
+    --color-slate-400: var(--color-zinc-500);
+    --color-slate-500: var(--color-zinc-400);
+    --color-slate-700: var(--color-zinc-300);
+    --color-slate-800: var(--color-zinc-200);
+    --color-slate-900: var(--color-zinc-900);
+
+    --color-sky-50: rgba(59, 130, 246, 0.15);
+    --color-sky-500: var(--color-blue-500);
+    --color-sky-600: var(--color-blue-600);
+    --color-sky-700: #60a5fa;
+
+    --color-amber-50: rgba(245, 158, 11, 0.15);
+    --color-emerald-50: rgba(16, 185, 129, 0.15);
+    --color-rose-50: rgba(239, 68, 68, 0.15);
+
+    /* --- Contextual UI Variables (High-Contrast Dark Theme) --- */
+    --theme-bg-page: var(--color-zinc-950);
+    --theme-bg-surface: var(--color-zinc-900);
+    --theme-border: var(--color-zinc-800);
+    --theme-primary: var(--color-zinc-50);
+    --theme-primary-hover: var(--color-zinc-100);
+    --theme-secondary: var(--color-zinc-700);
+    --theme-secondary-hover: var(--color-zinc-800);
+    --theme-accent: var(--color-blue-500);
+
+    --theme-success: var(--color-emerald-500);
+    --theme-success-hover: var(--color-emerald-600);
+    --theme-warning: var(--color-amber-500);
+    --theme-warning-hover: var(--color-amber-600);
+    --theme-error: var(--color-rose-500);
+    --theme-error-hover: var(--color-rose-600);
+
+    --theme-text-primary: var(--color-zinc-50);
+    --theme-text-secondary: var(--color-zinc-400);
+    --theme-text-muted: var(--color-zinc-500);
+
+    --theme-input-bg-legacy: var(--color-zinc-900);
+
+    /* --- Typography System --- */
+    --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-hindi: 'Mangal', 'Segoe UI Devanagari', 'Arial Unicode MS', sans-serif;
+    --font-mono: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+
+    /* Type Scale */
+    --font-size-display: 2.25rem;     /* 36px */
+    --font-size-h1: 1.875rem;          /* 30px */
+    --font-size-h2: 1.5rem;             /* 24px */
+    --font-size-title: 1.25rem;         /* 20px */
+    --font-size-subtitle: 1.05rem;      /* 16.8px */
+    --font-size-body: 0.95rem;          /* 15.2px */
+    --font-size-caption: 0.75rem;       /* 12px */
+
+    /* Font Weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* --- Spacing Scale (4px Grid) --- */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* --- Border Radius Scale --- */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-full: 9999px;
+
+    /* --- Elevation & Shadows --- */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+
+    /* --- Transition & Motion --- */
+    --transition-duration-fast: 150ms;
+    --transition-duration-normal: 250ms;
+    --transition-easing-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+    --transition-all: all var(--transition-duration-normal) var(--transition-easing-fluid);
+
+    /* --- Z-Index Scale --- */
+    --z-index-dropdown: 1000;
+    --z-index-sticky: 1020;
+    --z-index-fixed: 1030;
+    --z-index-modal: 1050;
+    --z-index-popover: 1060;
+    --z-index-tooltip: 1070;
+
+    /* --- Breakpoints --- */
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+}

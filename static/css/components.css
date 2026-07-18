@@ -1,0 +1,599 @@
+/**
+ * LegalDoc Automator Pro - Design System Core Components
+ * Maps the application's forms, tables, buttons, cards, and tabs to design tokens.
+ */
+
+/* ==========================================================================
+   1. Buttons & Interactive Controls
+   ========================================================================== */
+
+.btn {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    transition: var(--transition-all);
+    line-height: 1.25;
+    text-decoration: none;
+}
+
+.btn:focus, .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25) !important;
+}
+
+/* Primary Button Override */
+.btn-primary {
+    background-color: var(--color-zinc-50) !important;
+    border: 1px solid var(--color-zinc-200) !important;
+    color: var(--color-zinc-950) !important;
+}
+.btn-primary:hover {
+    background-color: var(--color-zinc-200) !important;
+    border-color: var(--color-zinc-300) !important;
+    color: var(--color-zinc-950) !important;
+}
+
+/* Secondary / Brand Button Override */
+.btn-info {
+    background-color: var(--theme-secondary) !important;
+    border-color: var(--theme-secondary) !important;
+    color: #ffffff !important;
+}
+.btn-info:hover {
+    background-color: var(--theme-secondary-hover) !important;
+    border-color: var(--theme-secondary-hover) !important;
+}
+
+/* Success Button Override */
+.btn-success {
+    background-color: var(--theme-success) !important;
+    border-color: var(--theme-success) !important;
+    color: #ffffff !important;
+}
+.btn-success:hover {
+    background-color: var(--theme-success-hover) !important;
+    border-color: var(--theme-success-hover) !important;
+}
+
+/* Danger Button Override */
+.btn-outline-danger {
+    color: var(--theme-error) !important;
+    border: 1px solid var(--theme-error) !important;
+    background-color: transparent !important;
+}
+.btn-outline-danger:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    color: var(--theme-error) !important;
+    border-color: var(--theme-error) !important;
+}
+
+/* Outline Primary */
+.btn-outline-primary {
+    background-color: transparent !important;
+    border: 1px solid var(--theme-accent) !important;
+    color: var(--theme-accent) !important;
+}
+.btn-outline-primary:hover {
+    background-color: rgba(59, 130, 246, 0.1) !important;
+    color: var(--theme-accent) !important;
+    border-color: var(--theme-accent) !important;
+}
+
+/* Outline Secondary & Secondary */
+.btn-secondary, .btn-outline-secondary {
+    background-color: transparent !important;
+    border: 1px solid var(--theme-border) !important;
+    color: var(--theme-text-primary) !important;
+}
+.btn-secondary:hover, .btn-outline-secondary:hover {
+    background-color: var(--color-zinc-800) !important;
+    border-color: var(--color-zinc-700) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+/* Small Buttons */
+.btn-sm, .btn-xs {
+    padding: var(--space-1) var(--space-3) !important;
+    font-size: var(--font-size-caption) !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Remove button icons background styling */
+.btn-icon-danger {
+    background: none !important;
+    border: none !important;
+    color: var(--theme-error) !important;
+    transition: var(--transition-all) !important;
+}
+.btn-icon-danger:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   2. Input Fields & Form Controls
+   ========================================================================== */
+
+.form-control, .form-select, textarea {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body) !important;
+    padding: var(--space-2) var(--space-3) !important;
+    border: 1px solid var(--color-zinc-800) !important;
+    border-radius: var(--radius-md) !important;
+    background-color: var(--color-zinc-900) !important;
+    color: var(--theme-text-primary) !important;
+    transition: border-color var(--transition-duration-fast) var(--transition-easing-fluid),
+                box-shadow var(--transition-duration-fast) var(--transition-easing-fluid) !important;
+}
+
+.form-control:hover, .form-select:hover, textarea:hover {
+    border-color: var(--color-zinc-700) !important;
+}
+
+.form-control:focus, .form-select:focus, textarea:focus {
+    outline: none !important;
+    border-color: var(--theme-accent) !important;
+    box-shadow: 0 0 0 2px var(--theme-accent) !important;
+}
+
+.form-control::placeholder {
+    color: var(--theme-text-muted) !important;
+}
+
+/* Hindi Mode / Legacy Inputs */
+.hindi-legacy-input, .hindi-mode {
+    font-family: var(--font-hindi) !important;
+    font-size: var(--font-size-body) !important;
+    background-color: rgba(245, 158, 11, 0.05) !important;
+    border: 1px solid rgba(245, 158, 11, 0.2) !important;
+}
+
+.hindi-legacy-input:hover, .hindi-mode:hover {
+    border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+.hindi-legacy-input:focus, .hindi-mode:focus {
+    background-color: rgba(245, 158, 11, 0.08) !important;
+    border-color: var(--theme-warning) !important;
+    box-shadow: 0 0 0 2px var(--theme-warning) !important;
+}
+
+/* Form Primitives */
+.ds-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1.5);
+    margin-bottom: var(--space-4);
+}
+
+.ds-form-group label {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-semibold);
+    color: var(--theme-text-secondary);
+    letter-spacing: 0.02em;
+    margin-bottom: 0;
+}
+
+.ds-form-row {
+    display: flex;
+    gap: var(--space-3);
+    width: 100%;
+}
+
+.ds-form-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.ds-validation-feedback {
+    font-size: var(--font-size-caption);
+    color: var(--theme-error);
+    margin-top: var(--space-1);
+    font-weight: var(--font-weight-medium);
+}
+
+/* Bilingual spacing rows */
+.bilingual-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.transliterate-btn {
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--theme-bg-page);
+    transition: var(--transition-all);
+}
+.transliterate-btn:hover {
+    background-color: var(--color-zinc-800);
+    border-color: var(--color-zinc-700);
+}
+
+/* ==========================================================================
+   3. Cards & Containers
+   ========================================================================== */
+
+.card {
+    background-color: var(--theme-bg-surface) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: var(--transition-all) !important;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+.card-header {
+    background-color: var(--color-zinc-950) !important;
+    border-bottom: 1px solid var(--theme-border) !important;
+    padding: var(--space-3) var(--space-4) !important;
+}
+
+/* ==========================================================================
+   4. Tables & Data Grids
+   ========================================================================== */
+
+.table-responsive, .ds-table-wrapper {
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-md) !important;
+    overflow: hidden !important;
+    background-color: var(--theme-bg-surface) !important;
+    margin-bottom: var(--space-4) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.table-responsive .table, .table-responsive .grid-table, .ds-table-wrapper table {
+    margin-bottom: 0 !important;
+    border: none !important;
+}
+
+.table, .grid-table, .case-table {
+    width: 100%;
+    border-collapse: collapse !important;
+    font-size: var(--font-size-body);
+}
+
+.table thead th, .grid-table th, .case-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: rgba(24, 24, 27, 0.8) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    color: var(--theme-text-secondary) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    font-size: var(--font-size-caption) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding: var(--space-3) var(--space-4) !important;
+    border-bottom: 1px solid var(--theme-border) !important;
+    border-top: none !important;
+}
+
+.table tbody td, .grid-table td, .case-table tbody td {
+    padding: var(--space-2) var(--space-4) !important;
+    border-bottom: none !important;
+    vertical-align: middle !important;
+    background-color: transparent !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.table tbody tr:hover, .grid-table tbody tr:hover, .case-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Nested Inputs inside Tables */
+.table td .form-control, .grid-table td .form-control,
+.table td .form-select, .grid-table td .form-select {
+    padding: var(--space-1.5) var(--space-2) !important;
+    font-size: var(--font-size-caption) !important;
+    height: auto !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.table-sub-header {
+    font-size: 0.72rem;
+    color: var(--theme-text-muted);
+    margin-top: 2px;
+}
+
+/* ==========================================================================
+   5. Badges & Labels
+   ========================================================================== */
+
+.badge {
+    font-size: var(--font-size-caption) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    padding: 4px 8px !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.badge-type-rm {
+    background-color: var(--color-sky-50) !important;
+    color: var(--color-sky-700) !important;
+    border: 1px solid rgba(2, 132, 199, 0.15) !important;
+}
+
+.badge-type-sd {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+    color: var(--color-amber-600) !important;
+    border: 1px solid rgba(234, 158, 11, 0.15) !important;
+}
+
+/* ==========================================================================
+   6. Tabs & Pills
+   ========================================================================== */
+
+.nav-pills .nav-link {
+    color: var(--theme-text-secondary) !important;
+    background-color: var(--color-zinc-900) !important;
+    border-radius: var(--radius-md) !important;
+    font-size: var(--font-size-body) !important;
+    padding: var(--space-2) var(--space-4) !important;
+    transition: var(--transition-all) !important;
+}
+
+.nav-pills .nav-link:hover {
+    background-color: var(--color-zinc-800) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.nav-pills .nav-link.active {
+    color: var(--color-zinc-950) !important;
+    background-color: var(--color-zinc-50) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* ==========================================================================
+   7. Drag-and-Drop Upload Zones
+   ========================================================================== */
+
+.drop-zone {
+    border: 2px dashed var(--theme-border) !important;
+    border-radius: var(--radius-lg) !important;
+    background-color: var(--theme-bg-surface) !important;
+    transition: var(--transition-all) !important;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    background-color: var(--color-sky-50) !important;
+    border-color: var(--theme-accent) !important;
+}
+
+/* ==========================================================================
+   8. Timeline Nodes
+   ========================================================================== */
+
+.timeline-node-dot {
+    border: 3px solid var(--theme-border) !important;
+    transition: var(--transition-all) !important;
+}
+
+.timeline-node.active .timeline-node-dot {
+    border-color: var(--theme-secondary) !important;
+    background-color: var(--theme-secondary) !important;
+}
+
+/* ==========================================================================
+   9. Dialogs, Modals & Workflows
+   ========================================================================== */
+
+.modal-content {
+    background-color: var(--theme-bg-surface) !important;
+    border: 1px solid var(--theme-border) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    overflow: hidden;
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--theme-border) !important;
+    background-color: var(--color-zinc-950) !important;
+    padding: var(--space-4) var(--space-6) !important;
+}
+
+.modal-title {
+    font-size: var(--font-size-title) !important;
+    font-weight: var(--font-weight-bold) !important;
+    color: var(--theme-text-primary) !important;
+}
+
+.modal-body {
+    padding: var(--space-6) !important;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--theme-border) !important;
+    background-color: var(--color-zinc-950) !important;
+    padding: var(--space-3) var(--space-6) !important;
+}
+
+/* Frosted glass backdrop blur */
+.modal-backdrop.show {
+    background-color: rgba(15, 23, 42, 0.4) !important;
+    backdrop-filter: blur(8px) !important;
+}
+
+/* Spinner and Progress Workflows */
+.spinner-border {
+    color: var(--theme-secondary) !important;
+}
+
+.progress-bar-container, .progress {
+    height: 6px !important;
+    background-color: var(--color-zinc-800) !important;
+    border-radius: var(--radius-full) !important;
+    overflow: hidden !important;
+}
+
+.progress-bar-fill, .progress-bar {
+    background-color: var(--theme-secondary) !important;
+    border-radius: var(--radius-full) !important;
+}
+
+/* ==========================================================================
+   10. Micro-Animations & Motion Support
+   ========================================================================== */
+
+/* Drop zone dragover pulse */
+@keyframes border-pulse {
+    0% { border-color: var(--theme-border); }
+    50% { border-color: var(--theme-accent); }
+    100% { border-color: var(--theme-border); }
+}
+
+.drop-zone.dragover {
+    animation: border-pulse 1.5s infinite ease-in-out !important;
+}
+
+/* Skeleton Loading Glow */
+@keyframes skeleton-glow {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.ds-skeleton {
+    background-color: var(--color-zinc-800) !important;
+    border-radius: var(--radius-sm) !important;
+    animation: skeleton-glow 1.5s infinite ease-in-out !important;
+}
+
+/* Modal Dialog Scale In */
+.modal.fade .modal-dialog {
+    transform: scale(0.96) translateY(10px) !important;
+    transition: transform var(--transition-duration-normal) var(--transition-easing-fluid) !important;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1) translateY(0) !important;
+}
+
+/* Accessibility: Respect system preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+        animation-delay: -1ms !important;
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        background-attachment: initial !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+    }
+}
+
+/* --- High-Density Property Inspector Layouts --- */
+@media (min-width: 768px) {
+    /* Auto layout row columns as properties */
+    .seller-card .row, 
+    .buyer-card .row, 
+    .witness-card .row, 
+    .property-card .row,
+    .borrower-card .row,
+    .loan-card .row,
+    .bsign-card .row {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    
+    .seller-card .row > div:not(.col-3), 
+    .buyer-card .row > div:not(.col-3), 
+    .witness-card .row > div:not(.col-3), 
+    .property-card .row > div:not(.col-3),
+    .borrower-card .row > div:not(.col-3),
+    .loan-card .row > div:not(.col-3),
+    .bsign-card .row > div:not(.col-3) {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: var(--space-4) !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Force Label and checkbox wrapper to act as properties descriptor */
+    .seller-card .row > div:not(.col-3) > div:first-child, 
+    .buyer-card .row > div:not(.col-3) > div:first-child, 
+    .witness-card .row > div:not(.col-3) > div:first-child, 
+    .property-card .row > div:not(.col-3) > div:first-child,
+    .borrower-card .row > div:not(.col-3) > div:first-child,
+    .loan-card .row > div:not(.col-3) > div:first-child,
+    .bsign-card .row > div:not(.col-3) > div:first-child {
+        flex: 0 0 200px !important;
+        margin-bottom: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: var(--space-2) !important;
+        text-align: left;
+    }
+    
+    .seller-card .row > div:not(.col-3) > div:first-child label, 
+    .buyer-card .row > div:not(.col-3) > div:first-child label, 
+    .witness-card .row > div:not(.col-3) > div:first-child label, 
+    .property-card .row > div:not(.col-3) > div:first-child label,
+    .borrower-card .row > div:not(.col-3) > div:first-child label,
+    .loan-card .row > div:not(.col-3) > div:first-child label,
+    .bsign-card .row > div:not(.col-3) > div:first-child label {
+        margin-bottom: 0 !important;
+        font-size: 0.72rem !important;
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--theme-text-secondary);
+    }
+
+    .seller-card .row > div:not(.col-3) > .form-control,
+    .seller-card .row > div:not(.col-3) > textarea,
+    .buyer-card .row > div:not(.col-3) > .form-control,
+    .buyer-card .row > div:not(.col-3) > textarea,
+    .witness-card .row > div:not(.col-3) > .form-control,
+    .witness-card .row > div:not(.col-3) > textarea,
+    .property-card .row > div:not(.col-3) > .form-control,
+    .property-card .row > div:not(.col-3) > textarea,
+    .borrower-card .row > div:not(.col-3) > .form-control,
+    .borrower-card .row > div:not(.col-3) > textarea,
+    .loan-card .row > div:not(.col-3) > .form-control,
+    .loan-card .row > div:not(.col-3) > textarea,
+    .bsign-card .row > div:not(.col-3) > .form-control,
+    .bsign-card .row > div:not(.col-3) > textarea {
+        flex: 1 1 auto !important;
+        width: auto !important;
+    }
+}
+
+/* Global Light-Mode Class Overrides for App Container Integration */
+.app-container .bg-light {
+    background-color: var(--color-zinc-900) !important;
+    border-color: var(--color-zinc-800) !important;
+    color: var(--color-zinc-200) !important;
+}
+
+.app-container .border {
+    border-color: var(--color-zinc-800) !important;
+}
+
+.app-container .card-header.bg-light {
+    background-color: var(--color-zinc-950) !important;
+    border-bottom: 1px solid var(--color-zinc-800) !important;
+    color: var(--color-zinc-50) !important;
+}
+
+#sdWorkspaceTabs {
+    border: 1px solid var(--color-zinc-800) !important;
+    background-color: var(--color-zinc-950) !important;
+}
+
+
+

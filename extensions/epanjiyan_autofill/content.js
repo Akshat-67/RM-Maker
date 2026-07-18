@@ -36,6 +36,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             case 'set_presenter':
                 setPresenter(request.data, sendResponse);
                 break;
+            case 'auto_run_flow':
+                startAutoRunFlow(request.data, sendResponse);
+                break;
             default:
                 sendResponse({ success: false, error: 'Unknown action' });
         }
@@ -45,6 +48,135 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true; // Keep message channel open for async response
 });
+
+// =====================================================================
+// AUTO-RUN: Resume automation on page load if a flow is active
+// =====================================================================
+let isRunningStep = false; // Prevent multiple overlapping triggers
+
+function checkAndResumeFlow() {
+    if (!chrome?.storage?.local) return;
+    
+    chrome.storage.local.get(['autoRunState', 'activeCaseData'], (result) => {
+        let state = result.autoRunState;
+        const caseData = result.activeCaseData;
+        
+        if (!state || !caseData) {
+            // Remove badge if no active flow
+            const badge = document.getElementById('rm-maker-autorun-badge');
+            if (badge) badge.remove();
+            return;
+        }
+        
+        const url = window.location.href;
+        const lowerUrl = url.toLowerCase();
+        
+        // --- SMART RECOVERY & TRANSITION AUTO-ADVANCE ---
+        // If state is stuck in 'awaiting_district_modal' but we are on PropertyValuation, auto-advance state!
+        if (state === 'awaiting_district_modal' && lowerUrl.includes('propertyvaluation') && !lowerUrl.includes('calculateduty')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_property_valuation');
+            state = 'awaiting_property_valuation';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'awaiting_property_valuation' but we are on CalculateDuty page, auto-advance state!
+        if (state === 'awaiting_property_valuation' && lowerUrl.includes('calculateduty')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_calculate_duty');
+            state = 'awaiting_calculate_duty';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'duty_completed' but we are on PropertyDetail page, auto-advance state!
+        if (state === 'duty_completed' && lowerUrl.includes('propertydetail')) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_party_detail_navigation');
+            state = 'awaiting_party_detail_navigation';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        // If state is stuck in 'awaiting_party_detail_navigation' but we are on Viewparty/PartyAdd page, auto-advance state!
+        if (state === 'awaiting_party_detail_navigation' && (lowerUrl.includes('party/viewparty') || lowerUrl.includes('party/partyadd'))) {
+            console.log('[RM-Maker AutoRun] Smart Recovery: Upgrading state to awaiting_executant_autofill');
+            state = 'awaiting_executant_autofill';
+            chrome.storage.local.set({ autoRunState: state });
+        }
+        
+        updateFloatingStatus(state);
+        
+        // Prevent running multiple times on the same page state
+        if (isRunningStep) return;
+        
+        console.log(`[RM-Maker AutoRun] Checking state. State: ${state}, URL: ${url}`);
+        
+        // Switch on state and call handlers
+        switch (state) {
+            case 'awaiting_property_valuation':
+                if (lowerUrl.includes('propertyvaluation') && !lowerUrl.includes('calculateduty')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Document Details step...');
+                    handleDocumentDetailsStep(caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_calculate_duty':
+                if (lowerUrl.includes('propertydetail') || lowerUrl.includes('calculateduty')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Calculate Duty step...');
+                    handleCalculateDutyStep(caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_party_detail_navigation':
+                if (lowerUrl.includes('propertydetail')) {
+                    isRunningStep = true;
+                    console.log('[RM-Maker AutoRun] Executing Party Detail Navigation step...');
+                    handlePartyDetailNavigationStep();
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            case 'awaiting_executant_autofill':
+            case 'awaiting_claimant_autofill':
+            case 'awaiting_witness1_autofill':
+            case 'awaiting_witness2_autofill':
+                if (lowerUrl.includes('party/viewparty') || lowerUrl.includes('party/partyadd')) {
+                    isRunningStep = true;
+                    console.log(`[RM-Maker AutoRun] Executing step: ${state}`);
+                    handlePartyAutofillSequence(state, caseData);
+                    setTimeout(() => { isRunningStep = false; }, 2000);
+                }
+                break;
+                
+            default:
+                break;
+        }
+    });
+}
+
+(function observeUrlChanges() {
+    let lastUrl = window.location.href;
+    
+    // Check URL changes every 500ms
+    setInterval(() => {
+        const currentUrl = window.location.href;
+        if (currentUrl !== lastUrl) {
+            console.log(`[RM-Maker AutoRun] URL changed from ${lastUrl} to ${currentUrl}`);
+            lastUrl = currentUrl;
+            isRunningStep = false; // Reset lock on navigation
+            
+            // Wait 1.5s for page elements to load after route transition
+            setTimeout(() => {
+                checkAndResumeFlow();
+            }, 1500);
+        }
+    }, 500);
+    
+    // Also run immediately on startup
+    setTimeout(() => {
+        checkAndResumeFlow();
+    }, 1500);
+})();
 
 // =====================================================================
 // HELPER FUNCTIONS
@@ -651,7 +783,7 @@ async function selectNgSelectOption(ngSelectEl, text) {
     container.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     container.click();
     
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 100));
         const options = Array.from(document.querySelectorAll('.ng-option, [role="option"]'));
         const matchedOption = options.find(opt => {
@@ -661,6 +793,8 @@ async function selectNgSelectOption(ngSelectEl, text) {
         
         if (matchedOption) {
             console.log("[content.js] Found matching ng-select option:", matchedOption.textContent);
+            matchedOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            matchedOption.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
             matchedOption.click();
             matchedOption.dispatchEvent(new Event('change', { bubbles: true }));
             return true;
@@ -701,18 +835,35 @@ async function setSelectValueByText(selectEl, text) {
         return isMatch;
     });
     
-    if (matchedOption) {
-        selectEl.value = matchedOption.value;
-        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-        selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+    // Wait up to 3 seconds for options to load and the matched option to be present
+    for (let i = 0; i < 30; i++) {
+        const options = Array.from(selectEl.options);
+        const isExactJaipur = text.toUpperCase() === 'JAIPUR';
+        const matchedOption = options.find(opt => {
+            const optText = opt.text.toUpperCase();
+            if (isExactJaipur) {
+                return optText.includes('JAIPUR') || optText.includes('जयपुर');
+            }
+            return optText.includes(text.toUpperCase()) || optText.replace(/\s+/g, '').includes(text.toUpperCase().replace(/\s+/g, ''));
+        });
         
-        // Ensure element has ID and trigger page-context jQuery update
-        if (!selectEl.id) {
-            selectEl.id = 'select_' + Math.random().toString(36).substring(2, 9);
+        if (matchedOption) {
+            console.log(`[RM-Maker] Found option matching "${text}":`, matchedOption.text);
+            selectEl.value = matchedOption.value;
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            selectEl.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Ensure element has ID and trigger page-context jQuery update
+            if (!selectEl.id) {
+                selectEl.id = 'select_' + Math.random().toString(36).substring(2, 9);
+            }
+            triggerJQuerySelect(selectEl.id, matchedOption.value);
+            return true;
         }
-        triggerJQuerySelect(selectEl.id, matchedOption.value);
-        return true;
+        await new Promise(r => setTimeout(r, 100)); // Wait 100ms
     }
+    
+    console.error(`[RM-Maker] Failed to locate option matching "${text}" in dropdown.`);
     return false;
 }
 
@@ -726,30 +877,97 @@ function setInputValue(inputEl, value) {
 }
 
 function clickRadioByValueOrLabel(labelText) {
-    const labels = Array.from(document.querySelectorAll('label, span, div'));
-    const matchedLabel = labels.find(l => l.textContent.trim().toUpperCase() === labelText.toUpperCase());
-    if (matchedLabel) {
-        matchedLabel.click();
-        const parent = matchedLabel.parentElement;
-        if (parent) {
-            const radio = parent.querySelector('input[type="radio"]');
-            if (radio) {
-                radio.checked = true;
-                radio.click();
-                radio.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
+    console.log(`[RM-Maker] Attempting to click radio: "${labelText}"`);
+    
+    // Normalize target text
+    const cleanTarget = labelText.replace(/\s+/g, ' ').trim().toUpperCase();
+    
+    // 1. Search actual <label> elements first (most standard way)
+    const labels = Array.from(document.querySelectorAll('label'));
+    let matchedLabel = labels.find(l => {
+        const txt = l.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+        return txt === cleanTarget || txt.includes(cleanTarget);
+    });
+    
+    // 2. Fallback to spans, divs, or inputs
+    if (!matchedLabel) {
+        const otherEls = Array.from(document.querySelectorAll('span, div, input[type="radio"]'));
+        matchedLabel = otherEls.find(el => {
+            if (el.tagName.toUpperCase() === 'INPUT') {
+                return el.value && el.value.toUpperCase() === cleanTarget;
             }
+            const txt = el.textContent.replace(/\s+/g, ' ').trim().toUpperCase();
+            // Restrict size to avoid matching large container divs
+            return txt.length < 80 && (txt === cleanTarget || txt.includes(cleanTarget));
+        });
+    }
+    
+    if (matchedLabel) {
+        console.log(`[RM-Maker] Matched element for radio "${labelText}":`, matchedLabel);
+        
+        // Try clicking the matched element directly
+        matchedLabel.click();
+        
+        // Now locate the actual radio input element
+        let radio = null;
+        if (matchedLabel.tagName.toUpperCase() === 'INPUT' && matchedLabel.type === 'radio') {
+            radio = matchedLabel;
+        } else {
+            // Check if it contains a radio input
+            radio = matchedLabel.querySelector('input[type="radio"]');
+            
+            // Check siblings and parent container
+            if (!radio) {
+                const parent = matchedLabel.parentElement;
+                if (parent) {
+                    radio = parent.querySelector('input[type="radio"]');
+                }
+            }
+            // Check closest container
+            if (!radio) {
+                const container = matchedLabel.closest('.radio, .radio-inline, div, td, li');
+                if (container) {
+                    radio = container.querySelector('input[type="radio"]');
+                }
+            }
+        }
+        
+        if (radio) {
+            console.log('[RM-Maker] Clicking associated radio input:', radio);
+            radio.checked = true;
+            radio.click();
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
+            return true;
         }
     }
     
+    // 3. Last resort fallback: Match radio button value directly using common mappings
     const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
-    const valueMatch = radios.find(r => r.value && r.value.toUpperCase() === labelText.toUpperCase());
+    let valueMatch = radios.find(r => r.value && r.value.toUpperCase() === cleanTarget);
+    
+    // Contextual value mapping (e.g. "Self (स्वयं)" -> "S", "Urban (शहरी)" -> "U", "Rural (ग्रामीण)" -> "R")
+    if (!valueMatch) {
+        let mappedVal = "";
+        if (cleanTarget.includes("SELF") || cleanTarget.includes("स्वयं")) mappedVal = "S";
+        else if (cleanTarget.includes("URBAN") || cleanTarget.includes("शहरी")) mappedVal = "U";
+        else if (cleanTarget.includes("RURAL") || cleanTarget.includes("ग्रामीण")) mappedVal = "R";
+        
+        if (mappedVal) {
+            valueMatch = radios.find(r => r.value && r.value.toUpperCase() === mappedVal);
+        }
+    }
+    
     if (valueMatch) {
+        console.log('[RM-Maker] Found direct radio value match:', valueMatch);
         valueMatch.checked = true;
         valueMatch.click();
         valueMatch.dispatchEvent(new Event('change', { bubbles: true }));
+        valueMatch.dispatchEvent(new Event('click', { bubbles: true }));
         return true;
     }
+    
+    console.error(`[RM-Maker] Failed to locate radio button for: "${labelText}"`);
     return false;
 }
 
