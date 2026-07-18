@@ -225,6 +225,18 @@ def resolve_case_file_path(case_id, filename):
         os.path.join(case_dir, "legal_reports"),
         case_dir
     ]
+    
+    # Local import to prevent circular import issues
+    from services.session_manager import load_case_session
+    session = load_case_session(case_id)
+    if session and session.get("case_inbox_path"):
+        inbox_path = session.get("case_inbox_path")
+        if os.path.exists(inbox_path):
+            search_dirs.append(inbox_path)
+            for root, dirs, _ in os.walk(inbox_path):
+                for d in dirs:
+                    search_dirs.append(os.path.join(root, d))
+                    
     safe_filename = os.path.basename(filename)
     for directory in search_dirs:
         file_path = os.path.join(directory, safe_filename)

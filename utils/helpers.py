@@ -400,6 +400,7 @@ def parse_and_format_chain(raw_text):
 
 def select_relevant_pdf_pages(pdf_path, keywords=None):
     import pypdf
+    import os
     if keywords is None:
         keywords = []
     
@@ -408,6 +409,9 @@ def select_relevant_pdf_pages(pdf_path, keywords=None):
         total_pages = len(reader.pages)
         if total_pages == 0:
             return []
+            
+        filename = os.path.basename(pdf_path).lower()
+        is_sanction = "sanction" in filename or "loan" in filename
             
         # Check if PDF contains any extractable text (to detect scanned vs searchable)
         has_any_text = False
@@ -420,6 +424,26 @@ def select_relevant_pdf_pages(pdf_path, keywords=None):
                 
         if not has_any_text:
             return [] # Scanned PDF fallback
+            
+        # Sanction letter optimization: read first 2 pages,
+        # unless there is another sanction letter starting further down
+        if is_sanction:
+            selected_indices = {0, 1}
+            selected_indices = {idx for idx in selected_indices if 0 <= idx < total_pages}
+            
+            # Scan pages 3+ for headers indicating another sanction letter
+            for idx in range(2, total_pages):
+                page_text_lower = page_texts[idx].lower()
+                # Check for indicators of another/second sanction letter starting
+                if any(kw in page_text_lower for kw in ["sanction letter", "sanction date", "loan amount", "dear sir", "dear madam"]):
+                    selected_indices.add(idx)
+                    # Add next page too for context
+                    if idx + 1 < total_pages:
+                        selected_indices.add(idx + 1)
+            
+            # Cap sanction letters at 5 pages max to optimize tokens
+            sorted_indices = sorted(list(selected_indices))
+            return sorted_indices[:5]
             
         # Hybrid page selection: always select page 1, 2 and the last page
         selected_indices = {0, 1, total_pages - 1}
@@ -468,7 +492,8 @@ def validate_case_id(case_id):
     import re
     if not case_id or not isinstance(case_id, str):
         return False
-    return bool(re.match(r"^case_\d+$", case_id))
+    return bool(re.match(r"^(case_\d+|inbox_[a-zA-Z0-9_]+)$", case_id))
+
 
 def validate_bucket_name(bucket_name):
     whitelist = {'kyc', 'legal', 'ats', 'title_chain', 'ocr'}

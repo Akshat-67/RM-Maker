@@ -9,9 +9,12 @@ from .gender_validator import GenderValidator
 from .missing_fields_validator import MissingFieldsValidator
 from .template_validator import TemplateValidator
 from .name_match_validator import NameMatchValidator
+from .three_way_validator import ThreeWayValidator
 
 registry.register(IdentityValidator())
 registry.register(GenderValidator())
 registry.register(MissingFieldsValidator())
 registry.register(TemplateValidator())
 registry.register(NameMatchValidator())
+registry.register(ThreeWayValidator())
+

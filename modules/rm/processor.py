@@ -132,11 +132,7 @@ class RMTemplateProcessor:
             data = re.sub(r'[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF]', '', data)
             if '\n' in data:
                 rt = RichText()
-                parts = data.split('\n')
-                for i, part in enumerate(parts):
-                    rt.add(part, font='Cambria', size=24)
-                    if i < len(parts) - 1:
-                        rt.add('\a')
+                rt.add(data, font='Cambria', size=24)
                 return rt
             return data
         else:

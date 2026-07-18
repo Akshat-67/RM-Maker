@@ -84,14 +84,26 @@ class NameMatchValidator(BaseValidator):
                 response = requests.post(invoke_url, headers=headers, json=payload, timeout=30)
                 res_json = response.json()
                 
-                # Extract text from Nemotron response format
+                # Extract text from Nemotron response format robustly
                 ocr_text = ""
-                if isinstance(res_json, dict) and "predictions" in res_json:
-                    predictions = res_json["predictions"]
-                    if predictions and isinstance(predictions, list):
-                        ocr_text = predictions[0].get("text", "")
-                elif isinstance(res_json, dict) and "text" in res_json:
-                    ocr_text = res_json.get("text", "")
+                if isinstance(res_json, dict):
+                    if "data" in res_json and isinstance(res_json["data"], list) and len(res_json["data"]) > 0:
+                        detections = res_json["data"][0].get("text_detections", [])
+                        texts = []
+                        for det in detections:
+                            if isinstance(det, dict) and "text_prediction" in det:
+                                texts.append(det["text_prediction"].get("text", ""))
+                        ocr_text = "\n".join(texts)
+                    elif "predictions" in res_json:
+                        preds = res_json["predictions"]
+                        if preds and isinstance(preds, list):
+                            texts = []
+                            for pred in preds:
+                                if isinstance(pred, dict) and "text_prediction" in pred:
+                                    texts.append(pred["text_prediction"].get("text", ""))
+                                elif isinstance(pred, dict) and "text" in pred:
+                                    texts.append(pred.get("text", ""))
+                            ocr_text = "\n".join(texts)
                     
                 if ocr_text:
                     # Write cache

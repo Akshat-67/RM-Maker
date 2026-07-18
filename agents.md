@@ -151,7 +151,7 @@ A task is complete only when:
 
 ✓ Serena memories updated if long-term project knowledge changed
 
-✓ Graphify regenerated when dependency relationships materially change
+✓ Graphify update (only when requested manually by the user)
 
 ### Future Development Engineering Workflow
 
@@ -176,7 +176,7 @@ Documentation update (sync AGENTS.md / agent_knowledge if architecture changed)
        ↓
 Serena memory update (store long-term rules/decisions)
        ↓
-Graphify regeneration (when architecture changes, run `graphify update .`)
+Graphify regeneration (only if requested manually by the user)
        ↓
  Task complete
 ```

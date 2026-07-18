@@ -297,10 +297,21 @@ def serve_case_file(case_id, filename):
     if directory:
         case_dir = os.path.abspath(os.path.join(CASES_DIR, case_id))
         filepath = os.path.abspath(os.path.join(directory, safe_filename))
-        if not is_safe_path(case_dir, filepath):
+        
+        session = load_case_session(case_id)
+        inbox_path = session.get("case_inbox_path") if session else None
+        if inbox_path:
+            inbox_path = os.path.abspath(inbox_path)
+            
+        is_safe = is_safe_path(case_dir, filepath)
+        if not is_safe and inbox_path:
+            is_safe = is_safe_path(inbox_path, filepath)
+            
+        if not is_safe:
             return "Forbidden", 403
         return send_from_directory(directory, safe_filename)
     return "File not found", 404
+
 
 @upload_bp.route("/case/<case_id>/delete_file", methods=["POST"])
 def delete_case_file(case_id):
@@ -398,3 +409,91 @@ def delete_case_file(case_id):
         return jsonify({"success": True})
     else:
         return jsonify({"success": False, "error": error_msg or "File not found on server"})
+
+
+@upload_bp.route("/case/<case_id>/file/<path:filename>/rotate", methods=["POST"])
+def rotate_image_endpoint(case_id, filename):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+
+    req_data = request.json or {}
+    direction = req_data.get("direction", "right")  # 'right' (CW) or 'left' (CCW)
+
+    directory, safe_filename = resolve_case_file_path(case_id, filename)
+    if not directory:
+        return jsonify({"success": False, "error": "File not found"}), 404
+
+    filepath = os.path.abspath(os.path.join(directory, safe_filename))
+    case_dir = os.path.abspath(os.path.join(CASES_DIR, case_id))
+    inbox_path = session.get("case_inbox_path") if session else None
+    if inbox_path:
+        inbox_path = os.path.abspath(inbox_path)
+        
+    is_safe = is_safe_path(case_dir, filepath)
+    if not is_safe and inbox_path:
+        is_safe = is_safe_path(inbox_path, filepath)
+        
+    if not is_safe:
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+
+    try:
+
+        from PIL import Image
+        img = Image.open(filepath)
+        if direction == "left":
+            img = img.transpose(Image.ROTATE_90)
+        else:
+            img = img.transpose(Image.ROTATE_270)
+        img.save(filepath)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@upload_bp.route("/case/<case_id>/file/<path:filename>/crop", methods=["POST"])
+def crop_image_endpoint(case_id, filename):
+    session = load_case_session(case_id)
+    if not session:
+        return jsonify({"success": False, "error": "Case not found"}), 404
+
+    req_data = request.json or {}
+    try:
+        x = int(req_data.get("x", 0))
+        y = int(req_data.get("y", 0))
+        w = int(req_data.get("w", 0))
+        h = int(req_data.get("h", 0))
+
+        directory, safe_filename = resolve_case_file_path(case_id, filename)
+        if not directory:
+            return jsonify({"success": False, "error": "File not found"}), 404
+
+        filepath = os.path.abspath(os.path.join(directory, safe_filename))
+        case_dir = os.path.abspath(os.path.join(CASES_DIR, case_id))
+        inbox_path = session.get("case_inbox_path") if session else None
+        if inbox_path:
+            inbox_path = os.path.abspath(inbox_path)
+            
+        is_safe = is_safe_path(case_dir, filepath)
+        if not is_safe and inbox_path:
+            is_safe = is_safe_path(inbox_path, filepath)
+            
+        if not is_safe:
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+
+        from PIL import Image
+
+        img = Image.open(filepath)
+        
+        # Crop bounds check
+        left = max(0, min(x, img.width - 1))
+        top = max(0, min(y, img.height - 1))
+        right = max(left + 10, min(x + w, img.width))
+        bottom = max(top + 10, min(y + h, img.height))
+
+        cropped_img = img.crop((left, top, right, bottom))
+        cropped_img.save(filepath)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+

@@ -220,6 +220,65 @@ def _grabcut_with_expansion(img):
 
 
 # ---------------------------------------------------------------------------
+# Crop validation and helper logic
+# ---------------------------------------------------------------------------
+def _validate_crop_box(img, box, w_img, h_img):
+    """
+    Validates if a crop box represents a valid card sub-region.
+    Prevents cropping already-cropped/full-image cards or matching
+    small features (like faces, signatures, text blocks).
+    """
+    if box is None:
+        return False
+    x1, y1, x2, y2 = box
+    w = x2 - x1
+    h = y2 - y1
+    area = w * h
+    img_area = w_img * h_img
+
+    # 1. Input image is already card-shaped and small-res
+    # (very common for scanned cards or pre-cropped images)
+    input_aspect = max(w_img, h_img) / max(min(w_img, h_img), 1)
+    if 1.35 <= input_aspect <= 1.65 and img_area < 780000:
+        return False
+
+    # 2. Area must be substantial (at least 20% of image area)
+    # This prevents cropping to small sub-regions like faces/signatures.
+    if area < 0.20 * img_area:
+        return False
+
+    # 3. Aspect ratio must look like a card (1.25 to 2.2)
+    aspect = max(w, h) / max(min(w, h), 1)
+    if aspect < 1.25 or aspect > 2.2:
+        return False
+
+    # 4. Discarded edge density check:
+    # If the outer region contains text/details (high edge density), we are cutting into the card.
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    v_median = np.median(blurred)
+    edges = cv2.Canny(blurred, int(max(0, 0.5 * v_median)), int(min(255, 1.5 * v_median)))
+
+    box_mask = np.zeros_like(edges)
+    box_mask[y1:y2, x1:x2] = 255
+    inner_edges = np.sum((edges > 0) & (box_mask == 255))
+    outer_edges = np.sum(edges > 0) - inner_edges
+    outer_area = img_area - area
+    outer_density = outer_edges / outer_area if outer_area > 0 else 0
+
+    if outer_density > 0.012:
+        return False
+
+    # 5. Already cropped checks: if the box occupies almost the full image
+    w_ratio = w / w_img
+    h_ratio = h / h_img
+    if w_ratio > 0.92 and h_ratio > 0.88:
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Public API  —  unified card detection pipeline
 # ---------------------------------------------------------------------------
 def crop_via_opencv(img_path, padding_ratio=0.02):
@@ -240,13 +299,15 @@ def crop_via_opencv(img_path, padding_ratio=0.02):
 
     # Stage 1: Fast contour approach
     box = _find_card_via_contour(img)
-    if box is not None:
+    if box is not None and _validate_crop_box(img, box, w_img, h_img):
         logger.debug("Card detected via contour method")
     else:
         # Stage 2: GrabCut + expansion
         box = _grabcut_with_expansion(img)
-        if box is not None:
+        if box is not None and _validate_crop_box(img, box, w_img, h_img):
             logger.debug("Card detected via GrabCut + expansion")
+        else:
+            box = None
 
     if box is None:
         return None
@@ -263,11 +324,9 @@ def crop_via_opencv(img_path, padding_ratio=0.02):
     x2 = min(w_img, x2 + pw)
     y2 = min(h_img, y2 + ph)
 
-    # Validate: must represent a true sub-region
-    if (x2 - x1) >= 0.96 * w_img and (y2 - y1) >= 0.96 * h_img:
-        return None
-
     return (x1, y1, x2, y2)
+
+
 
 
 # ---------------------------------------------------------------------------

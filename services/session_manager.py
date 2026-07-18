@@ -94,9 +94,11 @@ _session_file_cache = {}  # path -> (mtime, parsed_json)
 def list_cases():
     global _session_file_cache
     cases = []
-    if not os.path.exists(CASES_DIR):
-        return []
     
+    # Create CASES_DIR if it doesn't exist
+    if not os.path.exists(CASES_DIR):
+        os.makedirs(CASES_DIR, exist_ok=True)
+
     for d in os.listdir(CASES_DIR):
         path = os.path.join(CASES_DIR, d, "session.json")
         if not os.path.exists(path):
@@ -116,6 +118,58 @@ def list_cases():
         except Exception:
             pass
     return sorted(cases, key=lambda x: x.get("last_updated", 0), reverse=True)
+
+
+def list_unimported_inbox_folders():
+    """List subfolders in the monitored folder that have not been imported as cases yet."""
+    unimported = []
+    try:
+        if "PYTEST_CURRENT_TEST" not in os.environ:
+            from dotenv import load_dotenv
+            load_dotenv(override=True)
+        
+        import utils.config
+
+        inbox_dir_val = os.getenv("CASE_INBOX_DIR", utils.config.CASE_INBOX_DIR)
+        
+        # Clean any wrapping single/double quotes added by env file parser
+        if inbox_dir_val:
+            inbox_dir_val = inbox_dir_val.strip("'\"")
+            
+        inbox_path = os.path.abspath(inbox_dir_val)
+
+
+        if os.path.exists(inbox_path):
+            for d in os.listdir(inbox_path):
+                sub_path = os.path.join(inbox_path, d)
+                if not os.path.isdir(sub_path):
+                    continue
+                
+                # Sanitize name to form case ID
+                sanitized = re.sub(r'[^a-zA-Z0-9_]', '_', d.lower())
+                sanitized = re.sub(r'_+', '_', sanitized).strip('_')
+                case_id = f"inbox_{sanitized}"
+                
+                case_dir = os.path.join(CASES_DIR, case_id)
+                session_path = os.path.join(case_dir, "session.json")
+                if not os.path.exists(session_path):
+                    try:
+                        mtime = os.path.getmtime(sub_path)
+                    except Exception:
+                        mtime = 0
+                    unimported.append({
+                        "folder_name": d,
+                        "case_id": case_id,
+                        "path": sub_path,
+                        "mtime": mtime
+                    })
+        unimported.sort(key=lambda x: x["mtime"], reverse=True)
+    except Exception as e:
+        print(f"[Session Manager] Error listing unimported folders: {e}")
+    return unimported
+
+
+
 
 def sync_template_keys_to_property_type(chain_list, property_type):
     if not chain_list or not isinstance(chain_list, list):

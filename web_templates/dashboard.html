@@ -76,9 +76,23 @@
       </div>
     </div>
 
+    <!-- Monitored Inbox Importer Panel -->
+    <div class="card shadow-sm border-0 mb-4" style="border-left: 4px solid #f59e0b; border-radius: 6px;">
+      <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between border-bottom-0">
+        <h6 class="m-0 fw-bold text-dark"><span class="me-2">📥</span>Monitored Folder: Import New Cases</h6>
+        <span class="badge bg-warning text-dark font-monospace" id="inbox-count-badge">0 folders found</span>
+      </div>
+      <div class="card-body pt-0 pb-3">
+        <div id="unimported-folders-container" class="d-flex flex-column gap-2" style="max-height: 250px; overflow-y: auto;">
+          <p class="text-muted small m-0">Scanning firm directory for folders...</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Filter Bar -->
     <div class="filter-bar mb-3">
       <div class="row g-2 align-items-end">
+
         <div class="col-12 col-md-6">
           <label class="form-label small text-muted mb-1">Search</label>
           <input id="searchInput" type="search" class="form-control" placeholder="Search case id, borrower, bank..." autofocus />
@@ -159,7 +173,7 @@
                   </span>
                 </td>
                 <td>
-                  <span class="badge bg-{{ case.status_color|default('secondary') }}">
+                  <span class="badge case-status-badge bg-{{ case.status_color|default('secondary') }}" data-status="{{ case.status|default('new') }}" data-case-id="{{ case.id }}">
                     {{ case.status_text|default('New') }}
                   </span>
                 </td>
@@ -367,6 +381,103 @@
             .catch(err => alert('Error executing bulk delete: ' + err));
         }
     }
+
+    function loadUnimportedFolders() {
+        const container = document.getElementById('unimported-folders-container');
+        const badge = document.getElementById('inbox-count-badge');
+        if (!container) return;
+        
+        fetch('/api/inbox/unimported')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.folders.length > 0) {
+                    badge.textContent = `${data.folders.length} folder${data.folders.length > 1 ? 's' : ''} found`;
+                    container.innerHTML = '';
+                    
+                    data.folders.forEach(folder => {
+                        const div = document.createElement('div');
+                        div.className = 'd-flex align-items-center justify-content-between p-2.5 border bg-white shadow-sm mb-2 rounded w-100';
+                        div.style.maxWidth = '600px';
+                        
+                        div.innerHTML = `
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fs-5">📁</span>
+                                <div>
+                                    <strong class="text-dark small d-block">${folder.folder_name}</strong>
+                                    <code class="text-muted" style="font-size: 0.7rem;">${folder.path}</code>
+                                </div>
+                            </div>
+                            <button class="btn btn-xs btn-outline-primary fw-bold" onclick="importFolder(this, '${folder.folder_name.replace(/'/g, "\\'")}', '${folder.case_id}', '${folder.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">📥 Import</button>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    badge.textContent = '0 folders found';
+                    badge.className = 'badge bg-secondary font-monospace';
+                    container.innerHTML = '<p class="text-muted small m-0">No new folders to import. Placed cases will appear here.</p>';
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching unimported folders:", err);
+                container.innerHTML = '<p class="text-danger small m-0">Failed to scan monitored directory.</p>';
+            });
+    }
+
+    function importFolder(btn, name, caseId, path) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Importing...';
+        
+        fetch('/api/inbox/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                folder_name: name,
+                case_id: caseId,
+                path: path
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert("Import failed: " + (data.error || "Unknown error"));
+                btn.disabled = false;
+                btn.innerHTML = '📥 Import';
+            }
+        })
+        .catch(err => {
+            alert("Import error: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '📥 Import';
+        });
+    }
+
+    function pollProcessingCases() {
+        const badges = document.querySelectorAll('.case-status-badge[data-status="processing"], .case-status-badge[data-status="extracting"]');
+        if (badges.length === 0) return;
+        
+        badges.forEach(badge => {
+            const caseId = badge.getAttribute('data-case-id');
+            fetch(`/api/case/${caseId}/status`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.status !== badge.getAttribute('data-status')) {
+                        window.location.reload();
+                    }
+                })
+                .catch(err => console.error('Error polling status:', err));
+        });
+    }
+
+    // Poll status of any active processes every 3 seconds
+    setInterval(pollProcessingCases, 3000);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadUnimportedFolders();
+        pollProcessingCases();
+    });
+
   </script>
 </body>
 </html>

@@ -14,8 +14,27 @@ def dashboard():
     cases_data = []
     for case in list_cases():
         case["updated"] = time.strftime("%d %b, %H:%M", time.localtime(case.get("last_updated", 0)))
+        
+        status = case.get("status")
+        if status == "processing":
+            case["status_text"] = "Processing..."
+            case["status_color"] = "warning"
+        elif status == "extracting":
+            case["status_text"] = "Extracting..."
+            case["status_color"] = "warning"
+        elif status == "failed":
+            case["status_text"] = "Failed"
+            case["status_color"] = "danger"
+        elif status == "ready":
+            case["status_text"] = "Ready"
+            case["status_color"] = "success"
+        else:
+            case["status_text"] = "New"
+            case["status_color"] = "secondary"
+            
         cases_data.append(case)
     return render_template("dashboard.html", cases=cases_data)
+
 
 @dashboard_bp.route("/devlys-to-unicode")
 def devlys_to_unicode_route():

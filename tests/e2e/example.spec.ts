@@ -109,8 +109,8 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
     
     // Verify the split workspace and editor panel display
     await expect(page.locator('#step-review-view')).toBeVisible();
-    await expect(page.locator('.preview-pane')).toBeVisible();
-    await expect(page.locator('.editor-pane')).toBeVisible();
+    await expect(page.locator('.preview-pane').first()).toBeVisible();
+    await expect(page.locator('.editor-pane').first()).toBeVisible();
     
     // Verify section selector inside the editor pane exists
     await expect(page.locator('#verificationSectionSelector')).toBeVisible();
@@ -843,5 +843,42 @@ test.describe('LegalDoc Automator Pro Regression Suite', () => {
 
     // A total of 2 save requests must have been made (original + force-retry)
     expect(saveCount).toBe(2);
+  });
+
+  test('31. XSS and HTML Injection inputs do not break page structure or crash rendering', async ({ page }) => {
+    // Log console errors/warnings
+    page.on('console', msg => {
+      if (msg.type() === 'error' || msg.type() === 'warning') {
+        console.log(`[BROWSER ${msg.type().toUpperCase()}] ${msg.text()}`);
+      }
+    });
+
+    await page.goto('/');
+    await page.getByRole('link', { name: '+ New RM Case' }).click();
+    await page.waitForURL(/\/case\/(case_\d+)/);
+    
+    // Switch to Step 2
+    await page.locator('#step-indicator-review').click();
+    
+    // Switch to Witness section inside editor
+    await page.locator('#verificationSectionSelector').selectOption('pane-witnesses');
+    
+    // Inject hostile characters into the Witness name field
+    const nameInput = page.locator('#field_ws_0_n');
+    await nameInput.fill('</td></tr></table><script>alert("XSS")</script> "Double Quotes" \& Ampersand');
+    
+    // Trigger Save and wait for the API response
+    const savePromise = page.waitForResponse(resp => resp.url().includes('/save') && resp.status() === 200);
+    await page.locator('button[onclick="saveCase()"]').first().click();
+    await savePromise;
+    
+    // Switch to Step 3 (Checklist & Live Preview)
+    await page.locator('#step-indicator-checklist').click();
+    
+    // Trigger Update Preview on the visible button
+    await page.locator('button:has-text("Update Preview")').filter({ visible: true }).first().click();
+    
+    // Verify the preview frame or container does not crash and is rendered
+    await expect(page.locator('#draftPreviewContent').first()).toBeAttached();
   });
 });

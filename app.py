@@ -1,3 +1,4 @@
+import os
 from flask import Flask, url_for as flask_url_for
 from routes.dashboard import dashboard_bp
 from routes.cases import cases_bp
@@ -42,9 +43,15 @@ app.register_blueprint(upload_bp)
 app.register_blueprint(generation_bp)
 app.register_blueprint(epanjiyan_bp)
 
-import os
+# Run folder watcher background thread (avoid duplicates in Flask reloader)
+debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1")
+if not debug_mode or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    try:
+        from services.folder_watcher import start_folder_watcher
+        start_folder_watcher()
+    except Exception as e:
+        print(f"Error starting folder watcher: {e}")
 
 if __name__ == "__main__":
-    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() in ("true", "1")
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', debug=debug_mode, port=port)
