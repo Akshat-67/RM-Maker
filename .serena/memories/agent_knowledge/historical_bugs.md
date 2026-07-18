@@ -24,3 +24,5 @@ This memory summarizes recurring patterns of bugs and lessons from [historical_b
   - Bind Flask server to `0.0.0.0` to receive MacroDroid OTP forwards.
 - **Template Placeholders**:
   - Keys are contracts. Keep lowercase and capitalized variants (e.g. `chain_text` and `Chain_Text`) sync'd. Format dates based on pipeline (ordinals for RM, DD.MM.YYYY for SD).
+- **Subfolder Classification in Ingestion**:
+  - Raw files inside subfolders (e.g., kyc/, legal/) were previously unclassified because the classification pipeline only checked the file's basename. Adding path-based classification resolves this by matching the parent folder name (e.g., "kyc" or "legal") first before fallback to filename matching.

@@ -7,7 +7,6 @@
 - Before declaring a task complete, run relevant tests and report results.
 - Architectural decisions should be persisted as Serena memories.
 - Architecture documentation should remain synchronized with the implementation.
-- Recommend regenerating Graphify whenever major dependency relationships change.
 
 
 # Project Completion Policy
