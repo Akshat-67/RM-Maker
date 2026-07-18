@@ -367,7 +367,7 @@ def _find_card_via_contour(img):
 # ---------------------------------------------------------------------------
 # Method 2: GrabCut + Asymmetric Edge-Density Expansion
 # ---------------------------------------------------------------------------
-def _grabcut_with_expansion(img):
+def _grabcut_with_expansion(img, top_candidate: Optional[DocumentCandidate] = None):
     """
     Uses GrabCut to segment the card from the background, then expands
     the detected region using edge density to capture footer/header areas
@@ -382,10 +382,44 @@ def _grabcut_with_expansion(img):
     """
     h_img, w_img = img.shape[:2]
 
-    # --- GrabCut ---
-    margin_x = int(w_img * 0.08)
-    margin_y = int(h_img * 0.08)
-    rect = (margin_x, margin_y, w_img - 2 * margin_x, h_img - 2 * margin_y)
+    # --- Edge/Candidate Directed GrabCut Initialisation ---
+    if top_candidate is not None:
+        x, y, w, h = top_candidate.bounding_box
+        pad_x = int(w * 0.05)
+        pad_y = int(h * 0.05)
+        xmin = max(0, x - pad_x)
+        ymin = max(0, y - pad_y)
+        xmax = min(w_img, x + w + pad_x)
+        ymax = min(h_img, y + h + pad_y)
+        rect = (xmin, ymin, xmax - xmin, ymax - ymin)
+    else:
+        # Dynamic edge density projection profiling
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        v_median = np.median(blurred)
+        edges = cv2.Canny(blurred, int(max(0, 0.5 * v_median)), int(min(255, 1.5 * v_median)))
+
+        row_sums = np.sum(edges, axis=1)
+        col_sums = np.sum(edges, axis=0)
+
+        active_rows = np.where(row_sums > 0.02 * np.max(row_sums))[0] if np.max(row_sums) > 0 else []
+        active_cols = np.where(col_sums > 0.02 * np.max(col_sums))[0] if np.max(col_sums) > 0 else []
+
+        if len(active_rows) > 0 and len(active_cols) > 0:
+            ymin, ymax = active_rows[0], active_rows[-1]
+            xmin, xmax = active_cols[0], active_cols[-1]
+            pad_x = int((xmax - xmin) * 0.05)
+            pad_y = int((ymax - ymin) * 0.05)
+            xmin = max(0, xmin - pad_x)
+            ymin = max(0, ymin - pad_y)
+            xmax = min(w_img, xmax + pad_x)
+            ymax = min(h_img, ymax + pad_y)
+            rect = (xmin, ymin, xmax - xmin, ymax - ymin)
+        else:
+            # Fall back to 8% margin if no edge concentration found
+            margin_x = int(w_img * 0.08)
+            margin_y = int(h_img * 0.08)
+            rect = (margin_x, margin_y, w_img - 2 * margin_x, h_img - 2 * margin_y)
 
     bgd_model = np.zeros((1, 65), np.float64)
     fgd_model = np.zeros((1, 65), np.float64)

@@ -128,5 +128,30 @@ def test_refine_crop():
     assert refined.shape[1] < 300
     assert refined.shape[0] < 200
 
+def test_grabcut_with_expansion():
+    from services.autocrop import _grabcut_with_expansion, DocumentCandidate
+    img = np.zeros((300, 300, 3), dtype=np.uint8)
+    # Draw a card inside
+    cv2.rectangle(img, (40, 40), (260, 260), (255, 255, 255), -1)
+    
+    # We pass a DocumentCandidate to initialize GrabCut
+    cand = DocumentCandidate(
+        contour=np.array([[[40, 40]], [[260, 40]], [[260, 260]], [[40, 260]]], dtype=np.int32),
+        bounding_box=(40, 40, 220, 220),
+        approx_polygon=np.array([[[40, 40]], [[260, 40]], [[260, 260]], [[40, 260]]], dtype=np.int32),
+        is_quadrilateral=True,
+        aspect_ratio=1.0,
+        solidity=0.9,
+        convexity=0.9,
+        rectangularity=0.9,
+        edge_support=0.9,
+        hierarchy_status="independent"
+    )
+    
+    box = _grabcut_with_expansion(img, cand)
+    assert box is not None
+    assert box[2] - box[0] > 100
+
+
 
 
