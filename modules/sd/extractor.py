@@ -1312,7 +1312,7 @@ class SDDataExtractor:
             parts = str(name).strip().split()
             return parts[-1].lower() if parts else ""
 
-        merged_backs = set()
+        merged_backs = []
         for f_item in fronts:
             f_surname_en = get_surname(f_item, "n_en", "")
             f_surname_hi = get_surname(f_item, "n", "")
@@ -1352,7 +1352,7 @@ class SDDataExtractor:
                         break
                         
             if best_back:
-                merged_backs.add(best_back)
+                merged_backs.append(best_back)
                 # Merge fields from back into front
                 for key in ["adr", "adr_en", "relation_text", "rn_en", "r", "rn"]:
                     if not f_item.get(key) and best_back.get(key):
