@@ -73,8 +73,22 @@ def run_ingestion_pipeline(case_id):
             base_name, _ = os.path.splitext(filename)
             base_name_lower = base_name.lower().strip()
             
-            # Match rules: short codes/numeric or descriptive keywords
-            if re.match(r'^[\d,\-\s\(\)]+$', base_name_lower) or "aadhar" in base_name_lower or "pan" in base_name_lower:
+            # Get relative directory path (excluding filename)
+            rel_dir = os.path.dirname(os.path.relpath(filepath, case_inbox_path)).replace("\\", "/").lower()
+            
+            # Check relative directory names first to classify based on folder structure
+            if "kyc" in rel_dir or "aadhar" in rel_dir or "pan" in rel_dir:
+                buckets["kyc"].append(filepath)
+            elif "legal" in rel_dir or "scrutiny" in rel_dir:
+                buckets["legal"].append(filepath)
+            elif "ats" in rel_dir or "sanction" in rel_dir:
+                buckets["ats"].append(filepath)
+            elif "title_chain" in rel_dir or "chain" in rel_dir:
+                buckets["title_chain"].append(filepath)
+            elif "ocr" in rel_dir or "tech" in rel_dir or "visit" in rel_dir or "valuation" in rel_dir:
+                buckets["ocr"].append(filepath)
+            # Fallback to filename-based matching
+            elif re.match(r'^[\d,\-\s\(\)]+$', base_name_lower) or "aadhar" in base_name_lower or "pan" in base_name_lower:
                 buckets["kyc"].append(filepath)
             elif base_name_lower in ("legal", "l") or "legal" in base_name_lower or "scrutiny" in base_name_lower:
                 buckets["legal"].append(filepath)
