@@ -92,4 +92,41 @@ def test_score_candidates():
     assert scored[0] == cand_a
     assert cand_a.score > cand_b.score
 
+def test_warp_candidate():
+    from services.autocrop import warp_candidate, DocumentCandidate
+    img = np.zeros((300, 300, 3), dtype=np.uint8)
+    # Skewed quad corners (roughly a rotated card)
+    pts = np.array([[[50, 60]], [[250, 40]], [[260, 200]], [[40, 220]]], dtype=np.int32)
+    
+    cand = DocumentCandidate(
+        contour=pts,
+        bounding_box=(40, 40, 220, 180),
+        approx_polygon=pts,
+        is_quadrilateral=True,
+        aspect_ratio=1.3,
+        solidity=0.9,
+        convexity=0.9,
+        rectangularity=0.9,
+        edge_support=0.9,
+        hierarchy_status="independent"
+    )
+    
+    warped = warp_candidate(img, cand)
+    # Warped image should be a horizontal rectangle
+    assert warped is not None
+    assert warped.shape[1] > 100
+    assert warped.shape[0] > 100
+
+def test_refine_crop():
+    from services.autocrop import refine_crop
+    img = np.zeros((200, 300, 3), dtype=np.uint8)
+    # Draw a card inside, leaving black margins on the edges (5 pixels margin)
+    cv2.rectangle(img, (5, 5), (295, 195), (255, 255, 255), -1)
+    
+    refined = refine_crop(img)
+    # Refined image should crop out the black margin, making it smaller than 300x200
+    assert refined.shape[1] < 300
+    assert refined.shape[0] < 200
+
+
 
