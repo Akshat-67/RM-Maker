@@ -252,6 +252,85 @@ def save_candidate_scores_png(candidates: List[DocumentCandidate], path: str):
     cv2.imwrite(path, canvas)
 
 
+def validate_candidates(
+    candidates: List[DocumentCandidate],
+    cfg: DocumentConfig,
+    img: np.ndarray,
+    edges: np.ndarray
+) -> List[DocumentCandidate]:
+    """Validates each DocumentCandidate against standard geometric card guidelines."""
+    h_img, w_img = img.shape[:2]
+    img_area = h_img * w_img
+
+    for cand in candidates:
+        x, y, w, h = cand.bounding_box
+        area = cv2.contourArea(cand.contour)
+
+        # 1. Area thresholds
+        if area < cfg.min_area_ratio * img_area:
+            cand.is_valid = False
+            cand.rejection_reason = f"Area too small ({area/img_area:.2f} < {cfg.min_area_ratio})"
+            continue
+        if area > cfg.max_area_ratio * img_area:
+            cand.is_valid = False
+            cand.rejection_reason = f"Area too large ({area/img_area:.2f} > {cfg.max_area_ratio})"
+            continue
+
+        # 2. Solidity
+        if cand.solidity < cfg.min_solidity:
+            cand.is_valid = False
+            cand.rejection_reason = f"Solidity too low ({cand.solidity:.2f} < {cfg.min_solidity})"
+            continue
+
+        # 3. Convexity
+        if cand.convexity < cfg.min_convexity:
+            cand.is_valid = False
+            cand.rejection_reason = f"Convexity too low ({cand.convexity:.2f} < {cfg.min_convexity})"
+            continue
+
+        # 4. Rectangularity
+        if cand.rectangularity < cfg.min_rectangularity:
+            cand.is_valid = False
+            cand.rejection_reason = f"Rectangularity too low ({cand.rectangularity:.2f} < {cfg.min_rectangularity})"
+            continue
+
+        # 5. Aspect Ratio bounds
+        if cand.aspect_ratio < 1.2 or cand.aspect_ratio > 2.5:
+            cand.is_valid = False
+            cand.rejection_reason = f"Aspect ratio out of bounds ({cand.aspect_ratio:.2f})"
+            continue
+
+        # 6. Edge Support
+        if cand.edge_support < cfg.edge_support_threshold:
+            cand.is_valid = False
+            cand.rejection_reason = f"Edge support too low ({cand.edge_support:.2f} < {cfg.edge_support_threshold})"
+            continue
+
+        # 7. Discarded Edge Density (outer content check)
+        x1, y1, x2, y2 = x, y, x + w, y + h
+        box_mask = np.zeros_like(edges)
+        box_mask[y1:y2, x1:x2] = 255
+        inner_edges = np.sum((edges > 0) & (box_mask == 255))
+        outer_edges = np.sum(edges > 0) - inner_edges
+        outer_area = img_area - (w * h)
+        outer_density = outer_edges / outer_area if outer_area > 0 else 0
+        if outer_density > 0.012:
+            cand.is_valid = False
+            cand.rejection_reason = f"Outer density too high ({outer_density:.4f} > 0.012)"
+            continue
+
+        # 8. Covers full image check
+        w_ratio = w / w_img
+        h_ratio = h / h_img
+        if w_ratio > 0.92 and h_ratio > 0.88:
+            cand.is_valid = False
+            cand.rejection_reason = "Covers full image (already cropped)"
+            continue
+
+        cand.is_valid = True
+
+    return candidates
+
 
 def _order_points(pts: np.ndarray) -> np.ndarray:
     pts = pts.reshape(4, 2)
@@ -640,48 +719,154 @@ def _validate_crop_box(img, box, w_img, h_img):
 # ---------------------------------------------------------------------------
 def crop_via_opencv(img_path, padding_ratio=0.02):
     """
-    Detects document boundary using a two-stage pipeline:
-      1. Strict contour detection (fast, works on clear backgrounds)
-      2. GrabCut + asymmetric edge-density expansion (for cards on
-         similar-colour surfaces like white tablecloths)
-
-    Returns (xmin, ymin, xmax, ymax) if a sub-region card is detected,
-    else None (caller should fall back to VLM).
+    Detects document boundary using the improved multi-candidate TDD pipeline:
+      1. Preprocess image (Gray + Canny Edges)
+      2. Extract candidate contours using tree hierarchy (cv2.RETR_TREE)
+      3. Compute normalized weighted scoring and edge support
+      4. Validate candidates to discard internal details or bad shapes
+      5. Try perspective warping and second-pass refinement on the top 10 valid candidates
+      6. Fall back to edge-directed GrabCut if no candidate passes
     """
     img = cv2.imread(img_path)
     if img is None:
         return None
 
     h_img, w_img = img.shape[:2]
+    img_area = h_img * w_img
 
-    # Stage 1: Fast contour approach
-    box = _find_card_via_contour(img)
-    if box is not None and _validate_crop_box(img, box, w_img, h_img):
-        logger.debug("Card detected via contour method")
-    else:
-        # Stage 2: GrabCut + expansion
-        box = _grabcut_with_expansion(img)
-        if box is not None and _validate_crop_box(img, box, w_img, h_img):
-            logger.debug("Card detected via GrabCut + expansion")
-        else:
-            box = None
-
-    if box is None:
+    # Check 1: Already card-shaped and low-res check (prevents double cropping)
+    input_aspect = max(w_img, h_img) / max(min(w_img, h_img), 1)
+    if 1.35 <= input_aspect <= 1.65 and img_area < 780000:
+        logger.info(f"Image {os.path.basename(img_path)} is already card-shaped and low-res. Skipping crop.")
         return None
 
-    x1, y1, x2, y2 = box
+    # Setup Debug mode
+    debug_mode = os.environ.get("AUTOCROP_DEBUG", "False").lower() == "true"
+    debug_dir = None
+    if debug_mode:
+        base_dir = os.path.dirname(img_path)
+        base_name = os.path.splitext(os.path.basename(img_path))[0]
+        debug_dir = os.path.join(base_dir, f"autocrop_debug_{base_name}")
+        os.makedirs(debug_dir, exist_ok=True)
+        cv2.imwrite(os.path.join(debug_dir, "01_original.png"), img)
 
-    # Apply small padding
-    bw = x2 - x1
-    bh = y2 - y1
-    pw = int(padding_ratio * bw)
-    ph = int(padding_ratio * bh)
-    x1 = max(0, x1 - pw)
-    y1 = max(0, y1 - ph)
-    x2 = min(w_img, x2 + pw)
-    y2 = min(h_img, y2 + ph)
+    cfg = DocumentConfig()
 
-    return (x1, y1, x2, y2)
+    # Stage A: Preprocessing
+    gray, edges = preprocess_image(img)
+    if debug_mode:
+        cv2.imwrite(os.path.join(debug_dir, "02_gray.png"), cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
+        cv2.imwrite(os.path.join(debug_dir, "03_blur.png"), gray)
+        cv2.imwrite(os.path.join(debug_dir, "04_edges.png"), edges)
+
+        _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        cv2.imwrite(os.path.join(debug_dir, "05_threshold.png"), otsu)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+        dilated = cv2.dilate(edges, kernel, iterations=5)
+        dilated = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
+        cv2.imwrite(os.path.join(debug_dir, "06_morphology.png"), dilated)
+
+    # Stage B: Find Candidate Contours
+    candidates = find_candidate_contours(img, edges)
+
+    # Stage C: Score Candidates
+    candidates = score_candidates(candidates, cfg, edges)
+
+    # Stage D: Validate Candidates
+    candidates = validate_candidates(candidates, cfg, img, edges)
+
+    # Log report
+    log_candidate_report(candidates, cfg)
+
+    if debug_mode:
+        contours_img = img.copy()
+        for idx, c in enumerate(candidates[:20]):
+            color = (0, 255, 0) if c.is_valid else (0, 0, 255)
+            cv2.drawContours(contours_img, [c.contour], -1, color, 2)
+            x, y, w, h = c.bounding_box
+            cv2.putText(contours_img, f"#{idx+1} ({c.score:.2f})", (x, y - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+        cv2.imwrite(os.path.join(debug_dir, "07_contours.png"), contours_img)
+        save_candidate_scores_png(candidates[:15], os.path.join(debug_dir, "08_candidate_scores.png"))
+
+    # Stage E: Multi-candidate evaluation loop
+    selected_candidate = None
+    final_cropped = None
+
+    valid_candidates = [c for c in candidates if c.is_valid]
+
+    # Try warping and second-pass refining of the top 10 candidates
+    for cand in valid_candidates[:10]:
+        try:
+            warped = warp_candidate(img, cand)
+            if warped is not None:
+                refined = refine_crop(warped)
+
+                rh, rw = refined.shape[:2]
+                aspect = max(rw, rh) / max(min(rw, rh), 1)
+                if 1.25 <= aspect <= 2.2:
+                    selected_candidate = cand
+                    final_cropped = refined
+                    break
+        except Exception as e:
+            logger.warning(f"Error processing candidate perspective: {e}")
+            continue
+
+    # If warping failed or no valid candidates found, fall back to GrabCut
+    gc_box = None
+    if final_cropped is None:
+        logger.info("OpenCV contour candidates failed validation or warp. Falling back to GrabCut...")
+
+        top_cand = candidates[0] if len(candidates) > 0 else None
+        gc_box = _grabcut_with_expansion(img, top_cand)
+
+        if gc_box is not None and _validate_crop_box(img, gc_box, w_img, h_img):
+            x1, y1, x2, y2 = gc_box
+            final_cropped = img[y1:y2, x1:x2]
+            logger.info("GrabCut + expansion successfully localized crop box.")
+
+    if final_cropped is None:
+        return None
+
+    # If GrabCut was used, apply padding and return coordinates
+    if selected_candidate is None and gc_box is not None:
+        x1, y1, x2, y2 = gc_box
+        bw = x2 - x1
+        bh = y2 - y1
+        pw = int(padding_ratio * bw)
+        ph = int(padding_ratio * bh)
+        x1 = max(0, x1 - pw)
+        y1 = max(0, y1 - ph)
+        x2 = min(w_img, x2 + pw)
+        y2 = min(h_img, y2 + ph)
+
+        if debug_mode:
+            cv2.imwrite(os.path.join(debug_dir, "10_grabcut_mask.png"), edges)
+            cv2.imwrite(os.path.join(debug_dir, "12_final.png"), img[y1:y2, x1:x2])
+
+        return (x1, y1, x2, y2)
+
+    # If perspective warped, save directly and return sentinel (0, 0, 0, 0)
+    if final_cropped is not None and selected_candidate is not None:
+        if debug_mode:
+            sel_img = img.copy()
+            cv2.drawContours(sel_img, [selected_candidate.contour], -1, (0, 255, 0), 3)
+            cv2.imwrite(os.path.join(debug_dir, "09_selected_candidate.png"), sel_img)
+            cv2.imwrite(os.path.join(debug_dir, "11_warped.png"), warp_candidate(img, selected_candidate))
+            cv2.imwrite(os.path.join(debug_dir, "12_final.png"), final_cropped)
+
+        # Make backup of original file
+        backup_path = img_path + ".original"
+        if not os.path.exists(backup_path):
+            shutil.copy2(img_path, backup_path)
+
+        # Save warped crop directly to disk
+        cv2.imwrite(img_path, final_cropped)
+        return (0, 0, 0, 0)
+
+    return None
+
 
 
 
@@ -708,6 +893,9 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
         # 1. Try local OpenCV cropper first
         crop_box = crop_via_opencv(filepath, padding_ratio=0.02)
         if crop_box is not None:
+            if crop_box == (0, 0, 0, 0):
+                logger.info(f"Local OpenCV cropper successfully perspective-warped and cropped card for {os.path.basename(filepath)}")
+                return
             xmin, ymin, xmax, ymax = crop_box
             logger.info(f"Local OpenCV cropper successfully localized card for {os.path.basename(filepath)}")
             

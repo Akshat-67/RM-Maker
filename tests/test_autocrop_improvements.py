@@ -181,6 +181,24 @@ def test_debug_mode_and_reporting(tmp_path):
     assert os.path.exists(png_path)
     assert os.path.getsize(png_path) > 0
 
+def test_crop_via_opencv_integration(tmp_path):
+    from services.autocrop import crop_via_opencv
+    import os
+    img_path = os.path.join(tmp_path, "card.jpg")
+    img = np.zeros((400, 400, 3), dtype=np.uint8)
+    # Draw a clean card with high aspect ratio (~1.58)
+    cv2.rectangle(img, (50, 100), (290, 250), (255, 255, 255), -1)
+    # Draw some detail lines to simulate text / edges
+    cv2.line(img, (70, 140), (200, 140), (0, 0, 0), 2)
+    cv2.line(img, (70, 180), (150, 180), (0, 0, 0), 2)
+    cv2.imwrite(img_path, img)
+    
+    box = crop_via_opencv(img_path)
+    assert box is not None
+    # If perspective warped, it returns (0, 0, 0, 0)
+    assert box == (0, 0, 0, 0) or (box[2] - box[0] > 100)
+
+
 
 
 
