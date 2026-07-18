@@ -69,3 +69,9 @@ A task is complete only when:
 - [ ] Regression tests are added for any new features or bug fixes.
 - [ ] Documentation is updated if architectural elements or rules changed.
 - [ ] Serena memories are updated if long-term architectural knowledge changed.
+
+---
+
+## 6. Architecture Decisions
+Before making significant architectural changes, review the relevant Architecture Decision Records (ADRs) inside [docs/adr/](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/).
+When introducing a long-term architectural decision, create a new ADR documenting the reasoning.

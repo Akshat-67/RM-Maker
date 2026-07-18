@@ -6,6 +6,7 @@ This document describes the design, schema mapping, stability parameters, and te
 
 ## 1. Pipeline Overview
 The RM pipeline extracts financing details, security terms, borrower lists, and witness parameters from files to compile a standard bank-compliant Registered Mortgage deed.
+- *(For pipeline separation rationale, see [ADR-0003: RM and SD Independent Pipelines](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0003.md).)*
 
 ```
 Sanction Letter / LSR → RMDataExtractor → RM Schema (session.json) → UI Verification → RMTemplateProcessor → docxtpl
@@ -15,6 +16,7 @@ Sanction Letter / LSR → RMDataExtractor → RM Schema (session.json) → UI Ve
 
 ## 2. Extraction & Data Schema
 The RM pipeline stores case parameters inside `session.json` under specific lists:
+- *(For our fact-extraction principles, see [ADR-0004: AI Extracts Facts, Templates Own Legal Language](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0004.md).)*
 
 | Key | Entities | Description |
 | :--- | :--- | :--- |

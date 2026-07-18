@@ -6,6 +6,7 @@ This document describes the design of the AI extraction adapters, page pre-filte
 
 ## 1. AI Infrastructure & Key Rotation
 All Gemini requests are routed through `services/ai_client.py`:
+- *For details on the separation of AI fact extraction and static template phrasing, see [ADR-0004: AI Extracts Facts, Templates Own Legal Language](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0004.md).*
 - **Multi-Key Failover**: Automatically rotates through up to 5 configured API keys (`GEMINI_API_KEY_1` to `GEMINI_API_KEY_5`) to avoid rate limits and keep batch extractions running without interruptions.
 - **Failover Retries**: Retries network calls on transient API errors with exponential backoff.
 

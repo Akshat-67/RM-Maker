@@ -6,6 +6,7 @@ This document describes the design, entity shorthands, narrative timeline genera
 
 ## 1. Pipeline Overview
 The SD pipeline extracts seller/buyer particulars, property boundary coordinates, and historical title transaction sequences to generate a formal, legally compliant Sale Deed document.
+- *(For pipeline separation rationale, see [ADR-0003: RM and SD Independent Pipelines](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0003.md).)*
 
 ```
 KYC & Title Deeds → SDDataExtractor → SD Schema (session.json) → Title Chain Timeline & Narrative → SDTemplateProcessor → docxtpl
@@ -28,6 +29,7 @@ Preserve the exact shorthand entity lists inside SD session databases and templa
 
 ## 3. Title Chain & Narrative Engine
 The SD pipeline features an automated Title-Chain Narrative Generator ([modules/sd/narrative.py](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/modules/sd/narrative.py)):
+- *(For our fact-extraction principles, see [ADR-0004: AI Extracts Facts, Templates Own Legal Language](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0004.md).)*
 - **Timeline Events**: Parses legal events (sales, gifts, inheritance, mortgage releases) representing the ownership history.
 - **Narrative Compilation**: Compares the event list and sends structured prompts to Gemini. Gemini returns a formal, cohesive chronological narrative in Hindi (using standard legal phrasing like "विक्रय पत्र", "स्वामित्व", etc.).
 - **Manual Mode Toggle**: Users can enable `chain_is_manual` in the UI. When active, it bypasses the AI compiler and allows engineers or legal proofreaders to type or edit the narrative text directly.

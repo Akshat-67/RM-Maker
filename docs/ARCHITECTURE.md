@@ -54,9 +54,15 @@ The following files control core business logic and require extra caution before
 - All internal processing (AI extraction, database storage, session serialization, web forms, and schema validations) must use standard Unicode Devanagari.
 - Legacy non-Unicode fonts (e.g. `DevLys 010`, `Kruti Dev 010`) are **never** allowed for browser styling, inputs, or database files.
 - Legacy encoding is applied **only at the final rendering boundary** immediately before generating the compiled Word document.
+- *For detailed rationale, see [ADR-0001: Unicode as Canonical Representation](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0001.md) and [ADR-0002: DevLys Rendering Boundary](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0002.md).*
 
 ### B. Digit Standardizing
 - Devanagari numerals (`०-९`) must always be converted to standard English digits (`0-9`) globally. This transformation is applied automatically during AI extraction, session loading, and session saving.
+- *For detailed rationale, see [ADR-0007: Incremental Refactoring Policy](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0007.md).*
 
-### C. Real-Time Transliteration
+### C. Runtime Data Isolation
+- Cases data, custom uploads, generated outputs, and telemetry logs are runtime artifacts. They are excluded from repository version control and must not become source code dependencies.
+- *For detailed rationale, see [ADR-0006: Runtime Data is Not Source Code](file:///c:/Users/aksha/Documents/RM%20Generator/RM-Maker/RM-Maker-MAIN/docs/adr/ADR-0006.md).*
+
+### D. Real-Time Transliteration
 - The web interface triggers automatic English-to-Hindi transliteration on field defocusing/Tab by calling `/transliterate` or falling back to the client-side `Sanscript` library. Keep this flow intact.
