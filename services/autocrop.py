@@ -1,19 +1,14 @@
 import os
 import json
-import base64
 import logging
 import shutil
 from PIL import Image
-from openai import OpenAI
-from utils.config import NVIDIA_NIM_API_KEY
+from services.ai_client import AIClient
+from utils.config import DEFAULT_GEMINI_API_KEYS
 
 logger = logging.getLogger("Autocrop")
 
 def autocrop_image_if_aadhar(filepath: str) -> None:
-    if not NVIDIA_NIM_API_KEY:
-        logger.warning("NVIDIA NIM API key missing, skipping autocropping.")
-        return
-        
     # Ensure file exists and is an image
     _, ext = os.path.splitext(filepath.lower())
     if ext not in ['.jpg', '.jpeg', '.png']:
@@ -29,53 +24,44 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
         if img_width < 100 or img_height < 100:
             return
 
-        with open(filepath, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+        ai_client = AIClient(api_keys=DEFAULT_GEMINI_API_KEYS)
 
-        client = OpenAI(
-            base_url="https://integrate.api.nvidia.com/v1",
-            api_key=NVIDIA_NIM_API_KEY
-        )
-
-        system_prompt = (
-            "You are an expert document detection VLM. Your job is to locate the Aadhaar card in the image. "
-            "Return the bounding box coordinates on a 0 to 1000 scale, where: "
-            "ymin is the top edge (0-1000), xmin is the left edge (0-1000), "
-            "ymax is the bottom edge (0-1000), xmax is the right edge (0-1000). "
+        system_instruction = (
+            "You are an expert document localization tool. Your job is to locate the absolute outer boundaries of the entire Aadhaar card. "
+            "The Aadhaar card contains several key elements: a photo (usually on the left), personal text details (name, DOB, gender), "
+            "a 12-digit Aadhaar number (at the bottom), a bottom tricolor or red banner, and a QR code (usually on the right). "
+            "Your bounding box must be a single rectangle that fully encapsulates all of these elements: "
+            "1. ymin must be placed just above the top header ('Government of India' / 'भारत सरकार' and the emblem). "
+            "2. ymax must be placed just below the bottom red/tricolor banner and the bottom-most text/Aadhaar number. "
+            "3. xmin must be placed just to the left of the photo/emblem. "
+            "4. xmax must be placed just to the right of the QR code/card border. "
+            "Do not crop inside the card or cut off the Aadhaar number or QR code. Crop exactly at the outer white edges of the card, leaving no surrounding background. "
             "Return the output ONLY as a valid JSON object with these exact keys: "
             "{\"has_aadhar\": true/false, \"ymin\": int, \"xmin\": int, \"ymax\": int, \"xmax\": int}"
         )
 
-        response = client.chat.completions.create(
-            model="meta/llama-3.2-90b-vision-instruct",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Locate the Aadhaar card in this image and return its bounding box coordinates in JSON format."},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=150,
-            temperature=0.1
+        res = ai_client.generate_json(
+            system_instruction=system_instruction,
+            user_prompt=[img, "Locate the entire Aadhaar card encapsulating all headers, footers, Aadhaar number, photo, and QR code, cropping exactly to the outer borders."],
+            model="gemini-2.5-flash"
         )
+        
+        if "text" in res:
+            text = res["text"].strip()
+            if text.startswith("```"):
+                text = "\n".join(text.split("\n")[1:-1])
+            res = json.loads(text)
 
-        raw_content = response.choices[0].message.content.strip()
-        result = json.loads(raw_content)
+        if res.get("has_aadhar") and all(k in res for k in ["ymin", "xmin", "ymax", "xmax"]):
+            ymin_raw = res["ymin"]
+            xmin_raw = res["xmin"]
+            ymax_raw = res["ymax"]
+            xmax_raw = res["xmax"]
 
-        if result.get("has_aadhar") and all(k in result for k in ["ymin", "xmin", "ymax", "xmax"]):
-            ymin = max(0, int(result["ymin"] * img_height / 1000))
-            xmin = max(0, int(result["xmin"] * img_width / 1000))
-            ymax = min(img_height, int(result["ymax"] * img_height / 1000))
-            xmax = min(img_width, int(result["xmax"] * img_width / 1000))
+            ymin = max(0, int(ymin_raw * img_height / 1000))
+            xmin = max(0, int(xmin_raw * img_width / 1000))
+            ymax = min(img_height, int(ymax_raw * img_height / 1000))
+            xmax = min(img_width, int(xmax_raw * img_width / 1000))
 
             if (xmax - xmin) < 50 or (ymax - ymin) < 50:
                 logger.warning(f"Detected crop box for {os.path.basename(filepath)} is too small. Skipping crop.")
@@ -92,3 +78,4 @@ def autocrop_image_if_aadhar(filepath: str) -> None:
 
     except Exception as e:
         logger.error(f"Error during autocropping for {os.path.basename(filepath)}: {e}")
+

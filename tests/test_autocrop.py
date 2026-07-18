@@ -11,16 +11,12 @@ def test_autocrop_success(tmp_path):
     img = Image.new("RGB", (1000, 1000), color="white")
     img.save(img_path)
 
-    mock_response = MagicMock()
-    mock_response.choices = [
-        MagicMock(message=MagicMock(content='{"has_aadhar": true, "ymin": 100, "xmin": 100, "ymax": 900, "xmax": 900}'))
-    ]
+    mock_res = {"has_aadhar": True, "ymin": 100, "xmin": 100, "ymax": 900, "xmax": 900}
 
-    with patch("services.autocrop.OpenAI") as mock_openai, \
-         patch("services.autocrop.NVIDIA_NIM_API_KEY", "mock-key"):
-        mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-        mock_client.chat.completions.create.return_value = mock_response
+    with patch("services.autocrop.AIClient") as mock_aiclient:
+        mock_instance = MagicMock()
+        mock_aiclient.return_value = mock_instance
+        mock_instance.generate_json.return_value = mock_res
 
         autocrop_image_if_aadhar(img_path)
 
@@ -35,16 +31,12 @@ def test_autocrop_no_aadhar(tmp_path):
     img = Image.new("RGB", (1000, 1000), color="white")
     img.save(img_path)
 
-    mock_response = MagicMock()
-    mock_response.choices = [
-        MagicMock(message=MagicMock(content='{"has_aadhar": false, "ymin": 0, "xmin": 0, "ymax": 0, "xmax": 0}'))
-    ]
+    mock_res = {"has_aadhar": False, "ymin": 0, "xmin": 0, "ymax": 0, "xmax": 0}
 
-    with patch("services.autocrop.OpenAI") as mock_openai, \
-         patch("services.autocrop.NVIDIA_NIM_API_KEY", "mock-key"):
-        mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-        mock_client.chat.completions.create.return_value = mock_response
+    with patch("services.autocrop.AIClient") as mock_aiclient:
+        mock_instance = MagicMock()
+        mock_aiclient.return_value = mock_instance
+        mock_instance.generate_json.return_value = mock_res
 
         autocrop_image_if_aadhar(img_path)
 
