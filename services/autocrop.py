@@ -2,6 +2,8 @@ import os
 import json
 import logging
 import shutil
+from dataclasses import dataclass
+from typing import Optional, List, Tuple
 import cv2
 import numpy as np
 from PIL import Image
@@ -11,9 +13,126 @@ from utils.config import DEFAULT_GEMINI_API_KEYS
 logger = logging.getLogger("Autocrop")
 
 
-# ---------------------------------------------------------------------------
-# Method 1: Strict Contour Detection (fast, for clear-background images)
-# ---------------------------------------------------------------------------
+@dataclass
+class DocumentConfig:
+    target_aspect_ratio: float = 1.585
+    aspect_ratio_tolerance: float = 0.3
+    min_area_ratio: float = 0.15
+    max_area_ratio: float = 0.95
+    min_solidity: float = 0.70
+    min_convexity: float = 0.70
+    min_rectangularity: float = 0.70
+    edge_support_threshold: float = 0.30
+
+
+@dataclass
+class DocumentCandidate:
+    contour: np.ndarray
+    bounding_box: Tuple[int, int, int, int]  # (x, y, w, h)
+    approx_polygon: np.ndarray
+    is_quadrilateral: bool
+    aspect_ratio: float
+    solidity: float
+    convexity: float
+    rectangularity: float
+    edge_support: float
+    hierarchy_status: str  # "parent", "child", "independent"
+    score: float = 0.0
+    is_valid: bool = True
+    rejection_reason: str = ""
+
+
+
+def preprocess_image(img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    BGR -> Gray -> Gaussian Blur -> Canny Edges
+    """
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    v_median = np.median(blurred)
+    lower = int(max(0, 0.5 * v_median))
+    upper = int(min(255, 1.5 * v_median))
+    edges = cv2.Canny(blurred, lower, upper)
+    return blurred, edges
+
+
+def find_candidate_contours(img: np.ndarray, edges: np.ndarray) -> List[DocumentCandidate]:
+    """
+    Extracts contours, processes geometric features, builds tree hierarchy,
+    and returns a list of DocumentCandidate instances.
+    """
+    h_img, w_img = img.shape[:2]
+    img_area = h_img * w_img
+    candidates = []
+
+    for dilation_iter in [3, 5, 8]:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+        dilated = cv2.dilate(edges, kernel, iterations=dilation_iter)
+        dilated = cv2.morphologyEx(
+            dilated, cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)),
+        )
+
+        contours, hierarchy = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if contours is None or len(contours) == 0 or hierarchy is None:
+            continue
+
+        hierarchy = hierarchy[0]
+
+        for idx, c in enumerate(contours):
+            area = cv2.contourArea(c)
+            if area < 0.02 * img_area:
+                continue
+
+            x, y, w, h = cv2.boundingRect(c)
+            bbox_area = w * h
+            solidity = area / bbox_area if bbox_area > 0 else 0
+            aspect = max(w, h) / max(min(w, h), 1)
+
+            hull = cv2.convexHull(c)
+            hull_area = cv2.contourArea(hull)
+            convexity = area / hull_area if hull_area > 0 else 0
+
+            peri = cv2.arcLength(c, True)
+            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+            is_quad = (len(approx) == 4)
+
+            parent_idx = hierarchy[idx][3]
+            child_idx = hierarchy[idx][2]
+
+            status = "independent"
+            if parent_idx != -1:
+                p_area = cv2.contourArea(contours[parent_idx])
+                if p_area > area * 1.1:
+                    status = "child"
+            elif child_idx != -1:
+                status = "parent"
+
+            candidate = DocumentCandidate(
+                contour=c,
+                bounding_box=(x, y, w, h),
+                approx_polygon=approx,
+                is_quadrilateral=is_quad,
+                aspect_ratio=aspect,
+                solidity=solidity,
+                convexity=convexity,
+                rectangularity=solidity,
+                edge_support=0.0,
+                hierarchy_status=status
+            )
+            candidates.append(candidate)
+
+    # De-duplicate identical bounding boxes to prevent redundant checks
+    unique_candidates = []
+    seen_boxes = set()
+    for cand in candidates:
+        if cand.bounding_box not in seen_boxes:
+            seen_boxes.add(cand.bounding_box)
+            unique_candidates.append(cand)
+
+    unique_candidates.sort(key=lambda c: cv2.contourArea(c.contour), reverse=True)
+    return unique_candidates
+
 def _find_card_via_contour(img):
     """
     Finds the card via Canny edge detection + dilation + contour analysis.
