@@ -847,6 +847,7 @@ class SDDataExtractor:
             - `n_en` = UPPERCASE English transliteration of the person's name (e.g. 'VIVEK SAXENA').
             - `rn_en` = UPPERCASE English transliteration of the relative/father/husband name (e.g. 'J B SAXENA', 'ALHANNOOR').
             - `adr_en` = UPPERCASE English transliteration of the address (e.g. 'FLAT NO 101, FIRST FLOOR, BHAGWATI RAJ APARTMENTS, 9 DEVI NIKETAN COMPOUND, SARDAR PATEL ROAD, JAIPUR, 302001').
+        6. AADHAAR PAIRING RULE: Users upload Aadhaar cards as separate front and back files. If a back image does not print the Aadhaar number, you MUST visually and semantically pair it with its matching front image. Look at: 1) The father's/relative's name mentioned on the front vs the relation name (e.g. S/o, W/o) on the back. 2) Shared surnames or family names. 3) Filename proximity. Merge them into a single entry in 'unassigned_aadhars'.
         """
 
     def _build_legal_prompt(self):

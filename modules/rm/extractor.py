@@ -77,6 +77,180 @@ class RMDataExtractor:
         res = re.sub(pattern, '', res, flags=re.IGNORECASE).strip()
         return res
 
+    def extract_buckets_with_ai(self, buckets, selected_model, expected_borrowers=None, expected_loans=None,
+                                expected_witnesses=2, borrower_hints="", witness_hints="",
+                                current_data=None, **kwargs):
+        """Process each RM document bucket independently to ensure strict source isolation."""
+        if not self.api_keys:
+            return {"error": "Gemini API Keys Missing"}
+
+        target_bucket = kwargs.get("target_bucket")
+        merged_data = current_data or {}
+        session_extractions = {}
+        session_confidence = {}
+
+        # 1. KYC - Extract Aadhaar/PAN ONLY from 'kyc' files
+        if buckets.get("kyc") and len(buckets["kyc"]) > 0 and (not target_bucket or target_bucket == "kyc"):
+            kyc_prompt = self._build_kyc_prompt(expected_borrowers, expected_witnesses)
+            kyc_res = self._run_gemini_extraction(buckets["kyc"], selected_model, kyc_prompt)
+            if kyc_res and not kyc_res.get("error"):
+                merged_data["unassigned_aadhars"] = kyc_res.get("unassigned_aadhars", [])
+                if "extractions" in kyc_res:
+                    session_extractions.update(kyc_res["extractions"])
+                if "confidence_scores" in kyc_res:
+                    session_confidence.update(kyc_res["confidence_scores"])
+
+        # 2. Case Info (Legal/ATS/OCR) - Extract metadata from non-KYC documents
+        case_files = []
+        for b_name in ["legal", "ats", "ocr"]:
+            if buckets.get(b_name):
+                case_files.extend(buckets[b_name])
+                
+        if case_files and (not target_bucket or target_bucket in ("legal", "ats", "ocr")):
+            # Extract everything except unassigned_aadhars
+            case_prompt = self._build_case_prompt(
+                kwargs.get("bank_name", "") or bank_name, expected_borrowers, expected_loans, expected_witnesses,
+                borrower_hints, witness_hints, current_data
+            )
+            case_res = self._run_gemini_extraction(case_files, selected_model, case_prompt)
+            if case_res and not case_res.get("error"):
+                for k in ["bank", "borrower_count", "loan_count", "properties_count", "ad", "ls", "ps", "bsign", "second_schedule"]:
+                    if k in case_res:
+                        merged_data[k] = case_res[k]
+                if "extractions" in case_res:
+                    session_extractions.update(case_res["extractions"])
+                if "confidence_scores" in case_res:
+                    session_confidence.update(case_res["confidence_scores"])
+
+        # Add extractions & confidence_scores to final dict so callers get them
+        merged_data["extractions"] = session_extractions
+        merged_data["confidence_scores"] = session_confidence
+
+        return self._normalize_response(merged_data, expected_borrowers, expected_loans, expected_witnesses, borrower_hints, witness_hints)
+
+    def _run_gemini_extraction(self, file_paths, selected_model, prompt):
+        contents = []
+        from utils.helpers import select_relevant_pdf_pages, extract_pdf_pages_text
+        pdf_keywords = ["boundaries", "khasra", "plot", "flat", "covenant", "schedule", "witness", "loan", "amount", "borrower", "signatory", "interest", "emi", "tenure"]
+        
+        for path in file_paths:
+            ext = os.path.splitext(path)[1].lower()
+            mime_type, _ = mimetypes.guess_type(path)
+            filename = os.path.basename(path)
+            if ext == '.pdf':
+                selected_pages = select_relevant_pdf_pages(path, pdf_keywords)
+                if selected_pages:
+                    extracted_text = extract_pdf_pages_text(path, selected_pages)
+                    contents.append(types.Part.from_text(text=f"[Document: {filename} (Filtered Pages: {[p+1 for p in selected_pages]})]\n{extracted_text}"))
+                else:
+                    with open(path, 'rb') as f:
+                        raw = f.read()
+                    contents.append(types.Part.from_text(text=f"[PDF File: {filename}]"))
+                    contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+            elif ext in ['.jpg', '.jpeg', '.png']:
+                with open(path, 'rb') as f:
+                    raw = f.read()
+                contents.append(types.Part.from_text(text=f"[Image File: {filename}]"))
+                contents.append(types.Part.from_bytes(data=raw, mime_type=mime_type or 'application/octet-stream'))
+            elif ext == '.txt':
+                with open(path, 'r', encoding='utf-8') as f:
+                    contents.append(types.Part.from_text(text=f"[Text File: {filename}]\n{f.read()}"))
+
+        try:
+            final_contents = contents + [types.Part.from_text(text=prompt)]
+            raw_text = self.ai_client.generate_text(
+                contents=final_contents,
+                model=selected_model.replace("models/", "", 1) if selected_model else "gemini-2.5-flash"
+            )
+            match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(0))
+                return convert_hindi_digits_to_english(data)
+            return {"error": "AI returned non-JSON response", "raw": raw_text}
+        except Exception as e:
+            return {"error": f"Gemini AI Error: {str(e)}"}
+
+    def _build_kyc_prompt(self, expected_borrowers, expected_witnesses):
+        prompt = f"""
+        Extract identity details ONLY from uploaded KYC files (Aadhaar cards, PAN cards, Driving Licenses, etc.).
+        Return ONLY a JSON object with this exact structure:
+        {{
+          "unassigned_aadhars": [{{
+             "s": "Mr/Mrs/Ms",
+             "n": "Name",
+             "a": "Age",
+             "dob": "Date of Birth (DD/MM/YYYY or YYYY)",
+             "relation_text": "Complete Relation Phrase (e.g. 'S/o Mr. Vinod Malhotra')",
+             "adr": "Address (exact Aadhar print)",
+             "id": "Aadhar Number",
+             "pan": "PAN Card Number (if a PAN card is uploaded)",
+             "files": [{{"file": "exact filename", "type": "aadhar_front|aadhar_back|pan"}}]
+          }}]
+        }}
+        
+        RULES:
+        1. NO HALLUCINATION. If missing, use "".
+        2. SALUTATIONS: Separate salutations from names. Use 's' field for 'Mr./Ms./Mrs.' and DO NOT prefix the name in the 'n' field or relative name in the 'relation_text' field with any salutation. Use 'Mr.' (with one dot) for males, 'Mrs.' for females.
+        3. ADDRESS & RELATIONS: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
+        4. DOB & AGE: Extract the actual Date of Birth (DOB) as printed (e.g. '20/02/1993' or '1993' if only year is printed) into 'dob' field, and calculate numeric age as of 2026 from YOB/DOB into 'a' field (e.g. '33').
+        5. MANDATORY ENGLISH SCRIPT: You MUST use English script for ALL descriptive text including names ('n'), relations ('relation_text'), and addresses ('adr'). DO NOT USE HINDI/Devanagari script for these fields.
+        6. SOURCE ATTRIBUTION: Include a top-level JSON key "extractions" which is an object mapping each extracted key path (e.g. "unassigned_aadhars.0.n") to an object containing: "source_file" (string, the exact filename), "page_number" (integer, 1-indexed), "extracted_text" (string, exact raw text), and "bounding_box" (always null).
+        7. CONFIDENCE SCORES: Include a top-level JSON key "confidence_scores" which is an object mapping each extracted key path to: "score" (float 0.0-1.0) and "reason" (string or null).
+        8. AADHAAR PAIRING RULE: Users upload Aadhaar cards as separate front and back files. If a back image does not print the Aadhaar number, you MUST visually and semantically pair it with its matching front image. Look at: 1) The father's/relative's name mentioned on the front vs the relation name (e.g. S/o, W/o) on the back. 2) Shared surnames or family names. 3) Filename proximity. Merge them into a single entry in 'unassigned_aadhars'.
+        """
+        return prompt
+
+    def _build_case_prompt(self, bank_name, expected_borrowers, expected_loans, expected_witnesses, borrower_hints, witness_hints, current_data):
+        count_instruction = f"""
+        CASE: Bank:{bank_name or 'none'}, B:{expected_borrowers if expected_borrowers is not None else 'all'}, L:{expected_loans if expected_loans is not None else 'all'}, W:{expected_witnesses}.
+        Hints: B: {borrower_hints.strip() or 'none'}, W: {witness_hints.strip() or 'none'}
+        """
+        previously_identified_instruction = ""
+        if current_data:
+            clean_current = {}
+            for k in ['bs', 'ws', 'ls', 'ps']:
+                if k in current_data and current_data[k]:
+                    clean_current[k] = [{kk: vv for kk, vv in p.items() if vv} for p in current_data[k]]
+                    clean_current[k] = [p for p in clean_current[k] if p]
+            if 'bsign' in current_data and current_data['bsign']:
+                clean_current['bsign'] = {kk: vv for kk, vv in current_data['bsign'].items() if vv}
+            
+            if any(clean_current.values()):
+                previously_identified_instruction = f"""
+        EXISTING ROLES (Map new documents to these names):
+        {json.dumps(clean_current)}
+        """
+
+        prompt = """
+        Extract data for Registered Mortgage (RM) case documents (Sanction letter, Legal reports, Technical reports).
+        Return ONLY a JSON object.
+        """ + count_instruction + previously_identified_instruction + """
+        JSON STRUCTURE:
+        {{
+          "bank": "The name of the bank/mortgagee (e.g. 'ICICI Bank', 'Capri Global', 'Wood Capital') extracted from sanction letter or proposed mortgage deed statement in legal report",
+          "borrower_count": "Extracted integer number of borrowers",
+          "loan_count": "Extracted integer number of loans",
+          "properties_count": "Extracted integer number of properties",
+          "ad": "Loan Date (e.g. '15.04.2024')",
+          "ls": [{{"n":"LAN", "a":"Amount (digits)", "w":"Amount in words", "t":"Tenure (MUST be in Months, e.g. '180 Months')", "emi":"EMI Amount (digits, e.g. '96013')", "emi_w":"EMI Amount in words (e.g. 'Ninety Six Thousand Thirteen')", "r_rate":"Applicable interest rate as on date (percentage, e.g. '12.00%')"}}],
+          "ps": [{{"adr":"Property Address", "lease_deed_no":"Lease Deed Number", "n":"North", "s":"South", "e":"East", "w":"West", "lat":"Latitude from the location map of the technical report (e.g. '26.949441')", "lng":"Longitude from the location map of the technical report (e.g. '75.678939')"}}],
+          "bsign": {{"n":"Signatory Name"}},
+          "second_schedule": "Documents to be collected section."
+        }}
+
+        RULES:
+        1. NO HALLUCINATION. If missing, use "".
+        2. STRICTLY DO NOT extract "unassigned_aadhars", "bs", "ws" (witnesses), or detailed bank signatory details from these non-KYC documents.
+        3. PROPERTY ADDRESS SOURCES: The property address (ps[0].adr) and property details (such as boundaries, plot/flat number, lease deed number, etc.) MUST be extracted from the Legal Scrutiny Report (LSR) or Search Report if one is uploaded. If no Legal Report/Search Report is present in the uploaded files, you MUST extract the property address and details from the Technical Scrutiny Report (usually located on the 1st or 2nd page under '3. VISIT DETAILS' or similar section). Under NO circumstances should you extract the property address or details from the Sanction Letter, as the Sanction Letter often contains abbreviated, incorrect, or incomplete property addresses.
+        4. AUTHORISED SIGNATORY (bsign): Extract the bank officer's full name into 'bsign.n' if it is mentioned in the sanction letter.
+        5. SCHEDULE: For "second_schedule", extract all items that start with 'Original' or 'Endorsed copy' (including 'Original Proposed Registered sale deed' but excluding other proposed documents like proposed mortgage deed).
+        6. TENURE: Always in months.
+        7. MANDATORY ENGLISH SCRIPT: You MUST use English script for ALL descriptive text.
+        8. SOURCE ATTRIBUTION: Include a top-level JSON key "extractions" which is an object mapping each extracted key path to: "source_file", "page_number", "extracted_text", "bounding_box" (always null).
+        9. CONFIDENCE SCORES: Include a top-level JSON key "confidence_scores" which is an object mapping each extracted key path to: "score" and "reason".
+        """
+        return prompt
+
     def extract_with_ai(self, file_paths, selected_model, bank_name="", expected_borrowers=None,
                         expected_loans=None, expected_witnesses=2, borrower_hints="", witness_hints="",
                         current_data=None, **kwargs):
@@ -159,6 +333,10 @@ class RMDataExtractor:
         """ + count_instruction + previously_identified_instruction + """
         JSON STRUCTURE:
         {
+          "bank": "The name of the bank/mortgagee (e.g. 'ICICI Bank', 'Capri Global', 'Wood Capital') extracted from sanction letter or proposed mortgage deed statement in legal report",
+          "borrower_count": "Extracted integer number of borrowers",
+          "loan_count": "Extracted integer number of loans",
+          "properties_count": "Extracted integer number of properties",
           "ad": "Loan Date (e.g. '15.04.2024')",
           "bs": [{"s":"Mr./Ms./Mrs.", "n":"Name", "a":"Age", "dob":"Date of Birth as printed (e.g. '20/02/1993' or '1993')", "relation_text":"Complete Relation Phrase (e.g. 'S/o Mr. Vinod Malhotra')", "adr":"Address", "id":"Aadhar ID", "pan":"PAN Card No"}],
           "ls": [{"n":"LAN", "a":"Amount (digits)", "w":"Amount in words", "t":"Tenure (MUST be in Months, e.g. '180 Months')", "emi":"EMI Amount (digits, e.g. '96013')", "emi_w":"EMI Amount in words (e.g. 'Ninety Six Thousand Thirteen')", "r_rate":"Applicable interest rate as on date (percentage, e.g. '12.00%')"}],
@@ -173,13 +351,13 @@ class RMDataExtractor:
         1. NO HALLUCINATION. If missing, use "".
         2. COUNTS: "bs" exactly selected count. "ls" selected count. "ws" exactly 2.
         3. DATES & BOUNDARIES: Extract exactly as printed.
-        4. AADHAAR & PAN CARDS: Extract details from uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars'. For each card in this list, populate a 'files' array containing objects with 'file' (the exact filename from the '[Image/PDF/Text/Document File: filename]' headers) and 'type' (identifying if the file is 'aadhar_front', 'aadhar_back', or 'pan' based on visual contents; e.g. if you extract details from a front and back Aadhaar image and a PAN card, include three file objects). DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
-        4b. WITNESS OCR ISOLATION: STRICTLY DO NOT extract witness details (names, addresses, Aadhaar, relation data) into 'unassigned_aadhars' or any other OCR sections. If an Aadhaar card belongs to a witness, do not extract it or include it in 'unassigned_aadhars'.
+        4. AADHAAR & PAN CARDS: Extract details from ALL uploaded Aadhaar cards (including name, age, DOB, relation phrase, address, and ID) and PAN cards (including name and PAN number) EXCLUSIVELY into 'unassigned_aadhars' (whether they belong to borrowers, witnesses, or the bank signatory). For each card in this list, populate a 'files' array containing objects with 'file' (the exact filename from the '[Image/PDF/Text/Document File: filename]' headers) and 'type' (identifying if the file is 'aadhar_front', 'aadhar_back', or 'pan' based on visual contents; e.g. if you extract details from a front and back Aadhaar image and a PAN card, include three file objects). DO NOT map them directly to 'bs', 'ws', or 'bsign'. They will be mapped manually later.
+        4b. WITNESS OCR ISOLATION: For the primary borrowers, witnesses, and bank officers, extract their physical Aadhaar/PAN cards into 'unassigned_aadhars' as specified in Rule 4. STRICTLY DO NOT automatically pre-populate the 'ws' (witnesses) array with any details from witness cards; witness cards must only exist in 'unassigned_aadhars' to be manually mapped in the UI.
         5. DOB & AGE: Extract the actual Date of Birth (DOB) as printed (e.g. '20/02/1993' or '1993' if only year is printed) into 'dob' field, and calculate numeric age as of 2026 from YOB/DOB into 'a' field (e.g. '33').
         6. SALUTATIONS: Separate salutations from names. Use 's' field for 'Mr./Ms./Mrs.' and DO NOT prefix the name in the 'n' field or relative name in the 'relation_text' field with any salutation. Use 'Mr.' (with one dot) for males, 'Mrs.' for females.
         7. ADDRESS & RELATIONS: The first line on the back of an Aadhaar card is often the relation (e.g. S/o, C/o, W/o, D/o). YOU MUST SEPARATE THIS. Put the relation entirely in `relation_text` and only put the actual address in `adr`.
         7b. STRICT RELATION FORMATTING: ALWAYS format relations using exact English (e.g. 'S/o Mr. ...', 'W/o Mr. ...', 'D/o Mr. ...'). DO NOT leave them as 'Son of' or 'Wife of' in the extracted output.
-        8. AUTHORISED SIGNATORY (bsign): STRICTLY DO NOT extract, infer, or fill any bank signatory details from legal reports or sanction letters. ONLY extract if a physical ID card (Aadhaar or PAN) belonging to the bank signatory is present.
+        8. AUTHORISED SIGNATORY (bsign): Extract the bank officer's full name into 'bsign.n' if it is mentioned in the sanction letter. STRICTLY DO NOT extract or fill any other bank signatory details (like Aadhaar, PAN, address, age) from legal reports or sanction letters; those other details must only be extracted from their physical ID card (Aadhaar or PAN) into 'unassigned_aadhars' as specified in Rule 4.
         9. SCHEDULE: For "second_schedule", extract all items that start with 'Original' or 'Endorsed copy' (including 'Original Proposed Registered sale deed' but excluding other proposed documents like proposed mortgage deed).
         10. INCREMENTAL: Do not re-extract existing fields. Focus on new documents.
         11. TENURE: Always in months.
@@ -200,6 +378,25 @@ class RMDataExtractor:
             return {"error": "AI returned JSON, but it was not an object"}
 
         data["ad"] = format_date_with_dots(data.get("ad", ""))
+        
+        # Normalize auto-watcher metadata
+        data["bank"] = str(data.get("bank", "ICICI")).strip()
+        
+        try:
+            data["borrower_count"] = int(data.get("borrower_count", 1))
+        except Exception:
+            data["borrower_count"] = 1
+            
+        try:
+            data["loan_count"] = int(data.get("loan_count", 1))
+        except Exception:
+            data["loan_count"] = 1
+            
+        try:
+            data["properties_count"] = int(data.get("properties_count", 1))
+        except Exception:
+            data["properties_count"] = 1
+
         self._normalize_list(data, "bs", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan"])
         self._normalize_list(data, "ls", ["n", "a", "w", "t", "emi", "emi_w", "r_rate"])
         self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w", "lat", "lng"])
@@ -289,7 +486,9 @@ class RMDataExtractor:
 
         bsign = data.get("bsign", {})
         if not bsign.get("id") and not bsign.get("pan"):
-            bsign = {"n":"", "a":"", "dob":"", "r":"", "rn":"", "relation_text":"", "pan":"", "id":"", "adr":""}
+            # Preserve the bank officer's name extracted in the first pass
+            officer_name = bsign.get("n", "")
+            bsign = {"n": officer_name, "a":"", "dob":"", "r":"", "rn":"", "relation_text":"", "pan":"", "id":"", "adr":""}
         else:
             if bsign.get("relation_text"):
                 norm_rel = normalize_relation_prefix(bsign["relation_text"], "RM")
