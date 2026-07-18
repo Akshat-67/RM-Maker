@@ -1001,6 +1001,8 @@ class SDDataExtractor:
         """
 
     def _normalize_final_data(self, data, expected_sellers, expected_buyers, expected_witnesses):
+        # Call Aadhaar post-extraction merger fallback
+        data = self._merge_unpaired_aadhars(data)
         # Apply the same normalization as the legacy method
         self._normalize_list(data, "ss", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
         self._normalize_list(data, "bs", ["n", "n_en", "a", "dob", "c", "relation_text", "rn_en", "adr", "adr_en", "id", "pan"])
@@ -1297,6 +1299,74 @@ class SDDataExtractor:
 
         return data
 
+    def _merge_unpaired_aadhars(self, data):
+        uadhars = data.get("unassigned_aadhars", [])
+        if not isinstance(uadhars, list) or len(uadhars) <= 1:
+            return data
+        
+        fronts = [u for u in uadhars if any(f.get("type") == "aadhar_front" for f in u.get("files", []))]
+        backs = [u for u in uadhars if any(f.get("type") == "aadhar_back" for f in u.get("files", []))]
+        
+        def get_surname(item, primary_key, fallback_key):
+            name = item.get(primary_key, "") or item.get(fallback_key, "")
+            parts = str(name).strip().split()
+            return parts[-1].lower() if parts else ""
+
+        merged_backs = set()
+        for f_item in fronts:
+            f_surname_en = get_surname(f_item, "n_en", "")
+            f_surname_hi = get_surname(f_item, "n", "")
+            f_files = [f.get("file") for f in f_item.get("files", [])]
+            
+            best_back = None
+            for b_item in backs:
+                b_id = b_item.get("id")
+                if b_item in merged_backs:
+                    continue
+                # Don't pair if back card has a distinct name or ID that doesn't match front
+                if b_id and f_item.get("id") and b_id != f_item.get("id"):
+                    continue
+                    
+                b_rel_surname_en = get_surname(b_item, "rn_en", "")
+                b_rel_surname_hi = get_surname(b_item, "rn", "relation_text")
+                b_files = [f.get("file") for f in b_item.get("files", [])]
+                
+                # Match 1: Surnames match (either English or Hindi)
+                surnames_match = False
+                if f_surname_en and b_rel_surname_en and f_surname_en == b_rel_surname_en:
+                    surnames_match = True
+                elif f_surname_hi and b_rel_surname_hi and f_surname_hi in b_rel_surname_hi:
+                    surnames_match = True
+                
+                if surnames_match:
+                    best_back = b_item
+                    break
+                    
+                # Match 2: Alphabetic/Proximity match of filenames
+                if f_files and b_files:
+                    f_base = os.path.basename(f_files[0])
+                    b_base = os.path.basename(b_files[0])
+                    # Check if filenames are highly similar or adjacent in listing
+                    if len(os.path.commonprefix([f_base, b_base])) > 5:
+                        best_back = b_item
+                        break
+                        
+            if best_back:
+                merged_backs.add(best_back)
+                # Merge fields from back into front
+                for key in ["adr", "adr_en", "relation_text", "rn_en", "r", "rn"]:
+                    if not f_item.get(key) and best_back.get(key):
+                        f_item[key] = best_back[key]
+                # Merge files list
+                existing_files = {f.get("file") for f in f_item.get("files", [])}
+                for f_obj in best_back.get("files", []):
+                    if f_obj.get("file") not in existing_files:
+                        f_item["files"].append(f_obj)
+                        
+        # Filter out merged backs
+        filtered_uadhars = [u for u in uadhars if u not in merged_backs]
+        data["unassigned_aadhars"] = filtered_uadhars
+        return data
 
     def _normalize_list(self, data, key, fields):
         items = data.get(key)

@@ -402,6 +402,7 @@ class RMDataExtractor:
         self._normalize_list(data, "ps", ["adr", "lease_deed_no", "n", "s", "e", "w", "lat", "lng"])
         self._normalize_list(data, "ws", ["n", "r", "rn", "relation_text", "adr", "a", "dob", "id"])
         self._normalize_list(data, "unassigned_aadhars", ["s", "n", "a", "dob", "r", "rn", "relation_text", "adr", "id", "pan", "files"])
+        data = self._merge_unpaired_aadhars(data)
 
         if "bsign" in data and isinstance(data["bsign"], dict):
             bsign = data["bsign"]
@@ -576,6 +577,68 @@ class RMDataExtractor:
                 elif t_val.isdigit():
                     loan["t"] = f"{t_val} Months"
 
+        return data
+
+    def _merge_unpaired_aadhars(self, data):
+        uadhars = data.get("unassigned_aadhars", [])
+        if not isinstance(uadhars, list) or len(uadhars) <= 1:
+            return data
+        
+        fronts = [u for u in uadhars if any(f.get("type") == "aadhar_front" for f in u.get("files", []))]
+        backs = [u for u in uadhars if any(f.get("type") == "aadhar_back" for f in u.get("files", []))]
+        
+        def get_surname(name):
+            parts = str(name).strip().split()
+            return parts[-1].lower() if parts else ""
+
+        merged_backs = set()
+        for f_item in fronts:
+            f_name = f_item.get("n", "")
+            f_surname = get_surname(f_name)
+            f_files = [f.get("file") for f in f_item.get("files", [])]
+            
+            best_back = None
+            for b_item in backs:
+                b_id = b_item.get("id")
+                if b_item in merged_backs:
+                    continue
+                # Don't pair if back card has a distinct name or ID that doesn't match front
+                if b_id and f_item.get("id") and b_id != f_item.get("id"):
+                    continue
+                    
+                b_rel_name = b_item.get("rn", "") or b_item.get("relation_text", "")
+                b_rel_surname = get_surname(b_rel_name)
+                b_files = [f.get("file") for f in b_item.get("files", [])]
+                
+                # Match 1: Surnames match (e.g. Meena vs Meena)
+                if f_surname and b_rel_surname and f_surname == b_rel_surname:
+                    best_back = b_item
+                    break
+                    
+                # Match 2: Alphabetic/Proximity match of filenames
+                if f_files and b_files:
+                    f_base = os.path.basename(f_files[0])
+                    b_base = os.path.basename(b_files[0])
+                    # Check if filenames are highly similar or adjacent in listing
+                    if len(os.path.commonprefix([f_base, b_base])) > 5:
+                        best_back = b_item
+                        break
+                        
+            if best_back:
+                merged_backs.add(best_back)
+                # Merge fields from back into front
+                for key in ["adr", "relation_text", "r", "rn"]:
+                    if not f_item.get(key) and best_back.get(key):
+                        f_item[key] = best_back[key]
+                # Merge files list
+                existing_files = {f.get("file") for f in f_item.get("files", [])}
+                for f_obj in best_back.get("files", []):
+                    if f_obj.get("file") not in existing_files:
+                        f_item["files"].append(f_obj)
+                        
+        # Filter out merged backs
+        filtered_uadhars = [u for u in uadhars if u not in merged_backs]
+        data["unassigned_aadhars"] = filtered_uadhars
         return data
 
     def _normalize_person(self, person, fields):
