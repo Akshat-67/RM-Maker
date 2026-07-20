@@ -100,29 +100,32 @@ def scan_inbox_directory():
             # Trigger ingestion
             start_inbox_ingestion_thread(case_id)
         else:
-            # If the session exists, check if it needs to be upgraded to auto-extraction
+            # Case already exists — check for NEW files dropped into the folder since last scan.
             from services.session_manager import load_case_session
+            from services.ingestion_pipeline import start_incremental_ingestion_thread
             sess = load_case_session(case_id)
-            if sess and not sess.get("is_auto_extraction") and sess.get("status") not in ("processing", "extracting"):
-                logger.info(f"Auto-watcher detected existing case '{case_id}' upgraded to auto-extraction, starting pipeline")
-                
-                # Save updated session with is_auto_extraction=True
-                save_case_session(
-                    case_id=case_id,
-                    data=sess.get("data", {}),
-                    files=sess.get("files", []),
-                    verified_fields=set(sess.get("verified_fields", [])),
-                    bank=sess.get("bank", "ICICI"),
-                    borrower_count=sess.get("borrower_count", "1"),
-                    loan_count=sess.get("loan_count", "1"),
-                    properties_count=sess.get("properties_count", "1"),
-                    doc_type=sess.get("doc_type", "RM"),
-                    is_auto_extraction=True,
-                    case_inbox_path=sub_path,
-                    status="processing",
-                    case_name=sess.get("case_name") or d_clean,
-                    borrower_name=sess.get("borrower_name") or d_clean
+            if not sess:
+                continue
+
+            # Only poll when the case is idle (not mid-extraction or mid-processing)
+            if sess.get("status") in ("processing", "extracting"):
+                continue
+
+            # Gather current files on disk
+            allowed_ext = {'.pdf', '.docx', '.png', '.jpg', '.jpeg', '.txt'}
+            current_files = set()
+            for root, _, files in os.walk(sub_path):
+                for f in files:
+                    _, ext = os.path.splitext(f.lower())
+                    if ext in allowed_ext and not f.startswith("~$") and f != "session.json":
+                        current_files.add(os.path.join(root, f))
+
+            processed_files = set(sess.get("processed_files", []))
+            new_files = current_files - processed_files
+
+            if new_files:
+                logger.info(
+                    f"Auto-watcher found {len(new_files)} new file(s) in '{d}' — "
+                    f"triggering incremental ingestion for case '{case_id}'"
                 )
-                
-                # Trigger ingestion
-                start_inbox_ingestion_thread(case_id)
+                start_incremental_ingestion_thread(case_id, sorted(new_files))

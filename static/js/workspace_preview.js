@@ -21,12 +21,10 @@ function previewFileDirect(filename) {
     const iframe = document.getElementById('previewIframe');
     const img = document.getElementById('previewImg');
     const placeholder = document.getElementById('previewPlaceholder');
-    const editorControls = document.getElementById('imageEditorControls');
     
     iframe.style.display = 'none';
     img.style.display = 'none';
     placeholder.style.display = 'none';
-    if (editorControls) editorControls.style.display = 'none';
     
     const fileUrl = `/case/${CASE_ID}/file/${filename}`;
     const ext = filename.split('.').pop().toLowerCase();
@@ -36,7 +34,6 @@ function previewFileDirect(filename) {
     } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
         img.src = fileUrl;
         img.style.display = 'block';
-        if (editorControls) editorControls.style.display = 'flex';
         window.CURRENT_PREVIEW_FILE = filename;
     } else {
         placeholder.style.display = 'block';
@@ -804,199 +801,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 });
-
-
-let isCropping = false;
-let startX, startY, startWidth, startHeight, startLeft, startTop;
-let cropMode = null; // 'move' or 'resize'
-
-function toggleCropMode() {
-    const overlay = document.getElementById('previewCropOverlay');
-    const btnStart = document.getElementById('btnStartCrop');
-    const btnConfirm = document.getElementById('btnConfirmCrop');
-    const btnCancel = document.getElementById('btnCancelCrop');
-    const img = document.getElementById('previewImg');
-    
-    if (!overlay || !img) return;
-    
-    isCropping = !isCropping;
-    if (isCropping) {
-        overlay.style.display = 'block';
-        btnStart.style.display = 'none';
-        btnConfirm.style.display = 'inline-block';
-        btnCancel.style.display = 'inline-block';
-        
-        // Initialize crop box to 60% in center
-        const imgRect = img.getBoundingClientRect();
-        const parentRect = img.parentElement.getBoundingClientRect();
-        
-        const w = imgRect.width * 0.6;
-        const h = imgRect.height * 0.6;
-        const left = imgRect.left - parentRect.left + (imgRect.width - w) / 2;
-        const top = imgRect.top - parentRect.top + (imgRect.height - h) / 2;
-        
-        overlay.style.width = w + 'px';
-        overlay.style.height = h + 'px';
-        overlay.style.left = left + 'px';
-        overlay.style.top = top + 'px';
-        
-        setupCropEventListeners();
-    } else {
-        overlay.style.display = 'none';
-        btnStart.style.display = 'inline-block';
-        btnConfirm.style.display = 'none';
-        btnCancel.style.display = 'none';
-    }
-}
-
-function setupCropEventListeners() {
-    const overlay = document.getElementById('previewCropOverlay');
-    const handle = overlay.querySelector('div');
-    
-    overlay.onmousedown = (e) => {
-        if (e.target === handle) return;
-        e.preventDefault();
-        cropMode = 'move';
-        startX = e.clientX;
-        startY = e.clientY;
-        startLeft = parseInt(overlay.style.left, 10);
-        startTop = parseInt(overlay.style.top, 10);
-        
-        document.onmousemove = cropMouseMove;
-        document.onmouseup = cropMouseUp;
-    };
-    
-    handle.onmousedown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        cropMode = 'resize';
-        startX = e.clientX;
-        startY = e.clientY;
-        startWidth = parseInt(overlay.style.width, 10);
-        startHeight = parseInt(overlay.style.height, 10);
-        
-        document.onmousemove = cropMouseMove;
-        document.onmouseup = cropMouseUp;
-    };
-}
-
-function cropMouseMove(e) {
-    const overlay = document.getElementById('previewCropOverlay');
-    const img = document.getElementById('previewImg');
-    const imgRect = img.getBoundingClientRect();
-    const parentRect = img.parentElement.getBoundingClientRect();
-    
-    const minLeft = imgRect.left - parentRect.left;
-    const maxLeft = minLeft + imgRect.width;
-    const minTop = imgRect.top - parentRect.top;
-    const maxTop = minTop + imgRect.height;
-    
-    if (cropMode === 'move') {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        
-        let newLeft = startLeft + dx;
-        let newTop = startTop + dy;
-        const w = parseInt(overlay.style.width, 10);
-        const h = parseInt(overlay.style.height, 10);
-        
-        newLeft = Math.max(minLeft, Math.min(newLeft, maxLeft - w));
-        newTop = Math.max(minTop, Math.min(newTop, maxTop - h));
-        
-        overlay.style.left = newLeft + 'px';
-        overlay.style.top = newTop + 'px';
-    } else if (cropMode === 'resize') {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        
-        let newWidth = startWidth + dx;
-        let newHeight = startHeight + dy;
-        const left = parseInt(overlay.style.left, 10);
-        const top = parseInt(overlay.style.top, 10);
-        
-        newWidth = Math.max(50, Math.min(newWidth, maxLeft - left));
-        newHeight = Math.max(50, Math.min(newHeight, maxTop - top));
-        
-        overlay.style.width = newWidth + 'px';
-        overlay.style.height = newHeight + 'px';
-    }
-}
-
-function cropMouseUp() {
-    document.onmousemove = null;
-    document.onmouseup = null;
-    cropMode = null;
-}
-
-function rotateActiveImage(direction) {
-    if (!window.CURRENT_PREVIEW_FILE) return;
-    
-    fetch(`/case/${CASE_ID}/file/${window.CURRENT_PREVIEW_FILE}/rotate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction: direction })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            const img = document.getElementById('previewImg');
-            img.src = `/case/${CASE_ID}/file/${window.CURRENT_PREVIEW_FILE}?t=${Date.now()}`;
-        } else {
-            alert("Rotation failed: " + data.error);
-        }
-    });
-}
-
-function confirmActiveCrop() {
-    const overlay = document.getElementById('previewCropOverlay');
-    const img = document.getElementById('previewImg');
-    if (!overlay || !img || !window.CURRENT_PREVIEW_FILE) return;
-    
-    const overlayRect = overlay.getBoundingClientRect();
-    const imgRect = img.getBoundingClientRect();
-    
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
-    
-    const scaleX = naturalWidth / imgRect.width;
-    const scaleY = naturalHeight / imgRect.height;
-    
-    const relativeX = overlayRect.left - imgRect.left;
-    const relativeY = overlayRect.top - imgRect.top;
-    
-    const pixelX = Math.round(relativeX * scaleX);
-    const pixelY = Math.round(relativeY * scaleY);
-    const pixelW = Math.round(overlayRect.width * scaleX);
-    const pixelH = Math.round(overlayRect.height * scaleY);
-    
-    fetch(`/case/${CASE_ID}/file/${window.CURRENT_PREVIEW_FILE}/crop`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            x: pixelX,
-            y: pixelY,
-            w: pixelW,
-            h: pixelH
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            toggleCropMode();
-            const img = document.getElementById('previewImg');
-            img.src = `/case/${CASE_ID}/file/${window.CURRENT_PREVIEW_FILE}?t=${Date.now()}`;
-        } else {
-            alert("Cropping failed: " + data.error);
-        }
-    });
-}
-
-
-
-
-
-
-
-
 
 

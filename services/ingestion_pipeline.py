@@ -6,7 +6,7 @@ import threading
 import requests
 import numpy as np
 import cv2
-from PIL import Image, ImageOps
+from PIL import Image
 import pypdf
 
 from utils.config import NVIDIA_OCR_API_KEY, CASE_INBOX_DIR
@@ -24,6 +24,192 @@ def start_inbox_ingestion_thread(case_id):
     thread.daemon = True
     thread.start()
     logger.info(f"Spawned ingestion pipeline background thread for case: {case_id}")
+
+
+def start_incremental_ingestion_thread(case_id, new_files):
+    """Spawn a background thread to process only newly-added files for an existing case."""
+    thread = threading.Thread(target=run_incremental_ingestion, args=(case_id, new_files))
+    thread.daemon = True
+    thread.start()
+    logger.info(f"Spawned incremental ingestion thread for case: {case_id} ({len(new_files)} new file(s))")
+
+
+def run_incremental_ingestion(case_id, new_files):
+    """
+    Incrementally ingests new files dropped into an already-processed -EX folder.
+
+    Steps:
+    1. Classify each new file into the correct bucket.
+    2. Append new files to the session's file list and bucket lists.
+    3. Run AI extraction on ONLY the new files.
+    4. Smart-merge the new extraction into the existing session data.
+    5. Mark all new files as processed so the watcher won't re-trigger them.
+    """
+    session = load_case_session(case_id)
+    if not session:
+        logger.error(f"Incremental ingestion: session not found for case {case_id}")
+        return
+
+    # Guard: don't run if another pipeline is already active
+    if session.get("status") in ("processing", "extracting"):
+        logger.info(f"Incremental ingestion skipped for {case_id} — pipeline already running")
+        return
+
+    logger.info(f"Starting incremental ingestion for {case_id}: {[os.path.basename(f) for f in new_files]}")
+
+    case_inbox_path = session.get("case_inbox_path", "")
+
+    # --- Step 1: Classify new files into buckets ---
+    new_buckets = {"kyc": [], "legal": [], "ats": [], "title_chain": [], "ocr": []}
+    for filepath in new_files:
+        filename = os.path.basename(filepath)
+        base_name, _ = os.path.splitext(filename)
+        base_name_lower = base_name.lower().strip()
+
+        rel_dir = ""
+        if case_inbox_path:
+            rel_dir = os.path.dirname(
+                os.path.relpath(filepath, case_inbox_path)
+            ).replace("\\", "/").lower()
+
+        if "kyc" in rel_dir or "aadhar" in rel_dir or "pan" in rel_dir:
+            new_buckets["kyc"].append(filepath)
+        elif "legal" in rel_dir or "scrutiny" in rel_dir:
+            new_buckets["legal"].append(filepath)
+        elif "ats" in rel_dir or "sanction" in rel_dir:
+            new_buckets["ats"].append(filepath)
+        elif "title_chain" in rel_dir or "chain" in rel_dir:
+            new_buckets["title_chain"].append(filepath)
+        elif "ocr" in rel_dir or "tech" in rel_dir or "visit" in rel_dir or "valuation" in rel_dir:
+            new_buckets["ocr"].append(filepath)
+        elif re.match(r'^[\d,\-\s\(\)]+$', base_name_lower) or "aadhar" in base_name_lower or "pan" in base_name_lower:
+            new_buckets["kyc"].append(filepath)
+        elif base_name_lower in ("legal", "l") or "legal" in base_name_lower or "scrutiny" in base_name_lower:
+            new_buckets["legal"].append(filepath)
+        elif base_name_lower in ("sanction", "s") or re.match(r'^s\d+$', base_name_lower) or "sanction" in base_name_lower or "ats" in base_name_lower:
+            new_buckets["ats"].append(filepath)
+        elif base_name_lower in ("tech", "t") or "technical" in base_name_lower or "visit" in base_name_lower or "valuation" in base_name_lower:
+            new_buckets["ocr"].append(filepath)
+        else:
+            # Unrecognised — add to KYC as a safe fallback so it still gets sent to the AI
+            new_buckets["kyc"].append(filepath)
+
+    # --- Step 2: Merge new files into the session's existing lists ---
+    existing_files = session.get("files", [])
+    existing_buckets = session.get("buckets", {b: [] for b in new_buckets})
+    for bucket, files in new_buckets.items():
+        for f in files:
+            if f not in existing_files:
+                existing_files.append(f)
+            if f not in existing_buckets.get(bucket, []):
+                existing_buckets.setdefault(bucket, []).append(f)
+
+    session["files"] = existing_files
+    session["buckets"] = existing_buckets
+    session["status"] = "extracting"
+
+    save_case_session(
+        case_id=case_id,
+        data=session.get("data", {}),
+        files=existing_files,
+        verified_fields=set(session.get("verified_fields", [])),
+        bank=session.get("bank", "ICICI"),
+        borrower_count=session.get("borrower_count", "1"),
+        loan_count=session.get("loan_count", "1"),
+        doc_type=session.get("doc_type", "RM"),
+        status="extracting",
+        buckets=existing_buckets,
+    )
+
+    # --- Step 3: Run AI extraction on only the new files ---
+    try:
+        doc_type = session.get("doc_type", "RM")
+        current_data = session.get("data", {})
+        verified_fields = set(session.get("verified_fields", []))
+
+        from utils.config import DEFAULT_GEMINI_API_KEYS
+        from services.file_service import smart_merge
+
+        model = "gemini-2.5-flash"
+
+        if doc_type == "SD":
+            from modules.sd.extractor import SDDataExtractor
+            extractor = SDDataExtractor(api_keys=DEFAULT_GEMINI_API_KEYS)
+            extracted_data = extractor.extract_with_ai(
+                new_files, model,
+                expected_sellers=int(session.get("sellers_count", 1)),
+                expected_buyers=int(session.get("buyers_count", 1)),
+                expected_witnesses=2,
+                seller_hints="", buyer_hints="", witness_hints="",
+                current_data=current_data
+            )
+        else:
+            from modules.rm.extractor import RMDataExtractor
+            extractor = RMDataExtractor(api_keys=DEFAULT_GEMINI_API_KEYS)
+            extracted_data = extractor.extract_buckets_with_ai(
+                new_buckets, model,
+                bank_name=session.get("bank", "ICICI"),
+                expected_borrowers=int(session.get("borrower_count", 1)),
+                expected_loans=int(session.get("loan_count", 1)),
+                borrower_hints="", witness_hints="",
+                current_data=current_data
+            )
+
+        if extracted_data.get("error"):
+            raise RuntimeError(extracted_data["error"])
+
+        # --- Step 4: Smart-merge new extraction into existing data ---
+        merged_data = smart_merge(current_data, extracted_data, verified_fields)
+
+        # Update extractions and confidence metadata
+        session_extractions = session.get("extractions", {})
+        session_extractions.update(extracted_data.get("extractions", {}))
+        session_confidence = session.get("confidence_scores", {})
+        session_confidence.update(extracted_data.get("confidence_scores", {}))
+
+        # Normalise Hindi digits
+        from utils.helpers import convert_hindi_digits_to_english
+        merged_data = convert_hindi_digits_to_english(merged_data)
+
+        # --- Step 5: Mark new files as processed ---
+        processed_files = session.get("processed_files", [])
+        for f in new_files:
+            if f not in processed_files:
+                processed_files.append(f)
+
+        save_case_session(
+            case_id=case_id,
+            data=merged_data,
+            files=existing_files,
+            verified_fields=verified_fields,
+            bank=session.get("bank", "ICICI"),
+            borrower_count=session.get("borrower_count", "1"),
+            loan_count=session.get("loan_count", "1"),
+            doc_type=doc_type,
+            status="ready",
+            buckets=existing_buckets,
+            extractions=session_extractions,
+            confidence_scores=session_confidence,
+            processed_files=processed_files,
+        )
+        logger.info(f"Incremental ingestion complete for {case_id}: merged {len(new_files)} new file(s)")
+
+    except Exception as e:
+        logger.error(f"Incremental ingestion failed for {case_id}: {e}", exc_info=True)
+        session = load_case_session(case_id) or {}
+        save_case_session(
+            case_id=case_id,
+            data=session.get("data", {}),
+            files=session.get("files", []),
+            verified_fields=set(session.get("verified_fields", [])),
+            bank=session.get("bank", "ICICI"),
+            borrower_count=session.get("borrower_count", "1"),
+            loan_count=session.get("loan_count", "1"),
+            doc_type=session.get("doc_type", "RM"),
+            status="ready",  # go back to ready so the user can still work
+        )
+
+
 
 def run_ingestion_pipeline(case_id):
     """Main ingestion worker pipeline."""
@@ -106,18 +292,7 @@ def run_ingestion_pipeline(case_id):
                           doc_type=session.get("doc_type", "RM"),
                           buckets=buckets)
 
-        # Step 1: Auto-Rotate Images (local EXIF only — no cropping or API calls)
-        processed_files = []
-        for filepath in raw_files:
-            _, ext = os.path.splitext(filepath.lower())
-            if ext in ['.jpg', '.jpeg', '.png']:
-                try:
-                    auto_rotate_image(filepath)
-                    from services.autocrop import autocrop_image_if_aadhar
-                    autocrop_image_if_aadhar(filepath)
-                except Exception as e:
-                    logger.error(f"Auto rotate/crop failed for {os.path.basename(filepath)}: {e}")
-            processed_files.append(filepath)
+        # Files are accepted as-is; no automatic rotation or cropping is applied.
 
         # Save the updated files list (retaining original filenames) and mark as ready
         session = load_case_session(case_id) or session
@@ -147,15 +322,7 @@ def run_ingestion_pipeline(case_id):
                           session.get("borrower_count", "1"), session.get("loan_count", "1"),
                           doc_type=session.get("doc_type", "RM"))
 
-def auto_rotate_image(filepath):
-    """Locally auto-rotates (EXIF) a card image using orientation metadata."""
-    try:
-        img = Image.open(filepath)
-        transposed = ImageOps.exif_transpose(img)
-        transposed.save(filepath, quality=95)
-        logger.info(f"Auto-rotated image via EXIF: {os.path.basename(filepath)}")
-    except Exception as e:
-        logger.error(f"Auto rotate failed for {os.path.basename(filepath)}: {e}")
+
 
 def classify_file_type(filepath):
     """Classifies file type using text matching (local for PDFs, Nemotron OCR for images)."""

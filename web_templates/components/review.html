@@ -45,14 +45,6 @@
                 <div class="d-flex align-items-center" style="gap: 10px; min-width: 0; flex: 1;">
                     <strong class="text-secondary text-truncate" id="previewTitle" style="max-width: 250px;" title="Document Preview">Document Preview</strong>
                     
-                    <!-- Image Editor Controls -->
-                    <div id="imageEditorControls" style="display: none; gap: 6px; align-items: center; margin-left: 10px;">
-                        <button class="btn btn-outline-dark btn-xs fw-bold px-2 py-0.5 bg-white" style="font-size: 0.68rem;" onclick="rotateActiveImage('left')">↺ Left</button>
-                        <button class="btn btn-outline-dark btn-xs fw-bold px-2 py-0.5 bg-white" style="font-size: 0.68rem;" onclick="rotateActiveImage('right')">↻ Right</button>
-                        <button id="btnStartCrop" class="btn btn-outline-primary btn-xs fw-bold px-2 py-0.5 bg-white" style="font-size: 0.68rem;" onclick="toggleCropMode()">✂️ Crop</button>
-                        <button id="btnConfirmCrop" class="btn btn-success btn-xs fw-bold px-2 py-0.5" style="font-size: 0.68rem; display: none;" onclick="confirmActiveCrop()">✓ Save</button>
-                        <button id="btnCancelCrop" class="btn btn-danger btn-xs fw-bold px-2 py-0.5" style="font-size: 0.68rem; display: none;" onclick="toggleCropMode()">✕ Cancel</button>
-                    </div>
                 </div>
                 <div id="frontBackToggleContainer" style="display: none; gap: 6px;">
                     <button id="btnToggleFront" class="btn btn-outline-secondary btn-xs fw-bold px-2.5 py-1 bg-white" style="font-size: 0.68rem; display: none;" onclick="showGroupedFile('aadhar_front')">Front</button>
@@ -64,9 +56,6 @@
             <div style="position: relative; flex: 1; width: 100%; overflow: hidden;">
                 <iframe id="previewIframe" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none;"></iframe>
                 <img id="previewImg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; border: none; display: none;" alt="Preview image" />
-                <div id="previewCropOverlay" style="position: absolute; border: 2px dashed #0284c7; background-color: rgba(2, 132, 199, 0.15); display: none; cursor: move; z-index: 100;">
-                    <div style="position: absolute; width: 10px; height: 10px; background: #0284c7; bottom: -5px; right: -5px; cursor: se-resize; border-radius: 50%;"></div>
-                </div>
                 <div id="previewHighlightOverlay" style="position: absolute; border: 2px solid #eab308; background-color: rgba(234, 179, 8, 0.18); display: none; pointer-events: none; z-index: 5; border-radius: 4px; transition: all 0.2s ease;"></div>
                 <div id="previewPlaceholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #999;">
                     <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📂</span>
