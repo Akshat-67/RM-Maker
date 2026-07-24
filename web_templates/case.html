@@ -1225,7 +1225,7 @@
     }
 
     function startAIForBucket(bucket, btn, isRegenerate = false) {
-        const oldText = btn.textContent;
+        const oldHTML = btn.innerHTML;
         const statusMsg = document.getElementById('statusMsg');
         
         const checkboxes = Array.from(document.querySelectorAll(`.file-select-chk[data-bucket="${bucket}"]`));
@@ -1239,7 +1239,8 @@
         }
         
         btn.disabled = true;
-        btn.textContent = isRegenerate ? '⏳ Re-generating...' : '⏳ Extracting...';
+        const spinnerText = isRegenerate ? 'Re-generating...' : 'Extracting...';
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> ${spinnerText}`;
         if (statusMsg) statusMsg.textContent = isRegenerate ? `AI is re-generating narrative from ${bucket} documents...` : `AI is extracting details from ${bucket} documents...`;
 
         saveCase(() => {
@@ -1277,7 +1278,7 @@
             })
             .finally(() => {
                 btn.disabled = false;
-                btn.textContent = oldText;
+                btn.innerHTML = oldHTML;
             });
         });
     }
