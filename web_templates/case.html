@@ -980,6 +980,7 @@
 
     let _isSaving = false;
     let _pendingSave = null;
+    let _originalSaveBtnHtml = null;
 
     function saveCase(callback, _forceRevision) {
         if (typeof validationDebounceTimer !== 'undefined') {
@@ -994,6 +995,13 @@
             return;
         }
         _isSaving = true;
+
+        const saveBtn = document.querySelector('button[onclick="saveCase()"]');
+        if (saveBtn && !callback) {
+            _originalSaveBtnHtml = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...';
+            saveBtn.disabled = true;
+        }
 
         const data = collectFieldData();
         const verified = collectVerifiedFields();
@@ -1025,8 +1033,13 @@
         .then(r => ({ status: r.status, json: r.json() }))
         .then(({ status, json }) => json.then(resp => {
             _isSaving = false;
+            const saveBtn = document.querySelector('button[onclick="saveCase()"]');
             
             if (status === 409 || resp.error === 'revision_conflict') {
+                if (saveBtn && !callback && _originalSaveBtnHtml) {
+                    saveBtn.innerHTML = _originalSaveBtnHtml;
+                    saveBtn.disabled = false;
+                }
                 // Clear pending saves on conflict to prevent cascading popups
                 _pendingSave = null;
                 // Server has a newer revision – surface the conflict dialog
@@ -1040,11 +1053,10 @@
             if (callback) {
                 callback(resp);
             } else {
-                const btn = document.querySelector('button[onclick="saveCase()"]');
-                if (btn) {
-                    const oldText = btn.textContent;
-                    btn.textContent = '\u2705 Saved!';
-                    setTimeout(() => btn.textContent = oldText, 1500);
+                if (saveBtn && _originalSaveBtnHtml) {
+                    saveBtn.innerHTML = '\u2705 Saved!';
+                    saveBtn.disabled = false;
+                    setTimeout(() => saveBtn.innerHTML = _originalSaveBtnHtml, 1500);
                 }
             }
             
@@ -1065,6 +1077,11 @@
         .catch(e => {
             _isSaving = false;
             _pendingSave = null;
+            const saveBtn = document.querySelector('button[onclick="saveCase()"]');
+            if (saveBtn && !callback && _originalSaveBtnHtml) {
+                saveBtn.innerHTML = _originalSaveBtnHtml;
+                saveBtn.disabled = false;
+            }
             alert('Save failed: ' + e);
         });
     }
