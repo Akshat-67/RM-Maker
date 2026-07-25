@@ -245,6 +245,20 @@ MAPPING_PAIRS.sort(key=lambda x: len(x[0]), reverse=True)
 class DevLysToUnicodeConverter:
     _devanagari_regex = re.compile(r'[ऀ-ॿ]')
 
+    _common_english_regex = re.compile(
+        r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
+        re.IGNORECASE
+    )
+
+    _allowed_chars_regex = re.compile(r'^[A-Za-z0-9\s\.,\-\(\)\/\#\&\:\@]+$')
+    _punctuation_regex = re.compile(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$')
+    _devlys_specifics = ("Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k")
+    _common_lowercase_words = frozenset(["and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"])
+
+    _re_chhoti_reph = re.compile(r'Æ((?:[\u0900-\u097F]्)*[\u0900-\u097F])')
+    _re_chhoti_matra = re.compile(r'ि((?:[\u0900-\u097F]्)*[\u0900-\u097F])')
+    _re_reph = re.compile(r'((?:[\u0900-\u097F]्)*[\u0900-\u097F][\u093e-\u094d\u0902\u0903]*)Z')
+
     @staticmethod
     def is_likely_english(text):
         if not text or not text.strip():
@@ -257,15 +271,11 @@ class DevLysToUnicodeConverter:
             return False
 
         # If it doesn't match standard English/numeric/punctuation characters, it's not English
-        if not re.match(r'^[A-Za-z0-9\s\.,\-\(\)\/\#\&\:\@]+$', stripped):
+        if not DevLysToUnicodeConverter._allowed_chars_regex.match(stripped):
             return False
             
         # Common English terms in legal docs (case-insensitive)
-        common_english = re.compile(
-            r'\b(home|first|finance|company|india|limited|bank|loan|agreement|office|court|deed|sale|register|mortgage|borrower|lender|seller|buyer|witness|property|registration|number|date|tehsil|district|village|scheme|plot|area|amount|words|hypothecation|signature|total|rs|rupees|s\.?no|pan|aadhaar|uid|ifsc|sro|registrar|page|vol|book|no|name)\b',
-            re.IGNORECASE
-        )
-        if common_english.search(stripped):
+        if DevLysToUnicodeConverter._common_english_regex.search(stripped):
             return True
 
         # Check word-by-word
@@ -274,40 +284,33 @@ class DevLysToUnicodeConverter:
             return True
 
         # If there are specific DevLys substrings, it's not English
-        devlys_specifics = ["Jh", "fo;", "eukst", "o\"kZ", "fHkok", "iq=", "vk;q", "fuoklh", "izFkei{k", "f}rh;i{k"]
-        if any(x in stripped for x in devlys_specifics):
+        if any(x in stripped for x in DevLysToUnicodeConverter._devlys_specifics):
             return False
 
-        is_english_words = []
+        has_valid_words = False
         for w in words:
             # Clean punctuation from ends
-            w_clean = re.sub(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$', '', w)
+            w_clean = DevLysToUnicodeConverter._punctuation_regex.sub('', w)
             if not w_clean:
                 continue
+
+            has_valid_words = True
             if w_clean.isdigit():
-                is_english_words.append(True)
                 continue
             # If all uppercase (e.g. "S.NO", "PAN", "LAN", "IFSC")
             if w_clean.isupper():
-                is_english_words.append(True)
                 continue
             # If Capitalized (e.g. "Name", "Date")
             if w_clean[0].isupper() and w_clean[1:].islower() and len(w_clean) >= 3:
-                is_english_words.append(True)
                 continue
             # Common short lowercase English words
             if w_clean.islower() and len(w_clean) >= 3:
-                if w_clean in ["and", "the", "for", "o", "of", "to", "in", "on", "at", "by", "with", "from", "as", "is", "are", "was", "were", "be"]:
-                    is_english_words.append(True)
+                if w_clean in DevLysToUnicodeConverter._common_lowercase_words:
                     continue
             
-            is_english_words.append(False)
+            return False
 
-        # If all words look like English, it's English
-        if is_english_words and all(is_english_words):
-            return True
-
-        return False
+        return has_valid_words
 
     @staticmethod
     def devlys_to_unicode_text(text):
@@ -335,18 +338,18 @@ class DevLysToUnicodeConverter:
 
         # 2b. Translate Alt-code combination character 'Æ' (chhoti-i + reph)
         # Æ followed by a consonant cluster gets replaced with ि + cluster + Z
-        modified = re.sub(r'Æ((?:[\u0900-\u097F]्)*[\u0900-\u097F])', r'ि\1Z', modified)
+        modified = DevLysToUnicodeConverter._re_chhoti_reph.sub(r'ि\1Z', modified)
 
         # 3. Chhoti-i Matra (ि) Reordering
         # The 'ि' Matra needs to move past the complete consonant cluster.
         # Consonant cluster: (consonant + halant)* + consonant
         # Example: ि + स् + ् + त -> स् + त + ि
-        modified = re.sub(r'ि((?:[\u0900-\u097F]्)*[\u0900-\u097F])', r'\1ि', modified)
+        modified = DevLysToUnicodeConverter._re_chhoti_matra.sub(r'\1ि', modified)
 
         # 4. Reph (र्) Reordering
         # In DevLys, 'Z' is typed at the end of the cluster. In Unicode it becomes 'र्' before the cluster.
         # Example: क + ा + Z -> र् + क + ा
-        modified = re.sub(r'((?:[\u0900-\u097F]्)*[\u0900-\u097F][\u093e-\u094d\u0902\u0903]*)Z', r'र्\1', modified)
+        modified = DevLysToUnicodeConverter._re_reph.sub(r'र्\1', modified)
 
         # 5. Clean up duplicate halants or mapping edge cases
         modified = modified.replace("िि", "ि")
@@ -359,13 +362,14 @@ class DevLysToUnicodeConverter:
         """
         Contiguously merges runs in a paragraph that have identical formatting.
         """
-        if len(paragraph.runs) <= 1:
+        runs = paragraph.runs
+        if len(runs) <= 1:
             return
 
         i = 0
-        while i < len(paragraph.runs) - 1:
-            run1 = paragraph.runs[i]
-            run2 = paragraph.runs[i+1]
+        while i < len(runs) - 1:
+            run1 = runs[i]
+            run2 = runs[i+1]
             
             # Match formatting attributes
             r1_font = run1.font
@@ -384,6 +388,7 @@ class DevLysToUnicodeConverter:
                 run1.text = run1.text + run2.text
                 p_element = paragraph._p
                 p_element.remove(run2._r)
+                del runs[i+1]
             else:
                 i += 1
 
