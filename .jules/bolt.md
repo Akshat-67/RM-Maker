@@ -1,3 +1,6 @@
 ## 2025-06-19 - Regex Optimization for Devanagari detection
 **Learning:** Checking for Devanagari characters in Python using `any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text)` is much slower than using a compiled regex `re.compile(r'[ऀ-ॿ]').search(text)`.
 **Action:** When performing character range checks in strings, prefer compiled regex searches over python iteration logic to improve performance, especially on large texts.
+## 2024-07-27 - [Optimizing `python-docx` Paragraph Runs Iteration]
+**Learning:** In `python-docx`, the `paragraph.runs` property does not return a cached list, but reconstructs the list of `Run` objects from the underlying XML elements on every access. Iterating over `paragraph.runs` in a `while` loop (e.g., `while i < len(paragraph.runs) - 1:`) and accessing elements like `paragraph.runs[i]` causes O(N²) time complexity for large paragraphs because the entire run list is rebuilt repeatedly.
+**Action:** Always assign `paragraph.runs` to a local variable before iterating (e.g., `runs = paragraph.runs`). If runs are removed from the underlying XML elements during iteration, manually synchronize the local list (e.g., `del runs[i+1]`) to maintain consistency and avoid the O(N²) overhead.
