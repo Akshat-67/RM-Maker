@@ -146,7 +146,7 @@
                                 <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
                                 <option value="gemini-1.5-flash">gemini-1.5-flash</option>
                             </select>
-                            <button class="btn btn-outline-secondary" type="button" onclick="loadModels()">🔄</button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="loadModels()" aria-label="Reload AI Models" title="Reload AI Models">🔄</button>
                         </div>
                         {% if doc_type != 'SD' %}
                         <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm py-2.5" id="startAiBtn" onclick="startAI()">🤖 Start AI Automation</button>
