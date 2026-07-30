@@ -1,3 +1,3 @@
-## 2025-06-19 - Regex Optimization for Devanagari detection
-**Learning:** Checking for Devanagari characters in Python using `any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text)` is much slower than using a compiled regex `re.compile(r'[ऀ-ॿ]').search(text)`.
-**Action:** When performing character range checks in strings, prefer compiled regex searches over python iteration logic to improve performance, especially on large texts.
+## 2025-02-12 - Optimize text processing loops with Early Returns and Class-Level Definitions
+**Learning:** Detecting English words inside heavily-iterated loops like `is_likely_english` incurs severe performance penalties when using `re.compile()` and list accumulation (`is_english_words.append()`) followed by `all()`. Replacing `re.sub` for simple end-stripping with `.strip()` provides a massive speedup when the character set is known.
+**Action:** When optimizing hot-path Python loops, prioritize hoisting static regexes and lists (converting lists to `frozenset` for O(1) lookups) to the class or module level, replacing regexes with string methods when possible, and employing early-exit logic (`return False`) to avoid list allocation and O(N) evaluation.
