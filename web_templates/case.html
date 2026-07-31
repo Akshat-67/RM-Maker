@@ -1284,10 +1284,17 @@
 
 
 
-    function generateRM() {
+    function generateRM(btn) {
         const data = collectFieldData();
         const verified = collectVerifiedFields();
         const docType = document.getElementById('docTypeSelect').value;
+
+        let originalContent = '';
+        if (btn) {
+            btn.disabled = true;
+            originalContent = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+        }
 
         fetch(`/case/${CASE_ID}/generate`, {
             method: 'POST',
@@ -1319,7 +1326,13 @@
             a.click();
             window.URL.revokeObjectURL(url);
         })
-        .catch(e => alert('Generation failed: ' + e.message));
+        .catch(e => alert('Generation failed: ' + e.message))
+        .finally(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        });
     }
 
 </script>
