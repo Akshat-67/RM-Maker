@@ -359,13 +359,16 @@ class DevLysToUnicodeConverter:
         """
         Contiguously merges runs in a paragraph that have identical formatting.
         """
-        if len(paragraph.runs) <= 1:
+        # Cache paragraph.runs locally to avoid O(N^2) reconstruction from XML
+        # when accessing it inside the loop, especially for large paragraphs.
+        runs = paragraph.runs
+        if len(runs) <= 1:
             return
 
         i = 0
-        while i < len(paragraph.runs) - 1:
-            run1 = paragraph.runs[i]
-            run2 = paragraph.runs[i+1]
+        while i < len(runs) - 1:
+            run1 = runs[i]
+            run2 = runs[i+1]
             
             # Match formatting attributes
             r1_font = run1.font
@@ -384,6 +387,8 @@ class DevLysToUnicodeConverter:
                 run1.text = run1.text + run2.text
                 p_element = paragraph._p
                 p_element.remove(run2._r)
+                # Keep local runs cache synchronized with XML deletion
+                del runs[i+1]
             else:
                 i += 1
 
